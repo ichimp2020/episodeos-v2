@@ -112,7 +112,7 @@ export default function Scheduling() {
       return !unavailabilityData.some((u) =>
         u.teamMemberId === m.id &&
         u.studioDateId === studioDateId &&
-        (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
+        (slotLabel ? (u.slotLabel === slotLabel || u.slotLabel === null) : !u.slotLabel)
       );
     });
   };

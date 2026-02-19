@@ -94,7 +94,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       return !unavailabilityData.some((u) =>
         u.teamMemberId === m.id &&
         u.studioDateId === studioDateId &&
-        (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
+        (slotLabel ? (u.slotLabel === slotLabel || u.slotLabel === null) : !u.slotLabel)
       );
     });
   };
