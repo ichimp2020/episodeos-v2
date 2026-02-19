@@ -11,6 +11,7 @@ import { z } from "zod";
 import { createCalendarEvent } from "./google-calendar";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
+const updateTeamMemberSchema = insertTeamMemberSchema.partial();
 const updateEpisodeSchema = insertEpisodeSchema.partial();
 const updateTaskSchema = insertTaskSchema.partial();
 const updateStudioDateSchema = insertStudioDateSchema.partial();
@@ -35,6 +36,14 @@ export async function registerRoutes(
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const member = await storage.createTeamMember(parsed.data);
     res.status(201).json(member);
+  });
+
+  app.patch("/api/team-members/:id", async (req, res) => {
+    const parsed = updateTeamMemberSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const updated = await storage.updateTeamMember(req.params.id, parsed.data);
+    if (!updated) return res.status(404).json({ message: "Member not found" });
+    res.json(updated);
   });
 
   app.delete("/api/team-members/:id", async (req, res) => {

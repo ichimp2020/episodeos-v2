@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Upload, Trash2, CheckCircle, Clock, ExternalLink } from "lucide-react";
+import { Plus, Upload, Trash2, CheckCircle, Clock, ExternalLink, Pencil } from "lucide-react";
 import { SiSpotify, SiYoutube, SiApplemusic } from "react-icons/si";
 import type { Publishing, Episode } from "@shared/schema";
 import { format, parseISO } from "date-fns";
@@ -36,6 +36,8 @@ const statusColors: Record<string, string> = {
 
 export default function Publish() {
   const [showNewPublish, setShowNewPublish] = useState(false);
+  const [editingPublish, setEditingPublish] = useState<Publishing | null>(null);
+  const [editPubValues, setEditPubValues] = useState({ title: "", description: "", scheduledDate: "", scheduledTime: "", externalUrl: "", status: "" });
   const [newPublish, setNewPublish] = useState({
     episodeId: "", platform: "", scheduledDate: "", scheduledTime: "12:00", title: "", description: "",
   });
@@ -70,14 +72,27 @@ export default function Publish() {
     onError: () => toast({ title: "Failed to schedule", variant: "destructive" }),
   });
 
-  const updatePublishingStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await apiRequest("PATCH", `/api/publishing/${id}`, { status });
+  const updatePublishing = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await apiRequest("PATCH", `/api/publishing/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/publishing"] });
     },
+    onError: () => toast({ title: "Failed to update", variant: "destructive" }),
   });
+
+  const openEditPublish = (pub: Publishing) => {
+    setEditPubValues({
+      title: pub.title || "",
+      description: pub.description || "",
+      scheduledDate: pub.scheduledDate || "",
+      scheduledTime: pub.scheduledTime || "",
+      externalUrl: pub.externalUrl || "",
+      status: pub.status,
+    });
+    setEditingPublish(pub);
+  };
 
   const deletePublishing = useMutation({
     mutationFn: async (id: string) => {
@@ -193,8 +208,16 @@ export default function Publish() {
                           <div className="flex items-center gap-1">
                             <Button
                               variant="ghost"
+                              size="icon"
+                              onClick={() => openEditPublish(pub)}
+                              data-testid={`button-edit-publishing-${pub.id}`}
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              variant="ghost"
                               size="sm"
-                              onClick={() => updatePublishingStatus.mutate({ id: pub.id, status: "published" })}
+                              onClick={() => updatePublishing.mutate({ id: pub.id, data: { status: "published" } })}
                               data-testid={`button-mark-published-${pub.id}`}
                             >
                               <CheckCircle className="h-4 w-4 mr-1" />
@@ -255,6 +278,101 @@ export default function Publish() {
           )}
         </div>
       )}
+
+      <Dialog open={!!editingPublish} onOpenChange={(open) => { if (!open) setEditingPublish(null); }}>
+        <DialogContent className="max-w-lg">
+          {editingPublish && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Edit Release</DialogTitle>
+                <DialogDescription>Update publishing details</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Status</label>
+                  <Select value={editPubValues.status} onValueChange={(val) => setEditPubValues({ ...editPubValues, status: val })}>
+                    <SelectTrigger data-testid="select-edit-pub-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pubStatuses.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Title</label>
+                  <Input
+                    value={editPubValues.title}
+                    onChange={(e) => setEditPubValues({ ...editPubValues, title: e.target.value })}
+                    data-testid="input-edit-pub-title"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Description</label>
+                  <Textarea
+                    value={editPubValues.description}
+                    onChange={(e) => setEditPubValues({ ...editPubValues, description: e.target.value })}
+                    rows={3}
+                    data-testid="input-edit-pub-description"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Date</label>
+                    <Input
+                      type="date"
+                      value={editPubValues.scheduledDate}
+                      onChange={(e) => setEditPubValues({ ...editPubValues, scheduledDate: e.target.value })}
+                      data-testid="input-edit-pub-date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Time</label>
+                    <Input
+                      type="time"
+                      value={editPubValues.scheduledTime}
+                      onChange={(e) => setEditPubValues({ ...editPubValues, scheduledTime: e.target.value })}
+                      data-testid="input-edit-pub-time"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">External URL</label>
+                  <Input
+                    value={editPubValues.externalUrl}
+                    onChange={(e) => setEditPubValues({ ...editPubValues, externalUrl: e.target.value })}
+                    placeholder="Link to published episode"
+                    data-testid="input-edit-pub-url"
+                  />
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => {
+                    updatePublishing.mutate({
+                      id: editingPublish.id,
+                      data: {
+                        title: editPubValues.title || null,
+                        description: editPubValues.description || null,
+                        scheduledDate: editPubValues.scheduledDate || null,
+                        scheduledTime: editPubValues.scheduledTime || null,
+                        externalUrl: editPubValues.externalUrl || null,
+                        status: editPubValues.status,
+                      },
+                    });
+                    setEditingPublish(null);
+                  }}
+                  disabled={updatePublishing.isPending}
+                  data-testid="button-save-edit-publish"
+                >
+                  {updatePublishing.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showNewPublish} onOpenChange={setShowNewPublish}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">

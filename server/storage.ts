@@ -21,6 +21,7 @@ export interface IStorage {
   getTeamMembers(): Promise<TeamMember[]>;
   getTeamMember(id: string): Promise<TeamMember | undefined>;
   createTeamMember(member: InsertTeamMember): Promise<TeamMember>;
+  updateTeamMember(id: string, data: Partial<InsertTeamMember>): Promise<TeamMember | undefined>;
   deleteTeamMember(id: string): Promise<void>;
 
   getEpisodes(): Promise<Episode[]>;
@@ -92,6 +93,11 @@ export class DatabaseStorage implements IStorage {
   async createTeamMember(member: InsertTeamMember): Promise<TeamMember> {
     const [created] = await db.insert(teamMembers).values(member).returning();
     return created;
+  }
+
+  async updateTeamMember(id: string, data: Partial<InsertTeamMember>): Promise<TeamMember | undefined> {
+    const [updated] = await db.update(teamMembers).set(data).where(eq(teamMembers.id, id)).returning();
+    return updated;
   }
 
   async deleteTeamMember(id: string): Promise<void> {

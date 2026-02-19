@@ -62,6 +62,8 @@ export default function Episodes() {
   const [newTask, setNewTask] = useState({ title: "", assigneeId: "", dueDate: "" });
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ title: "", description: "", episodeNumber: "" });
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeId: "", dueDate: "" });
   const { toast } = useToast();
 
   const { data: episodes, isLoading } = useQuery<Episode[]>({
@@ -240,6 +242,16 @@ export default function Episodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
     },
+  });
+
+  const updateTask = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await apiRequest("PATCH", `/api/tasks/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+    },
+    onError: () => toast({ title: "Failed to update task", variant: "destructive" }),
   });
 
   const deleteTask = useMutation({
@@ -685,7 +697,72 @@ export default function Episodes() {
                       {episodeTasks(selectedEpisode.id).map((task) => {
                         const StatusIcon = taskStatusIcons[task.status] || Circle;
                         const assignee = getMember(task.assigneeId);
-                        return (
+                        const isEditingThis = editingTaskId === task.id;
+                        return isEditingThis ? (
+                          <div key={task.id} className="p-3 rounded-md bg-card space-y-3" data-testid={`card-task-edit-${task.id}`}>
+                            <div className="space-y-2">
+                              <Input
+                                value={editTaskValues.title}
+                                onChange={(e) => setEditTaskValues({ ...editTaskValues, title: e.target.value })}
+                                placeholder="Task title"
+                                autoFocus
+                                className="text-sm h-8"
+                                data-testid={`input-edit-task-title-${task.id}`}
+                              />
+                              <div className="flex gap-2">
+                                <Select
+                                  value={editTaskValues.assigneeId || "__none__"}
+                                  onValueChange={(val) => setEditTaskValues({ ...editTaskValues, assigneeId: val === "__none__" ? "" : val })}
+                                >
+                                  <SelectTrigger className="text-sm h-8 flex-1" data-testid={`select-edit-task-assignee-${task.id}`}>
+                                    <SelectValue placeholder="Assignee" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Unassigned</SelectItem>
+                                    {members?.map((m) => (
+                                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <Input
+                                  type="date"
+                                  value={editTaskValues.dueDate}
+                                  onChange={(e) => setEditTaskValues({ ...editTaskValues, dueDate: e.target.value })}
+                                  className="text-sm h-8 w-[140px]"
+                                  data-testid={`input-edit-task-date-${task.id}`}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingTaskId(null)}
+                                data-testid={`button-cancel-edit-task-${task.id}`}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  updateTask.mutate({
+                                    id: task.id,
+                                    data: {
+                                      title: editTaskValues.title,
+                                      assigneeId: editTaskValues.assigneeId || null,
+                                      dueDate: editTaskValues.dueDate || null,
+                                    },
+                                  });
+                                  setEditingTaskId(null);
+                                }}
+                                disabled={!editTaskValues.title}
+                                data-testid={`button-save-edit-task-${task.id}`}
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
                           <div
                             key={task.id}
                             className="flex items-center gap-3 p-3 rounded-md bg-card group"
@@ -706,7 +783,18 @@ export default function Episodes() {
                                 }`}
                               />
                             </button>
-                            <div className="flex-1 min-w-0">
+                            <div
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => {
+                                setEditTaskValues({
+                                  title: task.title,
+                                  assigneeId: task.assigneeId || "",
+                                  dueDate: task.dueDate || "",
+                                });
+                                setEditingTaskId(task.id);
+                              }}
+                              data-testid={`text-task-title-${task.id}`}
+                            >
                               <p className={`text-sm ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
                                 {task.title}
                               </p>
@@ -723,6 +811,18 @@ export default function Episodes() {
                                 </AvatarFallback>
                               </Avatar>
                             )}
+                            <Pencil
+                              className="h-3 w-3 text-muted-foreground/40 shrink-0 cursor-pointer"
+                              onClick={() => {
+                                setEditTaskValues({
+                                  title: task.title,
+                                  assigneeId: task.assigneeId || "",
+                                  dueDate: task.dueDate || "",
+                                });
+                                setEditingTaskId(task.id);
+                              }}
+                              data-testid={`button-edit-task-${task.id}`}
+                            />
                             <Button
                               variant="ghost"
                               size="icon"

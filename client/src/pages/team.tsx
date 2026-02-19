@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Users, Trash2 } from "lucide-react";
+import { Plus, Users, Trash2, Pencil, Phone, Mail, Briefcase, Check, X } from "lucide-react";
 import type { TeamMember, Task } from "@shared/schema";
 
 const COLORS = [
@@ -34,7 +35,10 @@ function getInitials(name: string) {
 
 export default function Team() {
   const [showAddMember, setShowAddMember] = useState(false);
-  const [newMember, setNewMember] = useState({ name: "", role: "" });
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({ name: "", role: "", phone: "", email: "", responsibilities: "" });
+  const [newMember, setNewMember] = useState({ name: "", role: "", phone: "", email: "", responsibilities: "" });
   const { toast } = useToast();
 
   const { data: members, isLoading } = useQuery<TeamMember[]>({
@@ -52,15 +56,29 @@ export default function Team() {
         role: newMember.role,
         color: COLORS[colorIndex],
         initials: getInitials(newMember.name),
+        phone: newMember.phone || null,
+        email: newMember.email || null,
+        responsibilities: newMember.responsibilities || null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
       setShowAddMember(false);
-      setNewMember({ name: "", role: "" });
+      setNewMember({ name: "", role: "", phone: "", email: "", responsibilities: "" });
       toast({ title: "Team member added" });
     },
     onError: () => toast({ title: "Failed to add member", variant: "destructive" }),
+  });
+
+  const updateMember = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      const res = await apiRequest("PATCH", `/api/team-members/${id}`, data);
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
+    },
+    onError: () => toast({ title: "Failed to update member", variant: "destructive" }),
   });
 
   const deleteMember = useMutation({
@@ -69,9 +87,36 @@ export default function Team() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
+      setSelectedMember(null);
       toast({ title: "Team member removed" });
     },
   });
+
+  const startEditing = (field: string) => {
+    if (!selectedMember) return;
+    setEditValues({
+      name: selectedMember.name,
+      role: selectedMember.role,
+      phone: selectedMember.phone || "",
+      email: selectedMember.email || "",
+      responsibilities: selectedMember.responsibilities || "",
+    });
+    setEditingField(field);
+  };
+
+  const saveField = (field: string) => {
+    if (!selectedMember) return;
+    const value = editValues[field as keyof typeof editValues];
+    const data: Record<string, unknown> = { [field]: value || null };
+    if (field === "name") {
+      data.initials = getInitials(value);
+    }
+    updateMember.mutate({ id: selectedMember.id, data });
+    setSelectedMember({ ...selectedMember, ...data } as TeamMember);
+    setEditingField(null);
+  };
+
+  const cancelEditing = () => setEditingField(null);
 
   if (isLoading) {
     return (
@@ -116,7 +161,12 @@ export default function Team() {
             const openTasks = memberTasks.filter((t) => t.status !== "done");
             const doneTasks = memberTasks.filter((t) => t.status === "done");
             return (
-              <Card key={member.id} data-testid={`card-member-${member.id}`}>
+              <Card
+                key={member.id}
+                className="cursor-pointer hover-elevate"
+                onClick={() => setSelectedMember(member)}
+                data-testid={`card-member-${member.id}`}
+              >
                 <CardContent className="pt-5 pb-4 px-5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
@@ -133,16 +183,25 @@ export default function Team() {
                         <p className="text-xs text-muted-foreground">{member.role}</p>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deleteMember.mutate(member.id)}
-                      data-testid={`button-delete-member-${member.id}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </Button>
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-1" />
                   </div>
-                  <div className="flex items-center gap-2 mt-4 flex-wrap">
+                  {(member.phone || member.email) && (
+                    <div className="mt-3 space-y-1">
+                      {member.phone && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          <span>{member.phone}</span>
+                        </div>
+                      )}
+                      {member.email && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
                     <Badge variant="secondary" size="sm">
                       {openTasks.length} open
                     </Badge>
@@ -170,6 +229,141 @@ export default function Team() {
         </div>
       )}
 
+      <Dialog open={!!selectedMember} onOpenChange={(open) => { if (!open) { setSelectedMember(null); setEditingField(null); } }}>
+        <DialogContent className="max-w-md">
+          {selectedMember && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3 mb-1">
+                  <Avatar className="h-12 w-12">
+                    <AvatarFallback
+                      className="text-base font-medium text-white"
+                      style={{ backgroundColor: selectedMember.color }}
+                    >
+                      {selectedMember.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    {editingField === "name" ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={editValues.name}
+                          onChange={(e) => setEditValues({ ...editValues, name: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveField("name"); if (e.key === "Escape") cancelEditing(); }}
+                          autoFocus
+                          className="text-base font-semibold h-8"
+                          data-testid="input-edit-member-name"
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveField("name")} data-testid="button-save-member-name">
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEditing}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <DialogTitle
+                        className="cursor-pointer flex items-center gap-1.5 group"
+                        onClick={() => startEditing("name")}
+                        data-testid="text-member-detail-name"
+                      >
+                        {selectedMember.name}
+                        <Pencil className="h-3 w-3 text-muted-foreground/50" />
+                      </DialogTitle>
+                    )}
+                    {editingField === "role" ? (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Input
+                          value={editValues.role}
+                          onChange={(e) => setEditValues({ ...editValues, role: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveField("role"); if (e.key === "Escape") cancelEditing(); }}
+                          autoFocus
+                          className="text-sm h-7"
+                          data-testid="input-edit-member-role"
+                        />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveField("role")} data-testid="button-save-member-role">
+                          <Check className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={cancelEditing}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <DialogDescription
+                        className="cursor-pointer flex items-center gap-1.5 group text-sm"
+                        onClick={() => startEditing("role")}
+                        data-testid="text-member-detail-role"
+                      >
+                        {selectedMember.role}
+                        <Pencil className="h-3 w-3 text-muted-foreground/50" />
+                      </DialogDescription>
+                    )}
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-4 mt-2">
+                <EditableField
+                  icon={<Phone className="h-4 w-4 text-muted-foreground" />}
+                  label="Phone"
+                  value={selectedMember.phone || ""}
+                  placeholder="Add phone number"
+                  isEditing={editingField === "phone"}
+                  editValue={editValues.phone}
+                  onStartEdit={() => startEditing("phone")}
+                  onSave={() => saveField("phone")}
+                  onCancel={cancelEditing}
+                  onChange={(v) => setEditValues({ ...editValues, phone: v })}
+                  testId="phone"
+                />
+
+                <EditableField
+                  icon={<Mail className="h-4 w-4 text-muted-foreground" />}
+                  label="Email"
+                  value={selectedMember.email || ""}
+                  placeholder="Add email address"
+                  isEditing={editingField === "email"}
+                  editValue={editValues.email}
+                  onStartEdit={() => startEditing("email")}
+                  onSave={() => saveField("email")}
+                  onCancel={cancelEditing}
+                  onChange={(v) => setEditValues({ ...editValues, email: v })}
+                  testId="email"
+                />
+
+                <EditableField
+                  icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
+                  label="Responsibilities"
+                  value={selectedMember.responsibilities || ""}
+                  placeholder="Add responsibilities"
+                  isEditing={editingField === "responsibilities"}
+                  editValue={editValues.responsibilities}
+                  onStartEdit={() => startEditing("responsibilities")}
+                  onSave={() => saveField("responsibilities")}
+                  onCancel={cancelEditing}
+                  onChange={(v) => setEditValues({ ...editValues, responsibilities: v })}
+                  multiline
+                  testId="responsibilities"
+                />
+
+                <div className="pt-2 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive w-full"
+                    onClick={() => deleteMember.mutate(selectedMember.id)}
+                    data-testid="button-delete-member"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    Remove Team Member
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
         <DialogContent>
           <DialogHeader>
@@ -195,6 +389,34 @@ export default function Team() {
                 data-testid="input-member-role"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                value={newMember.phone}
+                onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })}
+                placeholder="Phone number"
+                data-testid="input-member-phone"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                value={newMember.email}
+                onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
+                placeholder="Email address"
+                data-testid="input-member-email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Responsibilities</label>
+              <Textarea
+                value={newMember.responsibilities}
+                onChange={(e) => setNewMember({ ...newMember, responsibilities: e.target.value })}
+                placeholder="What they're responsible for"
+                rows={2}
+                data-testid="input-member-responsibilities"
+              />
+            </div>
             <Button
               className="w-full"
               onClick={() => createMember.mutate()}
@@ -206,6 +428,90 @@ export default function Team() {
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function EditableField({
+  icon,
+  label,
+  value,
+  placeholder,
+  isEditing,
+  editValue,
+  onStartEdit,
+  onSave,
+  onCancel,
+  onChange,
+  multiline,
+  testId,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  placeholder: string;
+  isEditing: boolean;
+  editValue: string;
+  onStartEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onChange: (v: string) => void;
+  multiline?: boolean;
+  testId: string;
+}) {
+  if (isEditing) {
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2">
+          {icon}
+          <label className="text-sm font-medium">{label}</label>
+        </div>
+        <div className="flex items-start gap-1">
+          {multiline ? (
+            <Textarea
+              value={editValue}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+              autoFocus
+              rows={2}
+              className="text-sm"
+              data-testid={`input-edit-member-${testId}`}
+            />
+          ) : (
+            <Input
+              value={editValue}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") onSave(); if (e.key === "Escape") onCancel(); }}
+              autoFocus
+              className="text-sm h-8"
+              data-testid={`input-edit-member-${testId}`}
+            />
+          )}
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={onSave} data-testid={`button-save-member-${testId}`}>
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={onCancel}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-start gap-3 p-3 rounded-md bg-card cursor-pointer group"
+      onClick={onStartEdit}
+      data-testid={`field-member-${testId}`}
+    >
+      <div className="mt-0.5">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className={`text-sm ${value ? "" : "text-muted-foreground/50 italic"}`}>
+          {value || placeholder}
+        </p>
+      </div>
+      <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0 mt-1" />
     </div>
   );
 }

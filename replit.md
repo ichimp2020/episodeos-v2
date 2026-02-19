@@ -16,7 +16,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 4. **Studio Calendar** - Calendar view of studio availability dates that can be added/removed/toggled (available ↔ taken)
 
 ## Data Model
-- `teamMembers` - name, role, color, initials
+- `teamMembers` - name, role, color, initials, phone, email, responsibilities
 - `episodes` - title, description, status, scheduledDate, episodeNumber
 - `tasks` - episodeId, assigneeId, title, status, dueDate
 - `studioDates` - date, status (available/taken), notes, bookedSlot, participantEmails (JSON)
@@ -28,7 +28,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - **Object Storage** - Replit's built-in object storage for file uploads. Presigned URL upload flow. Module at `server/replit_integrations/object_storage/`.
 
 ## API Endpoints
-- `GET/POST /api/team-members`, `DELETE /api/team-members/:id`
+- `GET/POST /api/team-members`, `PATCH/DELETE /api/team-members/:id`
 - `GET/POST /api/episodes`, `PATCH/DELETE /api/episodes/:id`
 - `GET/POST /api/tasks`, `PATCH/DELETE /api/tasks/:id`
 - `GET/POST /api/studio-dates`, `PATCH/DELETE /api/studio-dates/:id`
