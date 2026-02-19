@@ -602,7 +602,7 @@ export default function Episodes() {
                         <span className="text-muted-foreground font-mono text-sm">#{selectedEpisode.episodeNumber}</span>
                       )}
                       {selectedEpisode.title}
-                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                      <Pencil className="h-3 w-3 text-muted-foreground/50" />
                     </DialogTitle>
                   )}
 
@@ -633,7 +633,7 @@ export default function Episodes() {
                       data-testid="text-episode-description"
                     >
                       {selectedEpisode.description || "No description — click to add"}
-                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
+                      <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                     </DialogDescription>
                   )}
                 </div>
