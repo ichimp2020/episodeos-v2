@@ -142,6 +142,7 @@ const he: TranslationKeys = {
     studioAvailability: "זמינות סטודיו",
     noAvailableDates: "אין תאריכי סטודיו זמינים",
     selected: "נבחר",
+    selectHourSlot: "בחר שעה",
     statusSetToConfirmed: "הסטטוס הוגדר כמאושר",
     delete: "מחק",
     saveChanges: "שמור שינויים",

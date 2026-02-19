@@ -140,6 +140,7 @@ const en = {
     studioAvailability: "Studio Availability",
     noAvailableDates: "No available studio dates",
     selected: "Selected",
+    selectHourSlot: "Select hour slot",
     statusSetToConfirmed: "Status set to confirmed",
     delete: "Delete",
     saveChanges: "Save Changes",

@@ -14,12 +14,50 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check } from "lucide-react";
+import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
 import type { Guest, TeamMember, StudioDate } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
+
+interface TimeSlot {
+  start: string;
+  end: string;
+  label: string;
+}
+
+function parseTimeSlots(notes: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
 
 interface GuestEditDialogProps {
   guest: Guest | null;
@@ -34,6 +72,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   });
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -58,7 +97,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
         status: editForm.status,
         links: editForm.links.filter((l) => l.trim() !== ""),
       });
-      if (selectedDate && editForm.status === "confirmed") {
+      if (selectedDate && editForm.status === "confirmed" && isDateFullySelected) {
         const selectedStudioDate = availableDates.find((d) => d.date === selectedDate);
         await apiRequest("POST", "/api/interviews", {
           guestId: guest.id,
@@ -67,9 +106,21 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
           status: "confirmed",
         });
         if (selectedStudioDate) {
-          await apiRequest("PATCH", `/api/studio-dates/${selectedStudioDate.id}`, {
-            status: "taken",
-          });
+          const patchData: Record<string, unknown> = {};
+          if (selectedSlot) {
+            patchData.bookedSlot = selectedSlot.label;
+            const allSlots = selectedStudioDate.notes ? parseTimeSlots(selectedStudioDate.notes) : [];
+            const remainingSlots = allSlots.filter((s) => s.label !== selectedSlot.label);
+            if (remainingSlots.length === 0) {
+              patchData.status = "taken";
+            } else {
+              const remainingNotes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+              patchData.notes = remainingNotes;
+            }
+          } else {
+            patchData.status = "taken";
+          }
+          await apiRequest("PATCH", `/api/studio-dates/${selectedStudioDate.id}`, patchData);
         }
       }
     },
@@ -78,8 +129,8 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       onOpenChange(false);
-      const msg = selectedDate && editForm.status === "confirmed"
-        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}`
+      const msg = selectedDate && editForm.status === "confirmed" && isDateFullySelected
+        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`
         : "Guest updated";
       toast({ title: msg });
     },
@@ -111,6 +162,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       });
       setShowCalendar(false);
       setSelectedDate(null);
+      setSelectedSlot(null);
     }
     onOpenChange(isOpen);
   };
@@ -130,9 +182,26 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   };
 
   const handleSelectDate = (date: string) => {
-    setSelectedDate(date);
+    const studioDate = availableDates.find((d) => d.date === date);
+    const slots = studioDate?.notes ? parseTimeSlots(studioDate.notes) : [];
+    if (slots.length > 0) {
+      setSelectedDate(date);
+      setSelectedSlot(null);
+    } else {
+      setSelectedDate(date);
+      setSelectedSlot(null);
+      setEditForm({ ...editForm, status: "confirmed" });
+    }
+  };
+
+  const handleSelectSlot = (slot: TimeSlot) => {
+    setSelectedSlot(slot);
     setEditForm({ ...editForm, status: "confirmed" });
   };
+
+  const selectedDateObj = selectedDate ? availableDates.find((d) => d.date === selectedDate) : null;
+  const availableSlots = selectedDateObj?.notes ? parseTimeSlots(selectedDateObj.notes) : [];
+  const isDateFullySelected = selectedDate && (availableSlots.length === 0 || selectedSlot !== null);
 
   const getMemberName = (id: string | null) => {
     if (!id) return null;
@@ -192,41 +261,74 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   {availableDates.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-3">{t.guests.noAvailableDates}</p>
                   ) : (
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {availableDates.map((d) => (
-                        <button
-                          key={d.id}
-                          className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-                            selectedDate === d.date
-                              ? "bg-primary/10 ring-1 ring-primary/30"
-                              : "hover:bg-muted/50"
-                          }`}
-                          onClick={() => handleSelectDate(d.date)}
-                          data-testid={`button-pick-date-${d.id}`}
-                        >
-                          <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
-                            <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">
-                              {format(parseISO(d.date), "MMM")}
-                            </span>
-                            <span className="text-xs font-bold text-chart-2 leading-tight">
-                              {format(parseISO(d.date), "d")}
-                            </span>
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {availableDates.map((d) => {
+                        const slots = d.notes ? parseTimeSlots(d.notes) : [];
+                        const isExpanded = selectedDate === d.date && slots.length > 0;
+                        return (
+                          <div key={d.id}>
+                            <button
+                              className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                                selectedDate === d.date
+                                  ? "bg-primary/10 ring-1 ring-primary/30"
+                                  : "hover:bg-muted/50"
+                              }`}
+                              onClick={() => handleSelectDate(d.date)}
+                              data-testid={`button-pick-date-${d.id}`}
+                            >
+                              <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                                <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">
+                                  {format(parseISO(d.date), "MMM")}
+                                </span>
+                                <span className="text-xs font-bold text-chart-2 leading-tight">
+                                  {format(parseISO(d.date), "d")}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
+                                {d.notes && <p className="text-[11px] text-muted-foreground truncate">{d.notes}</p>}
+                              </div>
+                              {selectedDate === d.date && slots.length === 0 && (
+                                <Check className="h-4 w-4 text-primary shrink-0" />
+                              )}
+                            </button>
+                            {isExpanded && (
+                              <div className="ml-12 mt-1 mb-2 space-y-1" data-testid="panel-hour-slots">
+                                <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mb-1.5">
+                                  <Clock className="h-3 w-3" />
+                                  {t.guests.selectHourSlot}
+                                </p>
+                                <div className="grid grid-cols-2 gap-1">
+                                  {slots.map((slot) => (
+                                    <button
+                                      key={slot.label}
+                                      className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                        selectedSlot?.label === slot.label
+                                          ? "bg-primary text-primary-foreground shadow-sm"
+                                          : "bg-muted/50 hover:bg-muted text-foreground"
+                                      }`}
+                                      onClick={() => handleSelectSlot(slot)}
+                                      data-testid={`button-pick-slot-${slot.start}`}
+                                    >
+                                      <Clock className="h-3 w-3" />
+                                      {slot.label}
+                                      {selectedSlot?.label === slot.label && (
+                                        <Check className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
-                            {d.notes && <p className="text-[11px] text-muted-foreground truncate">{d.notes}</p>}
-                          </div>
-                          {selectedDate === d.date && (
-                            <Check className="h-4 w-4 text-primary shrink-0" />
-                          )}
-                        </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
-                  {selectedDate && (
+                  {isDateFullySelected && (
                     <div className="pt-1">
                       <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
-                        {t.guests.selected}: {format(parseISO(selectedDate), "MMM d, yyyy")} — {t.guests.statusSetToConfirmed}
+                        {t.guests.selected}: {format(parseISO(selectedDate!), "MMM d, yyyy")}{selectedSlot ? ` (${selectedSlot.label})` : ""} — {t.guests.statusSetToConfirmed}
                       </Badge>
                     </div>
                   )}
