@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,8 +22,8 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate } from "@shared/schema";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image } from "lucide-react";
+import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -657,6 +657,10 @@ export default function Episodes() {
                   )}
                 </div>
 
+                <EpisodeFilesSection episodeId={selectedEpisode.id} />
+
+                <EpisodeShortsSection episodeId={selectedEpisode.id} />
+
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="ghost"
@@ -725,6 +729,380 @@ export default function Episodes() {
               </Dialog>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+const fileCategoryIcons: Record<string, typeof FileText> = {
+  graphic: Image,
+  thumbnail: Image,
+  document: FileText,
+  video: Film,
+};
+
+function getFileCategory(contentType: string | null | undefined, name: string): string {
+  if (!contentType) {
+    const ext = name.split(".").pop()?.toLowerCase();
+    if (ext && ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "graphic";
+    if (ext && ["mp4", "mov", "avi", "webm"].includes(ext)) return "video";
+    return "document";
+  }
+  if (contentType.startsWith("image/")) return "graphic";
+  if (contentType.startsWith("video/")) return "video";
+  return "document";
+}
+
+function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
+  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("document");
+
+  const { data: files, isLoading } = useQuery<EpisodeFile[]>({
+    queryKey: ["/api/episodes", episodeId, "files"],
+    queryFn: async () => {
+      const res = await fetch(`/api/episodes/${episodeId}/files`);
+      if (!res.ok) throw new Error("Failed to fetch files");
+      return res.json();
+    },
+  });
+
+  const deleteFile = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/episode-files/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "files"] });
+      toast({ title: "File removed" });
+    },
+  });
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const urlRes = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+
+      const category = selectedCategory === "auto" ? getFileCategory(file.type, file.name) : selectedCategory;
+      await apiRequest("POST", `/api/episodes/${episodeId}/files`, {
+        name: file.name,
+        category,
+        objectPath,
+        contentType: file.type,
+        size: file.size,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "files"] });
+      toast({ title: "File uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  }, [episodeId, selectedCategory, toast]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium">Files & Documents</h3>
+        <div className="flex items-center gap-2">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-[120px]" data-testid="select-file-category">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="graphic">Graphic</SelectItem>
+              <SelectItem value="thumbnail">Thumbnail</SelectItem>
+              <SelectItem value="document">Document</SelectItem>
+              <SelectItem value="auto">Auto-detect</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="ghost" size="sm" disabled={isUploading} asChild data-testid="button-upload-file">
+            <label className="cursor-pointer">
+              {isUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
+              Upload
+              <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
+            </label>
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : !files || files.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">No files yet. Upload graphics, thumbnails, or documents.</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {files.map((file) => {
+            const FileIcon = fileCategoryIcons[file.category] || FileText;
+            return (
+              <div
+                key={file.id}
+                className="flex items-center gap-3 p-2.5 rounded-md bg-card group"
+                data-testid={`card-file-${file.id}`}
+              >
+                <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm truncate">{file.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">{file.category}</Badge>
+                    {file.size && <span className="text-xs text-muted-foreground">{formatFileSize(file.size)}</span>}
+                  </div>
+                </div>
+                <a
+                  href={file.objectPath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0"
+                  data-testid={`link-download-file-${file.id}`}
+                >
+                  <Button variant="ghost" size="icon">
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
+                </a>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="opacity-0 group-hover:opacity-100 shrink-0"
+                  onClick={() => deleteFile.mutate(file.id)}
+                  data-testid={`button-delete-file-${file.id}`}
+                >
+                  <Trash2 className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const shortStatusColors: Record<string, string> = {
+  pending: "bg-chart-4/10 text-chart-4 border-transparent",
+  approved: "bg-chart-2/10 text-chart-2 border-transparent",
+  rejected: "bg-destructive/10 text-destructive border-transparent",
+};
+
+function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
+  const { toast } = useToast();
+  const [showAddShort, setShowAddShort] = useState(false);
+  const [newShortTitle, setNewShortTitle] = useState("");
+  const [isUploadingShort, setIsUploadingShort] = useState(false);
+
+  const { data: shorts, isLoading } = useQuery<EpisodeShort[]>({
+    queryKey: ["/api/episodes", episodeId, "shorts"],
+    queryFn: async () => {
+      const res = await fetch(`/api/episodes/${episodeId}/shorts`);
+      if (!res.ok) throw new Error("Failed to fetch shorts");
+      return res.json();
+    },
+  });
+
+  const createShort = useMutation({
+    mutationFn: async ({ title, objectPath }: { title: string; objectPath?: string }) => {
+      await apiRequest("POST", `/api/episodes/${episodeId}/shorts`, {
+        title,
+        objectPath: objectPath || null,
+        status: "pending",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "shorts"] });
+      setShowAddShort(false);
+      setNewShortTitle("");
+      toast({ title: "Short added" });
+    },
+    onError: () => toast({ title: "Failed to add short", variant: "destructive" }),
+  });
+
+  const updateShortStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      await apiRequest("PATCH", `/api/episode-shorts/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "shorts"] });
+    },
+  });
+
+  const deleteShort = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/episode-shorts/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "shorts"] });
+      toast({ title: "Short removed" });
+    },
+  });
+
+  const handleShortUpload = useCallback(async (shortId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingShort(true);
+    try {
+      const urlRes = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
+      });
+      if (!urlRes.ok) throw new Error("Failed to get upload URL");
+      const { uploadURL, objectPath } = await urlRes.json();
+
+      await fetch(uploadURL, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+      });
+
+      await apiRequest("PATCH", `/api/episode-shorts/${shortId}`, { objectPath });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "shorts"] });
+      toast({ title: "Video uploaded" });
+    } catch {
+      toast({ title: "Upload failed", variant: "destructive" });
+    } finally {
+      setIsUploadingShort(false);
+      e.target.value = "";
+    }
+  }, [episodeId, toast]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium">Shorts (CEO Approval)</h3>
+        <Button variant="ghost" size="sm" onClick={() => setShowAddShort(true)} data-testid="button-add-short">
+          <Plus className="h-3 w-3 mr-1" />
+          Add Short
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : !shorts || shorts.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">No shorts yet. Add up to 3 short videos for CEO approval.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {shorts.map((short) => (
+            <div
+              key={short.id}
+              className="flex items-center gap-3 p-3 rounded-md bg-card group"
+              data-testid={`card-short-${short.id}`}
+            >
+              <Film className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm">{short.title}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <Badge variant="secondary" className={`text-xs ${shortStatusColors[short.status]}`}>
+                    {short.status}
+                  </Badge>
+                  {short.objectPath ? (
+                    <a
+                      href={short.objectPath}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary underline"
+                      data-testid={`link-view-short-${short.id}`}
+                    >
+                      View video
+                    </a>
+                  ) : (
+                    <label className="text-xs text-primary cursor-pointer underline" data-testid={`button-upload-short-video-${short.id}`}>
+                      {isUploadingShort ? "Uploading..." : "Upload video"}
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => handleShortUpload(short.id, e)}
+                        disabled={isUploadingShort}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => updateShortStatus.mutate({ id: short.id, status: "approved" })}
+                  disabled={short.status === "approved"}
+                  data-testid={`button-approve-short-${short.id}`}
+                >
+                  <ThumbsUp className={`h-3.5 w-3.5 ${short.status === "approved" ? "text-chart-2" : "text-muted-foreground"}`} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => updateShortStatus.mutate({ id: short.id, status: "rejected" })}
+                  disabled={short.status === "rejected"}
+                  data-testid={`button-reject-short-${short.id}`}
+                >
+                  <ThumbsDown className={`h-3.5 w-3.5 ${short.status === "rejected" ? "text-destructive" : "text-muted-foreground"}`} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="opacity-0 group-hover:opacity-100"
+                  onClick={() => deleteShort.mutate(short.id)}
+                  data-testid={`button-delete-short-${short.id}`}
+                >
+                  <Trash2 className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showAddShort} onOpenChange={setShowAddShort}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Short Video</DialogTitle>
+            <DialogDescription>Add a short video clip for CEO approval</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title</label>
+              <Input
+                value={newShortTitle}
+                onChange={(e) => setNewShortTitle(e.target.value)}
+                placeholder="e.g. Highlight clip #1"
+                data-testid="input-short-title"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => createShort.mutate({ title: newShortTitle })}
+              disabled={!newShortTitle || createShort.isPending}
+              data-testid="button-submit-short"
+            >
+              {createShort.isPending ? "Adding..." : "Add Short"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

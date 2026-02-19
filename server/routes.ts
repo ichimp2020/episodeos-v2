@@ -5,13 +5,16 @@ import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
+  insertEpisodeFileSchema, insertEpisodeShortSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { createCalendarEvent } from "./google-calendar";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 
 const updateEpisodeSchema = insertEpisodeSchema.partial();
 const updateTaskSchema = insertTaskSchema.partial();
 const updateStudioDateSchema = insertStudioDateSchema.partial();
+const updateEpisodeShortSchema = insertEpisodeShortSchema.partial();
 const updateGuestSchema = insertGuestSchema.partial();
 const updateInterviewSchema = insertInterviewSchema.partial();
 const updatePublishingSchema = insertPublishingSchema.partial();
@@ -302,6 +305,52 @@ export async function registerRoutes(
       console.error("Google Calendar event creation failed:", err.message);
       res.status(500).json({ message: "Failed to create calendar event: " + err.message });
     }
+  });
+
+  registerObjectStorageRoutes(app);
+
+  app.get("/api/episodes/:episodeId/files", async (req, res) => {
+    const files = await storage.getEpisodeFiles(req.params.episodeId);
+    res.json(files);
+  });
+
+  app.post("/api/episodes/:episodeId/files", async (req, res) => {
+    const data = { ...req.body, episodeId: req.params.episodeId };
+    const parsed = insertEpisodeFileSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const file = await storage.createEpisodeFile(parsed.data);
+    res.status(201).json(file);
+  });
+
+  app.delete("/api/episode-files/:id", async (req, res) => {
+    await storage.deleteEpisodeFile(req.params.id);
+    res.status(204).send();
+  });
+
+  app.get("/api/episodes/:episodeId/shorts", async (req, res) => {
+    const shorts = await storage.getEpisodeShorts(req.params.episodeId);
+    res.json(shorts);
+  });
+
+  app.post("/api/episodes/:episodeId/shorts", async (req, res) => {
+    const data = { ...req.body, episodeId: req.params.episodeId };
+    const parsed = insertEpisodeShortSchema.safeParse(data);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const short = await storage.createEpisodeShort(parsed.data);
+    res.status(201).json(short);
+  });
+
+  app.patch("/api/episode-shorts/:id", async (req, res) => {
+    const parsed = updateEpisodeShortSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const updated = await storage.updateEpisodeShort(req.params.id, parsed.data);
+    if (!updated) return res.status(404).json({ message: "Short not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/episode-shorts/:id", async (req, res) => {
+    await storage.deleteEpisodeShort(req.params.id);
+    res.status(204).send();
   });
 
   return httpServer;

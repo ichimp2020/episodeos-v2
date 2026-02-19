@@ -8,8 +8,11 @@ import {
   type InterviewParticipant, type InsertInterviewParticipant,
   type Publishing, type InsertPublishing,
   type Reminder, type InsertReminder,
+  type EpisodeFile, type InsertEpisodeFile,
+  type EpisodeShort, type InsertEpisodeShort,
   teamMembers, episodes, tasks, studioDates,
   guests, interviews, interviewParticipants, publishing, reminders,
+  episodeFiles, episodeShorts,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lte, and } from "drizzle-orm";
@@ -65,6 +68,15 @@ export interface IStorage {
   createReminder(reminder: InsertReminder): Promise<Reminder>;
   updateReminder(id: string, data: Partial<InsertReminder>): Promise<Reminder | undefined>;
   deleteReminder(id: string): Promise<void>;
+
+  getEpisodeFiles(episodeId: string): Promise<EpisodeFile[]>;
+  createEpisodeFile(file: InsertEpisodeFile): Promise<EpisodeFile>;
+  deleteEpisodeFile(id: string): Promise<void>;
+
+  getEpisodeShorts(episodeId: string): Promise<EpisodeShort[]>;
+  createEpisodeShort(short: InsertEpisodeShort): Promise<EpisodeShort>;
+  updateEpisodeShort(id: string, data: Partial<InsertEpisodeShort>): Promise<EpisodeShort | undefined>;
+  deleteEpisodeShort(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -262,6 +274,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteReminder(id: string): Promise<void> {
     await db.delete(reminders).where(eq(reminders.id, id));
+  }
+
+  async getEpisodeFiles(episodeId: string): Promise<EpisodeFile[]> {
+    return db.select().from(episodeFiles).where(eq(episodeFiles.episodeId, episodeId));
+  }
+
+  async createEpisodeFile(file: InsertEpisodeFile): Promise<EpisodeFile> {
+    const [created] = await db.insert(episodeFiles).values(file).returning();
+    return created;
+  }
+
+  async deleteEpisodeFile(id: string): Promise<void> {
+    await db.delete(episodeFiles).where(eq(episodeFiles.id, id));
+  }
+
+  async getEpisodeShorts(episodeId: string): Promise<EpisodeShort[]> {
+    return db.select().from(episodeShorts).where(eq(episodeShorts.episodeId, episodeId));
+  }
+
+  async createEpisodeShort(short: InsertEpisodeShort): Promise<EpisodeShort> {
+    const [created] = await db.insert(episodeShorts).values(short).returning();
+    return created;
+  }
+
+  async updateEpisodeShort(id: string, data: Partial<InsertEpisodeShort>): Promise<EpisodeShort | undefined> {
+    const [updated] = await db.update(episodeShorts).set(data).where(eq(episodeShorts.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEpisodeShort(id: string): Promise<void> {
+    await db.delete(episodeShorts).where(eq(episodeShorts.id, id));
   }
 }
 
