@@ -48,7 +48,12 @@ export default function Dashboard() {
 
   const isLoading = loadingEpisodes || loadingTasks || loadingMembers || loadingStudio;
 
-  const activeEpisodes = episodes?.filter((e) => e.status !== "published") || [];
+  const activeEpisodes = episodes?.filter((e) => e.status !== "published")
+    .sort((a, b) => {
+      if (!a.scheduledDate) return 1;
+      if (!b.scheduledDate) return -1;
+      return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
+    }) || [];
   const upcomingDates = studioDates
     ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()))
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())

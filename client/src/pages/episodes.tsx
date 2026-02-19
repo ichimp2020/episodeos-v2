@@ -323,7 +323,11 @@ export default function Episodes() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {episodes.map((episode) => {
+          {[...episodes].sort((a, b) => {
+            if (!a.scheduledDate) return 1;
+            if (!b.scheduledDate) return -1;
+            return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
+          }).map((episode) => {
             const eTasks = episodeTasks(episode.id);
             const done = eTasks.filter((t) => t.status === "done").length;
             return (

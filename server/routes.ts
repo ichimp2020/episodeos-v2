@@ -213,8 +213,35 @@ export async function registerRoutes(
   app.patch("/api/interviews/:id", async (req, res) => {
     const parsed = updateInterviewSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const existing = await storage.getInterview(req.params.id);
+    if (!existing) return res.status(404).json({ message: "Interview not found" });
+
     const updated = await storage.updateInterview(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Interview not found" });
+
+    if (parsed.data.status === "confirmed" && existing.status !== "confirmed") {
+      const existingEpisodes = await storage.getEpisodes();
+      const alreadyLinked = existingEpisodes.some((e) => e.interviewId === req.params.id);
+      if (!alreadyLinked) {
+        const guest = updated.guestId ? await storage.getGuest(updated.guestId) : null;
+        const guestName = guest?.name || "Guest";
+        const maxEpNum = existingEpisodes.reduce((max, e) => Math.max(max, e.episodeNumber || 0), 0);
+        await storage.createEpisode({
+          title: guestName,
+          description: `Interview with ${guestName}`,
+          status: "scheduled",
+          scheduledDate: updated.scheduledDate || null,
+          scheduledTime: updated.scheduledTime || null,
+          episodeNumber: maxEpNum + 1,
+          interviewId: req.params.id,
+          recordingLink: null,
+          timestampsJson: null,
+          aiStatus: null,
+        });
+      }
+    }
+
     res.json(updated);
   });
 

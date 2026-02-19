@@ -100,6 +100,7 @@ export default function Scheduling() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
     },
   });
 
@@ -109,6 +110,7 @@ export default function Scheduling() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       setIsEditing(false);
       toast({ title: "Interview updated" });
     },
