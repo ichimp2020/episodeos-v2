@@ -7,6 +7,7 @@ import {
   insertPublishingSchema, insertReminderSchema,
 } from "@shared/schema";
 import { z } from "zod";
+import { createCalendarEvent } from "./google-calendar";
 
 const updateEpisodeSchema = insertEpisodeSchema.partial();
 const updateTaskSchema = insertTaskSchema.partial();
@@ -280,6 +281,27 @@ export async function registerRoutes(
   app.delete("/api/reminders/:id", async (req, res) => {
     await storage.deleteReminder(req.params.id);
     res.status(204).send();
+  });
+
+  const calendarEventSchema = z.object({
+    date: z.string(),
+    startTime: z.string(),
+    endTime: z.string(),
+    summary: z.string(),
+    description: z.string().optional(),
+    attendeeEmails: z.array(z.string().email()),
+  });
+
+  app.post("/api/calendar-event", async (req, res) => {
+    const parsed = calendarEventSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    try {
+      const event = await createCalendarEvent(parsed.data);
+      res.status(201).json({ id: event.id, htmlLink: event.htmlLink, status: event.status });
+    } catch (err: any) {
+      console.error("Google Calendar event creation failed:", err.message);
+      res.status(500).json({ message: "Failed to create calendar event: " + err.message });
+    }
   });
 
   return httpServer;
