@@ -19,13 +19,17 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `teamMembers` - name, role, color, initials
 - `episodes` - title, description, status, scheduledDate, episodeNumber
 - `tasks` - episodeId, assigneeId, title, status, dueDate
-- `studioDates` - date, status (available/taken), notes
+- `studioDates` - date, status (available/taken), notes, bookedSlot, participantEmails (JSON)
+
+## Integrations
+- **Google Calendar** - Connected via Replit connector. Creates calendar events with attendees when studio slots are booked. Client module at `server/google-calendar.ts`.
 
 ## API Endpoints
 - `GET/POST /api/team-members`, `DELETE /api/team-members/:id`
 - `GET/POST /api/episodes`, `PATCH/DELETE /api/episodes/:id`
 - `GET/POST /api/tasks`, `PATCH/DELETE /api/tasks/:id`
 - `GET/POST /api/studio-dates`, `PATCH/DELETE /api/studio-dates/:id`
+- `POST /api/calendar-event` - Creates a Google Calendar event with attendees
 
 ## Running
 - `npm run dev` starts both the Express backend and Vite frontend dev server

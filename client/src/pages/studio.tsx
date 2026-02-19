@@ -278,15 +278,49 @@ export default function Studio() {
           status: "available",
         });
       }
+
+      const emailSet = new Set<string>();
+      if (emails.studio) emailSet.add(emails.studio.trim().toLowerCase());
+      if (emails.interviewee) emailSet.add(emails.interviewee.trim().toLowerCase());
+      if (emails.interviewers) {
+        emails.interviewers.split(",").forEach((e) => {
+          const trimmed = e.trim().toLowerCase();
+          if (trimmed) emailSet.add(trimmed);
+        });
+      }
+
+      let calendarFailed = false;
+      if (emailSet.size > 0) {
+        const dateStr = format(parseISO(dateRecord.date), "MMMM d, yyyy");
+        try {
+          await apiRequest("POST", "/api/calendar-event", {
+            date: dateRecord.date,
+            startTime: slot.start,
+            endTime: slot.end,
+            summary: `Podcast Studio Recording - ${slot.label}`,
+            description: `Studio recording session on ${dateStr} from ${slot.label}.\n\nParticipants:\n- Studio: ${emails.studio || "N/A"}\n- Interviewers: ${emails.interviewers || "N/A"}\n- Interviewee: ${emails.interviewee || "N/A"}`,
+            attendeeEmails: Array.from(emailSet),
+          });
+        } catch {
+          calendarFailed = true;
+        }
+      }
+      return { calendarFailed };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       setSelectedDate(null);
       setSelectedSlot(null);
       setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
-      toast({ title: "Slot booked successfully" });
+      if (result?.calendarFailed) {
+        toast({ title: "Slot booked", description: "But calendar invite could not be sent. Check Google Calendar connection.", variant: "destructive" });
+      } else {
+        toast({ title: "Slot booked successfully", description: "Calendar invites sent to all participants" });
+      }
     },
-    onError: () => toast({ title: "Failed to book slot", variant: "destructive" }),
+    onError: () => {
+      toast({ title: "Failed to book slot", variant: "destructive" });
+    },
   });
 
   const monthStart = startOfMonth(currentMonth);
@@ -878,8 +912,8 @@ export default function Studio() {
                     onClick={() => bookSlot.mutate({ dateRecord: selectedDate, slot: selectedSlot, emails: bookingEmails })}
                     data-testid="button-confirm-booking"
                   >
-                    <Users className="h-4 w-4 mr-1.5" />
-                    {bookSlot.isPending ? "Booking..." : "Confirm Booking"}
+                    {bookSlot.isPending ? <Clock className="h-4 w-4 mr-1.5 animate-spin" /> : <Users className="h-4 w-4 mr-1.5" />}
+                    {bookSlot.isPending ? "Booking & Sending Invites..." : "Confirm Booking"}
                   </Button>
                 </div>
               </div>
