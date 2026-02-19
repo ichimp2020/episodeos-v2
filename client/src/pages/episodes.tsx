@@ -48,11 +48,6 @@ const statusColors: Record<string, string> = {
   published: "bg-chart-2/10 text-chart-2 border-transparent",
 };
 
-const taskStatusIcons: Record<string, typeof CheckCircle> = {
-  todo: Circle,
-  in_progress: Clock,
-  done: CheckCircle,
-};
 
 export default function Episodes() {
   const [showNewEpisode, setShowNewEpisode] = useState(false);
@@ -280,8 +275,8 @@ export default function Episodes() {
 
   const getMember = (id: string | null) => members?.find((m) => m.id === id);
 
-  const cycleTaskStatus = (task: Task) => {
-    const next = task.status === "todo" ? "in_progress" : task.status === "in_progress" ? "done" : "todo";
+  const toggleTaskDone = (task: Task) => {
+    const next = task.status === "done" ? "todo" : "done";
     updateTaskStatus.mutate({ id: task.id, status: next });
   };
 
@@ -699,7 +694,6 @@ export default function Episodes() {
                   ) : (
                     <div className="space-y-2">
                       {episodeTasks(selectedEpisode.id).map((task) => {
-                        const StatusIcon = taskStatusIcons[task.status] || Circle;
                         const assignee = getMember(task.assigneeId);
                         const isEditingThis = editingTaskId === task.id;
                         return isEditingThis ? (
@@ -773,19 +767,16 @@ export default function Episodes() {
                             data-testid={`card-task-${task.id}`}
                           >
                             <button
-                              onClick={() => cycleTaskStatus(task)}
-                              className="shrink-0"
+                              onClick={() => toggleTaskDone(task)}
+                              className={`shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                task.status === "done"
+                                  ? "bg-chart-2 border-chart-2 text-white"
+                                  : "border-muted-foreground/40 hover:border-chart-2/60"
+                              }`}
+                              title={task.status === "done" ? "Mark as not done" : "Mark as done"}
                               data-testid={`button-toggle-task-${task.id}`}
                             >
-                              <StatusIcon
-                                className={`h-4 w-4 ${
-                                  task.status === "done"
-                                    ? "text-chart-2"
-                                    : task.status === "in_progress"
-                                    ? "text-chart-4"
-                                    : "text-muted-foreground"
-                                }`}
-                              />
+                              {task.status === "done" && <Check className="h-3 w-3" />}
                             </button>
                             <div
                               className="flex-1 min-w-0 cursor-pointer"
