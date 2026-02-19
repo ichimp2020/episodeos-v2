@@ -271,14 +271,33 @@ export default function Studio() {
     );
   };
 
+  const isSlotBlockedByInterviewers = (dateStr: string, slotLabel: string) => {
+    if (interviewers.length === 0) return false;
+    return interviewers.some((m) =>
+      isUnavailable(m.id, dateStr) || isUnavailable(m.id, dateStr, slotLabel)
+    );
+  };
+
+  const getAvailableSlotsForDate = (dateStr: string, notes?: string | null) => {
+    const slots = notes ? parseTimeSlots(notes) : [];
+    if (slots.length === 0) return slots;
+    return slots.filter((slot) => !isSlotBlockedByInterviewers(dateStr, slot.label));
+  };
+
   const isDateBlockedByInterviewers = (dateStr: string, notes?: string | null) => {
     if (interviewers.length === 0) return false;
-    return interviewers.some((m) => {
-      if (isUnavailable(m.id, dateStr)) return true;
-      const slots = notes ? parseTimeSlots(notes) : [];
-      if (slots.length === 0) return false;
-      return slots.every((slot) => isUnavailable(m.id, dateStr, slot.label));
-    });
+    if (interviewers.some((m) => isUnavailable(m.id, dateStr))) return true;
+    const slots = notes ? parseTimeSlots(notes) : [];
+    if (slots.length === 0) return false;
+    return getAvailableSlotsForDate(dateStr, notes).length === 0;
+  };
+
+  const hasAnySlotBlocked = (dateStr: string, notes?: string | null) => {
+    if (interviewers.length === 0) return false;
+    if (interviewers.some((m) => isUnavailable(m.id, dateStr))) return true;
+    const slots = notes ? parseTimeSlots(notes) : [];
+    if (slots.length === 0) return false;
+    return slots.some((slot) => isSlotBlockedByInterviewers(dateStr, slot.label));
   };
 
   const createDate = useMutation({
@@ -527,6 +546,7 @@ export default function Studio() {
                 const availableRecords = dayRecords.filter((d) => d.status === "available");
                 const hasTaken = dayRecords.some((d) => d.status === "taken");
                 const allAvailableBlocked = availableRecords.length > 0 && availableRecords.every((d) => isDateBlockedByInterviewers(d.date, d.notes));
+                const someSlotBlocked = availableRecords.length > 0 && !allAvailableBlocked && availableRecords.some((d) => hasAnySlotBlocked(d.date, d.notes));
                 const hasAvailable = availableRecords.length > 0 && !allAvailableBlocked;
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isToday = isSameDay(day, new Date());
@@ -537,10 +557,12 @@ export default function Studio() {
                     className={`relative p-2 min-h-[3.5rem] rounded-md text-center cursor-pointer transition-colors ${
                       !isCurrentMonth ? "opacity-30" : ""
                     } ${isToday ? "ring-1 ring-primary/30" : ""} ${
-                      hasAvailable
-                        ? "bg-chart-2/8"
-                        : allAvailableBlocked
+                      allAvailableBlocked
                         ? "bg-amber-500/8"
+                        : someSlotBlocked
+                        ? "bg-amber-500/5"
+                        : hasAvailable
+                        ? "bg-chart-2/8"
                         : hasTaken
                         ? "bg-chart-5/8"
                         : ""
@@ -553,8 +575,8 @@ export default function Studio() {
                     </span>
                     {dayRecords.length > 0 && (
                       <div className="mt-0.5 flex items-center justify-center gap-0.5">
-                        {hasAvailable && <div className="h-1.5 w-1.5 rounded-full bg-chart-2" />}
-                        {allAvailableBlocked && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
+                        {hasAvailable && !someSlotBlocked && <div className="h-1.5 w-1.5 rounded-full bg-chart-2" />}
+                        {(allAvailableBlocked || someSlotBlocked) && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
                         {hasTaken && <div className="h-1.5 w-1.5 rounded-full bg-chart-5" />}
                       </div>
                     )}
@@ -570,7 +592,7 @@ export default function Studio() {
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                <span className="text-xs text-muted-foreground">Interviewer Unavailable</span>
+                <span className="text-xs text-muted-foreground">Partial / Full Interviewer Block</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-chart-5" />
@@ -977,27 +999,41 @@ export default function Studio() {
                 )}
 
                 {selectedDate.status === "available" && selectedDate.notes && (() => {
-                  const slots = parseTimeRange(selectedDate.notes);
-                  if (slots.length > 0) {
+                  const allSlots = parseTimeRange(selectedDate.notes);
+                  const slots = allSlots.filter((slot) => !isSlotBlockedByInterviewers(selectedDate.date, slot.label));
+                  const blockedCount = allSlots.length - slots.length;
+                  if (allSlots.length > 0) {
                     return (
                       <div className="space-y-2">
                         <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
                           <Clock className="h-3.5 w-3.5" />
                           Available Slots
+                          {blockedCount > 0 && (
+                            <span className="text-amber-600 text-[11px] ml-1">
+                              ({blockedCount} blocked)
+                            </span>
+                          )}
                         </Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {slots.map((slot, idx) => (
-                            <button
-                              key={idx}
-                              className="ios-pill-button ios-pill-button-secondary justify-center"
-                              onClick={() => setSelectedSlot(slot)}
-                              data-testid={`button-slot-${idx}`}
-                            >
-                              <Clock className="h-3.5 w-3.5 mr-1.5" />
-                              {slot.label}
-                            </button>
-                          ))}
-                        </div>
+                        {slots.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            {slots.map((slot, idx) => (
+                              <button
+                                key={idx}
+                                className="ios-pill-button ios-pill-button-secondary justify-center"
+                                onClick={() => setSelectedSlot(slot)}
+                                data-testid={`button-slot-${idx}`}
+                              >
+                                <Clock className="h-3.5 w-3.5 mr-1.5" />
+                                {slot.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            All slots blocked by interviewer unavailability
+                          </div>
+                        )}
                       </div>
                     );
                   }
