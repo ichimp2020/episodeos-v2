@@ -82,7 +82,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getTeamMembers(): Promise<TeamMember[]> {
-    return db.select().from(teamMembers);
+    return db.select().from(teamMembers).orderBy(teamMembers.sortOrder);
   }
 
   async getTeamMember(id: string): Promise<TeamMember | undefined> {

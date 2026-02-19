@@ -12,6 +12,7 @@ export const teamMembers = pgTable("team_members", {
   phone: text("phone"),
   email: text("email"),
   responsibilities: text("responsibilities"),
+  sortOrder: integer("sort_order").default(0),
 });
 
 export const episodes = pgTable("episodes", {

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Users, Trash2, Pencil, Phone, Mail, Briefcase, Check, X } from "lucide-react";
+import { Plus, Users, Trash2, Pencil, Phone, Mail, Briefcase, Check, X, ArrowUp, ArrowDown } from "lucide-react";
 import type { TeamMember, Task } from "@shared/schema";
 
 const COLORS = [
@@ -51,6 +51,7 @@ export default function Team() {
   const createMember = useMutation({
     mutationFn: async () => {
       const colorIndex = (members?.length || 0) % COLORS.length;
+      const maxOrder = members?.reduce((max, m) => Math.max(max, m.sortOrder ?? 0), -1) ?? -1;
       await apiRequest("POST", "/api/team-members", {
         name: newMember.name,
         role: newMember.role,
@@ -59,6 +60,7 @@ export default function Team() {
         phone: newMember.phone || null,
         email: newMember.email || null,
         responsibilities: newMember.responsibilities || null,
+        sortOrder: maxOrder + 1,
       });
     },
     onSuccess: () => {
@@ -91,6 +93,20 @@ export default function Team() {
       toast({ title: "Team member removed" });
     },
   });
+
+  const sortedMembers = members ? [...members].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)) : [];
+
+  const swapOrder = async (index: number, direction: "up" | "down") => {
+    const other = direction === "up" ? index - 1 : index + 1;
+    if (other < 0 || other >= sortedMembers.length) return;
+    const memberA = sortedMembers[index];
+    const memberB = sortedMembers[other];
+    await Promise.all([
+      apiRequest("PATCH", `/api/team-members/${memberA.id}`, { sortOrder: memberB.sortOrder ?? other }),
+      apiRequest("PATCH", `/api/team-members/${memberB.id}`, { sortOrder: memberA.sortOrder ?? index }),
+    ]);
+    queryClient.invalidateQueries({ queryKey: ["/api/team-members"] });
+  };
 
   const startEditing = (field: string) => {
     if (!selectedMember) return;
@@ -156,7 +172,7 @@ export default function Team() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {members.map((member) => {
+          {sortedMembers.map((member, idx) => {
             const memberTasks = tasks?.filter((t) => t.assigneeId === member.id) || [];
             const openTasks = memberTasks.filter((t) => t.status !== "done");
             const doneTasks = memberTasks.filter((t) => t.status === "done");
@@ -183,7 +199,24 @@ export default function Team() {
                         <p className="text-xs text-muted-foreground">{member.role}</p>
                       </div>
                     </div>
-                    <Pencil className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 mt-1" />
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                        disabled={idx === 0}
+                        onClick={(e) => { e.stopPropagation(); swapOrder(idx, "up"); }}
+                        data-testid={`button-move-up-${member.id}`}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                      <button
+                        className="p-1 rounded hover:bg-muted disabled:opacity-30"
+                        disabled={idx === sortedMembers.length - 1}
+                        onClick={(e) => { e.stopPropagation(); swapOrder(idx, "down"); }}
+                        data-testid={`button-move-down-${member.id}`}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    </div>
                   </div>
                   {(member.phone || member.email) && (
                     <div className="mt-3 space-y-1">
