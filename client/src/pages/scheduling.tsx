@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, Label } from "lucide-react";
+import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, Label, UserPlus, Phone } from "lucide-react";
 import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 
@@ -38,6 +38,8 @@ export default function Scheduling() {
     guestId: "", studioDateId: "", scheduledDate: "", scheduledTime: "", location: "", notes: "",
     participantIds: [] as string[],
   });
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickGuest, setQuickGuest] = useState({ name: "", phone: "", email: "" });
   const { toast } = useToast();
 
   const { data: allInterviews, isLoading } = useQuery<Interview[]>({
@@ -127,6 +129,26 @@ export default function Scheduling() {
       setSelectedInterview(null);
       toast({ title: "Interview removed" });
     },
+  });
+
+  const quickAddGuest = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/guests", {
+        name: quickGuest.name,
+        phone: quickGuest.phone || null,
+        email: quickGuest.email || null,
+        status: "prospect",
+      });
+      return (await res.json()) as Guest;
+    },
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setNewInterview((prev) => ({ ...prev, guestId: created.id }));
+      setQuickGuest({ name: "", phone: "", email: "" });
+      setShowQuickAdd(false);
+      toast({ title: `${created.name} added as a guest` });
+    },
+    onError: () => toast({ title: "Failed to add guest", variant: "destructive" }),
   });
 
   const getGuest = (id: string) => guests?.find((g) => g.id === id);
@@ -316,6 +338,61 @@ export default function Scheduling() {
                   ))}
                 </SelectContent>
               </Select>
+              {!showQuickAdd ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 text-xs gap-1.5"
+                  onClick={() => setShowQuickAdd(true)}
+                  data-testid="button-quick-add-guest"
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Add New Guest
+                </Button>
+              ) : (
+                <div className="mt-2 p-3 rounded-md border bg-muted/30 space-y-2">
+                  <p className="text-xs font-medium">Quick Add Guest</p>
+                  <Input
+                    placeholder="Name *"
+                    value={quickGuest.name}
+                    onChange={(e) => setQuickGuest({ ...quickGuest, name: e.target.value })}
+                    data-testid="input-quick-guest-name"
+                  />
+                  <Input
+                    placeholder="Phone number"
+                    type="tel"
+                    value={quickGuest.phone}
+                    onChange={(e) => setQuickGuest({ ...quickGuest, phone: e.target.value })}
+                    data-testid="input-quick-guest-phone"
+                  />
+                  <Input
+                    placeholder="Email (optional)"
+                    type="email"
+                    value={quickGuest.email}
+                    onChange={(e) => setQuickGuest({ ...quickGuest, email: e.target.value })}
+                    data-testid="input-quick-guest-email"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={!quickGuest.name.trim() || quickAddGuest.isPending}
+                      onClick={() => quickAddGuest.mutate()}
+                      data-testid="button-save-quick-guest"
+                    >
+                      {quickAddGuest.isPending ? "Adding..." : "Add Guest"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setShowQuickAdd(false); setQuickGuest({ name: "", phone: "", email: "" }); }}
+                      data-testid="button-cancel-quick-guest"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
