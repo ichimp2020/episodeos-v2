@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users } from "lucide-react";
 import type { StudioDate } from "@shared/schema";
 import {
   format,
@@ -52,6 +53,50 @@ const hebrewDays: Record<string, string> = {
   "ראשון": "Sun", "שני": "Mon", "שלישי": "Tue",
   "רביעי": "Wed", "חמישי": "Thu", "שישי": "Fri", "שבת": "Sat",
 };
+
+interface TimeSlot {
+  start: string;
+  end: string;
+  label: string;
+}
+
+function parseTimeRange(notes: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
+
+interface BookingEmails {
+  studio: string;
+  interviewers: string;
+  interviewee: string;
+}
 
 function parseWhatsAppMessage(text: string): ParsedStudioDate[] {
   const lines = text.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
@@ -147,6 +192,8 @@ export default function Studio() {
   const [whatsappText, setWhatsappText] = useState("");
   const [parsedDates, setParsedDates] = useState<ParsedStudioDate[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [bookingEmails, setBookingEmails] = useState<BookingEmails>({ studio: "", interviewers: "", interviewee: "" });
   const { toast } = useToast();
 
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
@@ -212,14 +259,50 @@ export default function Studio() {
     },
   });
 
+  const bookSlot = useMutation({
+    mutationFn: async ({ dateRecord, slot, emails }: { dateRecord: StudioDate; slot: TimeSlot; emails: BookingEmails }) => {
+      const emailsJson = JSON.stringify(emails);
+      await apiRequest("PATCH", `/api/studio-dates/${dateRecord.id}`, {
+        status: "taken",
+        bookedSlot: slot.label,
+        participantEmails: emailsJson,
+        notes: slot.label,
+      });
+
+      const allSlots = dateRecord.notes ? parseTimeRange(dateRecord.notes) : [];
+      const remainingSlots = allSlots.filter((s) => s.start !== slot.start || s.end !== slot.end);
+      for (const remaining of remainingSlots) {
+        await apiRequest("POST", "/api/studio-dates", {
+          date: dateRecord.date,
+          notes: remaining.label,
+          status: "available",
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      setSelectedDate(null);
+      setSelectedSlot(null);
+      setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+      toast({ title: "Slot booked successfully" });
+    },
+    onError: () => toast({ title: "Failed to book slot", variant: "destructive" }),
+  });
+
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
   const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  const getDatesForDay = (day: Date) => {
+    return studioDates?.filter((d) => isSameDay(parseISO(d.date), day)) || [];
+  };
+
   const getDateInfo = (day: Date) => {
-    return studioDates?.find((d) => isSameDay(parseISO(d.date), day));
+    const matches = getDatesForDay(day);
+    if (matches.length === 0) return undefined;
+    return matches.find((d) => d.status === "available") || matches[0];
   };
 
   const upcomingDates = useMemo(() => {
@@ -323,7 +406,10 @@ export default function Studio() {
                 </div>
               ))}
               {calendarDays.map((day) => {
+                const dayRecords = getDatesForDay(day);
                 const dateInfo = getDateInfo(day);
+                const hasAvailable = dayRecords.some((d) => d.status === "available");
+                const hasTaken = dayRecords.some((d) => d.status === "taken");
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isToday = isSameDay(day, new Date());
                 const isPast = isBefore(day, new Date()) && !isToday;
@@ -333,9 +419,9 @@ export default function Studio() {
                     className={`relative p-2 min-h-[3.5rem] rounded-md text-center cursor-pointer transition-colors ${
                       !isCurrentMonth ? "opacity-30" : ""
                     } ${isToday ? "ring-1 ring-primary/30" : ""} ${
-                      dateInfo?.status === "available"
+                      hasAvailable
                         ? "bg-chart-2/8"
-                        : dateInfo?.status === "taken"
+                        : hasTaken
                         ? "bg-chart-5/8"
                         : ""
                     }`}
@@ -345,13 +431,10 @@ export default function Studio() {
                     <span className={`text-sm ${isToday ? "font-semibold text-primary" : isPast ? "text-muted-foreground" : ""}`}>
                       {format(day, "d")}
                     </span>
-                    {dateInfo && (
-                      <div className="mt-0.5">
-                        <div
-                          className={`h-1.5 w-1.5 rounded-full mx-auto ${
-                            dateInfo.status === "available" ? "bg-chart-2" : "bg-chart-5"
-                          }`}
-                        />
+                    {dayRecords.length > 0 && (
+                      <div className="mt-0.5 flex items-center justify-center gap-0.5">
+                        {hasAvailable && <div className="h-1.5 w-1.5 rounded-full bg-chart-2" />}
+                        {hasTaken && <div className="h-1.5 w-1.5 rounded-full bg-chart-5" />}
                       </div>
                     )}
                   </div>
@@ -579,13 +662,21 @@ export default function Studio() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-        <DialogContent>
-          {selectedDate && (
+      <Dialog open={!!selectedDate} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedDate(null);
+          setSelectedSlot(null);
+          setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          {selectedDate && !selectedSlot && (
             <>
               <DialogHeader>
                 <DialogTitle>{format(parseISO(selectedDate.date), "EEEE, MMMM d, yyyy")}</DialogTitle>
-                <DialogDescription>Studio date details</DialogDescription>
+                <DialogDescription>
+                  {selectedDate.status === "available" ? "Pick a 1-hour slot to book" : "Studio date details"}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-2">
                 <div className="flex items-center gap-2">
@@ -600,12 +691,79 @@ export default function Studio() {
                     {selectedDate.status}
                   </Badge>
                 </div>
+
+                {selectedDate.status === "available" && selectedDate.notes && (() => {
+                  const slots = parseTimeRange(selectedDate.notes);
+                  if (slots.length > 0) {
+                    return (
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          Available Slots
+                        </Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {slots.map((slot, idx) => (
+                            <Button
+                              key={idx}
+                              variant="outline"
+                              className="justify-center"
+                              onClick={() => setSelectedSlot(slot)}
+                              data-testid={`button-slot-${idx}`}
+                            >
+                              <Clock className="h-3.5 w-3.5 mr-1.5" />
+                              {slot.label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {selectedDate.status === "taken" && selectedDate.bookedSlot && (
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground">Booked Slot</Label>
+                    <p className="text-sm font-medium">{selectedDate.bookedSlot}</p>
+                    {selectedDate.participantEmails && (() => {
+                      try {
+                        const emails = JSON.parse(selectedDate.participantEmails) as BookingEmails;
+                        return (
+                          <div className="space-y-1.5 text-sm">
+                            {emails.studio && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Studio:</span>
+                                <span>{emails.studio}</span>
+                              </div>
+                            )}
+                            {emails.interviewers && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Interviewers:</span>
+                                <span>{emails.interviewers}</span>
+                              </div>
+                            )}
+                            {emails.interviewee && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Interviewee:</span>
+                                <span>{emails.interviewee}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      } catch {
+                        return null;
+                      }
+                    })()}
+                  </div>
+                )}
+
                 {selectedDate.notes && (
                   <div>
-                    <label className="text-sm text-muted-foreground">Notes:</label>
+                    <Label className="text-sm text-muted-foreground">Notes</Label>
                     <p className="text-sm mt-1">{selectedDate.notes}</p>
                   </div>
                 )}
+
                 <div className="flex items-center gap-2 pt-2">
                   {selectedDate.status === "available" ? (
                     <Button
@@ -639,6 +797,89 @@ export default function Studio() {
                     data-testid="button-delete-studio-date"
                   >
                     <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {selectedDate && selectedSlot && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  Book Slot
+                </DialogTitle>
+                <DialogDescription>
+                  {format(parseISO(selectedDate.date), "EEE, MMM d")} at {selectedSlot.label}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 mt-2">
+                <div className="flex items-center gap-2 p-3 rounded-md bg-chart-2/8">
+                  <Clock className="h-4 w-4 text-chart-2 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">{format(parseISO(selectedDate.date), "EEEE, MMMM d, yyyy")}</p>
+                    <p className="text-xs text-muted-foreground">{selectedSlot.label}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor="email-studio">Studio Contact Email</Label>
+                    <Input
+                      id="email-studio"
+                      type="email"
+                      placeholder="studio@example.com"
+                      value={bookingEmails.studio}
+                      onChange={(e) => setBookingEmails({ ...bookingEmails, studio: e.target.value })}
+                      data-testid="input-email-studio"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor="email-interviewers">Interviewer Emails</Label>
+                    <Input
+                      id="email-interviewers"
+                      type="text"
+                      placeholder="gal@example.com, zion@example.com"
+                      value={bookingEmails.interviewers}
+                      onChange={(e) => setBookingEmails({ ...bookingEmails, interviewers: e.target.value })}
+                      data-testid="input-email-interviewers"
+                    />
+                    <p className="text-[11px] text-muted-foreground">Separate multiple emails with commas</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor="email-interviewee">Interviewee Email</Label>
+                    <Input
+                      id="email-interviewee"
+                      type="email"
+                      placeholder="guest@example.com"
+                      value={bookingEmails.interviewee}
+                      onChange={(e) => setBookingEmails({ ...bookingEmails, interviewee: e.target.value })}
+                      data-testid="input-email-interviewee"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      setSelectedSlot(null);
+                      setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+                    }}
+                    data-testid="button-back-to-slots"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={bookSlot.isPending}
+                    onClick={() => bookSlot.mutate({ dateRecord: selectedDate, slot: selectedSlot, emails: bookingEmails })}
+                    data-testid="button-confirm-booking"
+                  >
+                    <Users className="h-4 w-4 mr-1.5" />
+                    {bookSlot.isPending ? "Booking..." : "Confirm Booking"}
                   </Button>
                 </div>
               </div>
