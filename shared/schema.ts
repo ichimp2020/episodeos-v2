@@ -9,6 +9,9 @@ export const teamMembers = pgTable("team_members", {
   role: text("role").notNull(),
   color: text("color").notNull(),
   initials: text("initials").notNull(),
+  phone: text("phone"),
+  email: text("email"),
+  responsibilities: text("responsibilities"),
 });
 
 export const episodes = pgTable("episodes", {
