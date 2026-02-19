@@ -958,18 +958,26 @@ export default function Studio() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-2">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground">Status:</label>
-                  <Badge
-                    variant="secondary"
-                    className={`ios-badge border-0 ${selectedDate.status === "available"
-                      ? "bg-chart-2/10 text-chart-2"
-                      : "bg-chart-5/10 text-chart-5"
-                    }`}
-                  >
-                    {selectedDate.status}
-                  </Badge>
-                </div>
+                {(() => {
+                  const dateBlocked = selectedDate.status === "available" && interviewers.length > 0 && isDateBlockedByInterviewers(selectedDate.date, selectedDate.notes);
+                  return (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-muted-foreground">Status:</label>
+                      <Badge
+                        variant="secondary"
+                        className={`ios-badge border-0 ${
+                          dateBlocked
+                            ? "bg-amber-500/10 text-amber-600"
+                            : selectedDate.status === "available"
+                            ? "bg-chart-2/10 text-chart-2"
+                            : "bg-chart-5/10 text-chart-5"
+                        }`}
+                      >
+                        {dateBlocked ? "blocked" : selectedDate.status}
+                      </Badge>
+                    </div>
+                  );
+                })()}
 
                 {selectedDate.status === "available" && interviewers.length > 0 && (
                   <div className="space-y-2">
@@ -979,12 +987,21 @@ export default function Studio() {
                     </Label>
                     <div className="flex items-center gap-2">
                       {interviewers.map((m) => {
-                        const blocked = isUnavailable(m.id, selectedDate.date) || (selectedDate.notes && parseTimeSlots(selectedDate.notes).length > 0 && parseTimeSlots(selectedDate.notes).every((slot) => isUnavailable(m.id, selectedDate.date, slot.label)));
+                        const dateUnavail = isUnavailable(m.id, selectedDate.date);
+                        const slots = selectedDate.notes ? parseTimeSlots(selectedDate.notes) : [];
+                        const hasSlotUnavail = slots.length > 0 && slots.some((slot) => isUnavailable(m.id, selectedDate.date, slot.label));
+                        const allSlotsUnavail = slots.length > 0 && slots.every((slot) => isUnavailable(m.id, selectedDate.date, slot.label));
+                        const fullyBlocked = dateUnavail || allSlotsUnavail;
+                        const partiallyBlocked = !fullyBlocked && hasSlotUnavail;
                         return (
-                          <div key={m.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${blocked ? "bg-destructive/10 text-destructive" : "bg-chart-2/10 text-chart-2"}`}>
+                          <div key={m.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                            fullyBlocked ? "bg-destructive/10 text-destructive"
+                            : partiallyBlocked ? "bg-amber-500/10 text-amber-600"
+                            : "bg-chart-2/10 text-chart-2"
+                          }`}>
                             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
                             {m.name}
-                            {blocked ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                            {fullyBlocked ? <X className="h-3 w-3" /> : partiallyBlocked ? <AlertCircle className="h-3 w-3" /> : <Check className="h-3 w-3" />}
                           </div>
                         );
                       })}
@@ -992,7 +1009,7 @@ export default function Studio() {
                     {isDateBlockedByInterviewers(selectedDate.date, selectedDate.notes) && (
                       <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
                         <AlertCircle className="h-3.5 w-3.5" />
-                        No interviewers available for this date
+                        No slots where both interviewers are available
                       </div>
                     )}
                   </div>
