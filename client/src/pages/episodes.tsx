@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image } from "lucide-react";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort } from "@shared/schema";
 import {
   format,
@@ -60,6 +60,8 @@ export default function Episodes() {
   const [showNewTask, setShowNewTask] = useState(false);
   const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
   const [newTask, setNewTask] = useState({ title: "", assigneeId: "", dueDate: "" });
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({ title: "", description: "", episodeNumber: "" });
   const { toast } = useToast();
 
   const { data: episodes, isLoading } = useQuery<Episode[]>({
@@ -175,17 +177,42 @@ export default function Episodes() {
     onError: () => toast({ title: "Failed to create episode", variant: "destructive" }),
   });
 
-  const updateEpisodeStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await apiRequest("PATCH", `/api/episodes/${id}`, { status });
+  const updateEpisode = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await apiRequest("PATCH", `/api/episodes/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
-      if (selectedEpisode) {
-        setSelectedEpisode({ ...selectedEpisode, status: selectedEpisode.status });
-      }
     },
   });
+
+  const startEditing = (field: string) => {
+    if (!selectedEpisode) return;
+    setEditValues({
+      title: selectedEpisode.title,
+      description: selectedEpisode.description || "",
+      episodeNumber: selectedEpisode.episodeNumber?.toString() || "",
+    });
+    setEditingField(field);
+  };
+
+  const saveField = (field: string) => {
+    if (!selectedEpisode) return;
+    const value = editValues[field as keyof typeof editValues];
+    const data: Record<string, unknown> = {};
+    if (field === "episodeNumber") {
+      data[field] = value ? parseInt(value, 10) : null;
+    } else {
+      data[field] = value;
+    }
+    updateEpisode.mutate({ id: selectedEpisode.id, data });
+    setSelectedEpisode({ ...selectedEpisode, ...data } as Episode);
+    setEditingField(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+  };
 
   const createTask = useMutation({
     mutationFn: async () => {
@@ -542,18 +569,73 @@ export default function Episodes() {
           {selectedEpisode && (
             <>
               <DialogHeader>
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <DialogTitle className="flex items-center gap-2 flex-wrap">
-                      {selectedEpisode.episodeNumber && (
+                <div className="space-y-1">
+                  {editingField === "title" ? (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 flex-1">
+                        {selectedEpisode.episodeNumber != null && (
+                          <span className="text-muted-foreground font-mono text-sm shrink-0">#{selectedEpisode.episodeNumber}</span>
+                        )}
+                        <Input
+                          value={editValues.title}
+                          onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
+                          autoFocus
+                          className="text-lg font-semibold"
+                          data-testid="input-edit-title"
+                        />
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <DialogTitle
+                      className="flex items-center gap-2 flex-wrap cursor-pointer group"
+                      onClick={() => startEditing("title")}
+                      data-testid="text-episode-title"
+                    >
+                      {selectedEpisode.episodeNumber != null && (
                         <span className="text-muted-foreground font-mono text-sm">#{selectedEpisode.episodeNumber}</span>
                       )}
                       {selectedEpisode.title}
+                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
                     </DialogTitle>
-                    <DialogDescription>
-                      {selectedEpisode.description || "No description"}
+                  )}
+
+                  {editingField === "description" ? (
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        value={editValues.description}
+                        onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
+                        autoFocus
+                        rows={2}
+                        className="text-sm"
+                        data-testid="input-edit-description"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => saveField("description")} data-testid="button-save-description">
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-description">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <DialogDescription
+                      className="cursor-pointer group flex items-center gap-1"
+                      onClick={() => startEditing("description")}
+                      data-testid="text-episode-description"
+                    >
+                      {selectedEpisode.description || "No description — click to add"}
+                      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
                     </DialogDescription>
-                  </div>
+                  )}
                 </div>
               </DialogHeader>
 
@@ -564,7 +646,7 @@ export default function Episodes() {
                     <Select
                       value={selectedEpisode.status}
                       onValueChange={(val) => {
-                        updateEpisodeStatus.mutate({ id: selectedEpisode.id, status: val });
+                        updateEpisode.mutate({ id: selectedEpisode.id, data: { status: val } });
                         setSelectedEpisode({ ...selectedEpisode, status: val });
                       }}
                     >
