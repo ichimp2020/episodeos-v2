@@ -100,6 +100,20 @@ export async function registerRoutes(
     res.status(201).json(date);
   });
 
+  app.post("/api/studio-dates/bulk", async (req, res) => {
+    const { dates } = req.body;
+    if (!Array.isArray(dates)) return res.status(400).json({ message: "dates must be an array" });
+    const results = [];
+    for (const item of dates) {
+      const parsed = insertStudioDateSchema.safeParse(item);
+      if (parsed.success) {
+        const created = await storage.createStudioDate(parsed.data);
+        results.push(created);
+      }
+    }
+    res.status(201).json(results);
+  });
+
   app.patch("/api/studio-dates/:id", async (req, res) => {
     const parsed = updateStudioDateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });

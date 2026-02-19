@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, X } from "lucide-react";
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle } from "lucide-react";
 import type { StudioDate } from "@shared/schema";
 import {
   format,
@@ -33,11 +33,120 @@ import {
   isBefore,
 } from "date-fns";
 
+interface ParsedStudioDate {
+  date: string;
+  timeRange: string;
+  dayName: string;
+  notes: string;
+  hasQuestion: boolean;
+  selected: boolean;
+}
+
+const hebrewMonths: Record<string, number> = {
+  "ינואר": 0, "פברואר": 1, "מרץ": 2, "מרס": 2, "אפריל": 3,
+  "מאי": 4, "יוני": 5, "יולי": 6, "אוגוסט": 7,
+  "ספטמבר": 8, "אוקטובר": 9, "נובמבר": 10, "דצמבר": 11,
+};
+
+const hebrewDays: Record<string, string> = {
+  "ראשון": "Sun", "שני": "Mon", "שלישי": "Tue",
+  "רביעי": "Wed", "חמישי": "Thu", "שישי": "Fri", "שבת": "Sat",
+};
+
+function parseWhatsAppMessage(text: string): ParsedStudioDate[] {
+  const lines = text.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  const results: ParsedStudioDate[] = [];
+
+  let detectedMonth = -1;
+  let year = new Date().getFullYear();
+
+  for (const line of lines) {
+    const cleanLine = line.replace(/[^\S\n]+/g, " ").trim();
+
+    for (const [heMonth, monthIndex] of Object.entries(hebrewMonths)) {
+      if (cleanLine.includes(heMonth)) {
+        detectedMonth = monthIndex;
+        if (detectedMonth < new Date().getMonth() - 1) {
+          year = new Date().getFullYear() + 1;
+        }
+        break;
+      }
+    }
+
+    if (cleanLine.startsWith("היי") || cleanLine.length < 4) continue;
+    if (Object.keys(hebrewMonths).some((m) => cleanLine === m)) continue;
+
+    const dateMatch = cleanLine.match(/(\d{1,2})\.(\d{1,2})/);
+    const timeMatch = cleanLine.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+
+    if (!dateMatch) continue;
+
+    const day = parseInt(dateMatch[1]);
+    const parsedMonth = parseInt(dateMatch[2]) - 1;
+    const monthForDate = detectedMonth !== -1 ? detectedMonth : parsedMonth;
+
+    let dayName = "";
+    for (const [heb, eng] of Object.entries(hebrewDays)) {
+      if (cleanLine.includes(heb)) {
+        dayName = eng;
+        break;
+      }
+    }
+
+    const hasQuestion = cleanLine.includes("סימן שאלה") || cleanLine.includes("?");
+
+    let notes = "";
+    if (timeMatch) {
+      notes = `${timeMatch[1]}-${timeMatch[2]}`;
+    }
+    if (hasQuestion) {
+      notes += notes ? " (tentative)" : "(tentative)";
+    }
+
+    const dateStr = `${year}-${String(monthForDate + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+    try {
+      const testDate = new Date(dateStr);
+      if (isNaN(testDate.getTime())) continue;
+    } catch {
+      continue;
+    }
+
+    results.push({
+      date: dateStr,
+      timeRange: timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : "",
+      dayName,
+      notes,
+      hasQuestion,
+      selected: !hasQuestion,
+    });
+  }
+
+  const merged = new Map<string, ParsedStudioDate>();
+  for (const r of results) {
+    const existing = merged.get(r.date);
+    if (existing) {
+      const times = [existing.timeRange, r.timeRange].filter(Boolean);
+      existing.timeRange = times.join(", ");
+      existing.notes = times.join(", ") + (existing.hasQuestion || r.hasQuestion ? " (tentative)" : "");
+      existing.hasQuestion = existing.hasQuestion || r.hasQuestion;
+    } else {
+      merged.set(r.date, { ...r });
+    }
+  }
+
+  return Array.from(merged.values());
+}
+
 export default function Studio() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showAddDate, setShowAddDate] = useState(false);
+  const [showWhatsAppPaste, setShowWhatsAppPaste] = useState(false);
   const [selectedDate, setSelectedDate] = useState<StudioDate | null>(null);
   const [newDate, setNewDate] = useState({ date: "", notes: "" });
+  const [whatsappText, setWhatsappText] = useState("");
+  const [parsedDates, setParsedDates] = useState<ParsedStudioDate[]>([]);
+  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
 
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
@@ -59,6 +168,28 @@ export default function Studio() {
       toast({ title: "Studio date added" });
     },
     onError: () => toast({ title: "Failed to add date", variant: "destructive" }),
+  });
+
+  const bulkCreateDates = useMutation({
+    mutationFn: async (dates: ParsedStudioDate[]) => {
+      const selected = dates.filter((d) => d.selected);
+      await apiRequest("POST", "/api/studio-dates/bulk", {
+        dates: selected.map((d) => ({
+          date: d.date,
+          notes: d.notes || null,
+          status: "available",
+        })),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      setShowWhatsAppPaste(false);
+      setShowPreview(false);
+      setWhatsappText("");
+      setParsedDates([]);
+      toast({ title: "Studio dates imported" });
+    },
+    onError: () => toast({ title: "Failed to import dates", variant: "destructive" }),
   });
 
   const deleteDate = useMutation({
@@ -97,6 +228,40 @@ export default function Studio() {
       .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
   }, [studioDates]);
 
+  const handleParseMessage = () => {
+    const parsed = parseWhatsAppMessage(whatsappText);
+    if (parsed.length === 0) {
+      toast({ title: "Couldn't find any dates in the message", variant: "destructive" });
+      return;
+    }
+
+    const existingDates = new Set(studioDates?.map((d) => d.date) || []);
+    const withDuplicateMarking = parsed.map((p) => ({
+      ...p,
+      selected: !p.hasQuestion && !existingDates.has(p.date),
+      notes: existingDates.has(p.date)
+        ? p.notes + (p.notes ? " " : "") + "(already exists)"
+        : p.notes,
+    }));
+
+    setParsedDates(withDuplicateMarking);
+    setShowPreview(true);
+  };
+
+  const toggleParsedDate = (index: number) => {
+    setParsedDates((prev) =>
+      prev.map((d, i) => i === index ? { ...d, selected: !d.selected } : d)
+    );
+  };
+
+  const selectAllParsed = () => {
+    setParsedDates((prev) => prev.map((d) => ({ ...d, selected: true })));
+  };
+
+  const deselectAllParsed = () => {
+    setParsedDates((prev) => prev.map((d) => ({ ...d, selected: false })));
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -113,10 +278,16 @@ export default function Studio() {
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-studio-title">Studio Calendar</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage studio availability from your partner</p>
         </div>
-        <Button onClick={() => setShowAddDate(true)} data-testid="button-add-studio-date">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Date
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowWhatsAppPaste(true)} data-testid="button-paste-whatsapp">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Paste WhatsApp
+          </Button>
+          <Button onClick={() => setShowAddDate(true)} data-testid="button-add-studio-date">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Date
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -268,6 +439,143 @@ export default function Studio() {
               {createDate.isPending ? "Adding..." : "Add Date"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showWhatsAppPaste} onOpenChange={(open) => {
+        if (!open) {
+          setShowWhatsAppPaste(false);
+          setShowPreview(false);
+          setParsedDates([]);
+          setWhatsappText("");
+        }
+      }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Import from WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Paste the studio availability message and we'll extract all the dates automatically
+            </DialogDescription>
+          </DialogHeader>
+
+          {!showPreview ? (
+            <div className="space-y-4 mt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">WhatsApp Message</label>
+                <Textarea
+                  value={whatsappText}
+                  onChange={(e) => setWhatsappText(e.target.value)}
+                  placeholder={"Paste the studio message here...\n\nExample:\nפברואר\n1.2-15:00-17:00 ראשון\n10:30-11:30  2.2 שני"}
+                  className="min-h-[200px] text-sm font-mono"
+                  dir="rtl"
+                  data-testid="textarea-whatsapp-paste"
+                />
+              </div>
+              <Button
+                className="w-full"
+                onClick={handleParseMessage}
+                disabled={!whatsappText.trim()}
+                data-testid="button-parse-whatsapp"
+              >
+                Extract Dates
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Found {parsedDates.length} date{parsedDates.length !== 1 ? "s" : ""}
+                  {" "} ({parsedDates.filter((d) => d.selected).length} selected)
+                </p>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={selectAllParsed} data-testid="button-select-all-dates">
+                    Select All
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={deselectAllParsed} data-testid="button-deselect-all-dates">
+                    None
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                {parsedDates.map((pd, idx) => {
+                  const isExisting = pd.notes.includes("(already exists)");
+                  return (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
+                        pd.selected
+                          ? "bg-chart-2/8"
+                          : "bg-card"
+                      } ${isExisting ? "opacity-50" : ""}`}
+                      onClick={() => toggleParsedDate(idx)}
+                      data-testid={`row-parsed-date-${idx}`}
+                    >
+                      <div
+                        className={`flex h-5 w-5 items-center justify-center rounded border shrink-0 ${
+                          pd.selected
+                            ? "bg-chart-2 border-chart-2"
+                            : "border-muted-foreground/30"
+                        }`}
+                      >
+                        {pd.selected && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">
+                            {format(parseISO(pd.date), "EEE, MMM d, yyyy")}
+                          </span>
+                          {pd.hasQuestion && (
+                            <Badge variant="secondary" className="bg-chart-4/10 text-chart-4 border-transparent text-[10px]">
+                              tentative
+                            </Badge>
+                          )}
+                          {isExisting && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              exists
+                            </Badge>
+                          )}
+                        </div>
+                        {pd.timeRange && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {pd.timeRange}
+                            {pd.dayName && ` (${pd.dayName})`}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowPreview(false);
+                    setParsedDates([]);
+                  }}
+                  data-testid="button-back-to-paste"
+                >
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => bulkCreateDates.mutate(parsedDates)}
+                  disabled={parsedDates.filter((d) => d.selected).length === 0 || bulkCreateDates.isPending}
+                  data-testid="button-import-dates"
+                >
+                  {bulkCreateDates.isPending
+                    ? "Importing..."
+                    : `Import ${parsedDates.filter((d) => d.selected).length} Date${parsedDates.filter((d) => d.selected).length !== 1 ? "s" : ""}`}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
