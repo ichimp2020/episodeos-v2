@@ -16,12 +16,48 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, Label, UserPlus, Phone } from "lucide-react";
+import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, UserPlus, Phone, Calendar, Check } from "lucide-react";
 import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const interviewStatuses = ["proposed", "confirmed", "completed", "cancelled"];
+
+interface TimeSlot {
+  start: string;
+  end: string;
+  label: string;
+}
+
+function parseTimeSlots(notes: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
 const statusColors: Record<string, string> = {
   proposed: "bg-chart-4/10 text-chart-4 border-transparent",
   confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
@@ -33,7 +69,10 @@ export default function Scheduling() {
   const [showNewInterview, setShowNewInterview] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ scheduledDate: "", scheduledTime: "", location: "", notes: "" });
+  const [editForm, setEditForm] = useState({ guestName: "", scheduledDate: "", scheduledTime: "", location: "", notes: "" });
+  const [showRescheduleCalendar, setShowRescheduleCalendar] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
+  const [rescheduleSlot, setRescheduleSlot] = useState<TimeSlot | null>(null);
   const [newInterview, setNewInterview] = useState({
     guestId: "", studioDateId: "", scheduledDate: "", scheduledTime: "", location: "", notes: "",
     participantIds: [] as string[],
@@ -108,13 +147,53 @@ export default function Scheduling() {
   });
 
   const updateInterview = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+    mutationFn: async ({ id, data, guestId, guestName, newStudioDateId, slot, oldStudioDateId, oldBookedSlot }: {
+      id: string;
+      data: Record<string, unknown>;
+      guestId?: string;
+      guestName?: string;
+      newStudioDateId?: string;
+      slot?: TimeSlot | null;
+      oldStudioDateId?: string | null;
+      oldBookedSlot?: string | null;
+    }) => {
       await apiRequest("PATCH", `/api/interviews/${id}`, data);
+      if (guestId && guestName) {
+        await apiRequest("PATCH", `/api/guests/${guestId}`, { name: guestName });
+      }
+      if (newStudioDateId && oldStudioDateId && oldStudioDateId !== newStudioDateId) {
+        await apiRequest("PATCH", `/api/studio-dates/${oldStudioDateId}`, {
+          status: "available",
+          bookedSlot: null,
+        });
+      }
+      if (newStudioDateId && slot) {
+        const studioDate = studioDates?.find((d) => d.id === newStudioDateId);
+        if (studioDate) {
+          const patchData: Record<string, unknown> = {};
+          const allSlots = studioDate.notes ? parseTimeSlots(studioDate.notes) : [];
+          const remainingSlots = allSlots.filter((s) => s.label !== slot.label);
+          if (remainingSlots.length === 0) {
+            patchData.status = "taken";
+          } else {
+            patchData.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+          }
+          patchData.bookedSlot = slot.label;
+          await apiRequest("PATCH", `/api/studio-dates/${newStudioDateId}`, patchData);
+        }
+      } else if (newStudioDateId) {
+        await apiRequest("PATCH", `/api/studio-dates/${newStudioDateId}`, { status: "taken" });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       setIsEditing(false);
+      setShowRescheduleCalendar(false);
+      setRescheduleDate(null);
+      setRescheduleSlot(null);
       toast({ title: "Interview updated" });
     },
     onError: () => toast({ title: "Failed to update interview", variant: "destructive" }),
@@ -490,9 +569,9 @@ export default function Scheduling() {
       </Dialog>
 
       <Dialog open={!!selectedInterview} onOpenChange={(open) => {
-        if (!open) { setSelectedInterview(null); setIsEditing(false); }
+        if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); }
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           {selectedInterview && (() => {
             const guest = getGuest(selectedInterview.guestId);
             const studio = getStudioDate(selectedInterview.studioDateId);
@@ -508,11 +587,15 @@ export default function Scheduling() {
                         className="rounded-full px-4"
                         onClick={() => {
                           setEditForm({
+                            guestName: guest?.name || "",
                             scheduledDate: selectedInterview.scheduledDate || "",
                             scheduledTime: selectedInterview.scheduledTime || "",
                             location: selectedInterview.location || "",
                             notes: selectedInterview.notes || "",
                           });
+                          setShowRescheduleCalendar(false);
+                          setRescheduleDate(null);
+                          setRescheduleSlot(null);
                           setIsEditing(true);
                         }}
                         data-testid="button-edit-interview"
@@ -548,6 +631,14 @@ export default function Scheduling() {
 
                   {isEditing ? (
                     <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">{t.guests.name}</label>
+                        <Input
+                          value={editForm.guestName}
+                          onChange={(e) => setEditForm({ ...editForm, guestName: e.target.value })}
+                          data-testid="input-edit-guest-name"
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <label className="text-sm font-medium">Date</label>
@@ -568,6 +659,118 @@ export default function Scheduling() {
                           />
                         </div>
                       </div>
+
+                      {!showRescheduleCalendar ? (
+                        <Button
+                          variant="outline"
+                          className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
+                          onClick={() => setShowRescheduleCalendar(true)}
+                          data-testid="button-reschedule-availability"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          {t.guests.checkStudioAvailability}
+                        </Button>
+                      ) : (
+                        <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="panel-reschedule-availability">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                              <Calendar className="h-4 w-4 text-primary" />
+                              {t.guests.studioAvailability}
+                            </h3>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); }} data-testid="button-close-reschedule">
+                              <span className="sr-only">Close</span>
+                              &times;
+                            </Button>
+                          </div>
+                          {availableStudioDates.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-3">{t.guests.noAvailableDates}</p>
+                          ) : (
+                            <div className="space-y-1 max-h-56 overflow-y-auto">
+                              {availableStudioDates.map((d) => {
+                                const slots = d.notes ? parseTimeSlots(d.notes) : [];
+                                const isExpanded = rescheduleDate === d.date && slots.length > 0;
+                                return (
+                                  <div key={d.id}>
+                                    <button
+                                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                                        rescheduleDate === d.date
+                                          ? "bg-primary/10 ring-1 ring-primary/30"
+                                          : "hover:bg-muted/50"
+                                      }`}
+                                      onClick={() => {
+                                        if (slots.length > 0) {
+                                          setRescheduleDate(d.date);
+                                          setRescheduleSlot(null);
+                                        } else {
+                                          setRescheduleDate(d.date);
+                                          setRescheduleSlot(null);
+                                          setEditForm({ ...editForm, scheduledDate: d.date });
+                                        }
+                                      }}
+                                      data-testid={`button-reschedule-date-${d.id}`}
+                                    >
+                                      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                                        <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">
+                                          {format(parseISO(d.date), "MMM")}
+                                        </span>
+                                        <span className="text-xs font-bold text-chart-2 leading-tight">
+                                          {format(parseISO(d.date), "d")}
+                                        </span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
+                                        {d.notes && <p className="text-[11px] text-muted-foreground truncate">{d.notes}</p>}
+                                      </div>
+                                      {rescheduleDate === d.date && slots.length === 0 && (
+                                        <Check className="h-4 w-4 text-primary shrink-0" />
+                                      )}
+                                    </button>
+                                    {isExpanded && (
+                                      <div className="ml-12 mt-1 mb-2 space-y-1" data-testid="panel-reschedule-hour-slots">
+                                        <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mb-1.5">
+                                          <Clock className="h-3 w-3" />
+                                          {t.guests.selectHourSlot}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-1">
+                                          {slots.map((slot) => (
+                                            <button
+                                              key={slot.label}
+                                              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                                rescheduleSlot?.label === slot.label
+                                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                                  : "bg-muted/50 hover:bg-muted text-foreground"
+                                              }`}
+                                              onClick={() => {
+                                                setRescheduleSlot(slot);
+                                                setEditForm({ ...editForm, scheduledDate: rescheduleDate!, scheduledTime: slot.start });
+                                              }}
+                                              data-testid={`button-reschedule-slot-${slot.start}`}
+                                            >
+                                              <Clock className="h-3 w-3" />
+                                              {slot.label}
+                                              {rescheduleSlot?.label === slot.label && (
+                                                <Check className="h-3 w-3" />
+                                              )}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {rescheduleDate && (rescheduleSlot || !(availableStudioDates.find((d) => d.date === rescheduleDate)?.notes ? parseTimeSlots(availableStudioDates.find((d) => d.date === rescheduleDate)!.notes!).length > 0 : false)) && (
+                            <div className="pt-1">
+                              <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
+                                {t.guests.selected}: {format(parseISO(rescheduleDate), "MMM d, yyyy")}{rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium">Location</label>
                         <Input
@@ -589,7 +792,7 @@ export default function Scheduling() {
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           className="flex-1 ios-pill-button ios-pill-button-secondary"
-                          onClick={() => setIsEditing(false)}
+                          onClick={() => { setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); }}
                           data-testid="button-cancel-edit"
                         >
                           Cancel
@@ -598,19 +801,28 @@ export default function Scheduling() {
                           className="flex-1 ios-pill-button ios-pill-button-primary"
                           disabled={updateInterview.isPending}
                           onClick={() => {
+                            const rescheduledStudioDate = rescheduleDate ? availableStudioDates.find((d) => d.date === rescheduleDate) : null;
+                            const finalDate = rescheduledStudioDate ? rescheduleDate! : editForm.scheduledDate;
+                            const finalTime = rescheduleSlot ? rescheduleSlot.start : editForm.scheduledTime;
                             updateInterview.mutate({
                               id: selectedInterview.id,
                               data: {
-                                scheduledDate: editForm.scheduledDate || null,
-                                scheduledTime: editForm.scheduledTime || null,
+                                scheduledDate: finalDate || null,
+                                scheduledTime: finalTime || null,
                                 location: editForm.location || null,
                                 notes: editForm.notes || null,
+                                ...(rescheduledStudioDate ? { studioDateId: rescheduledStudioDate.id } : {}),
                               },
+                              guestId: guest?.id,
+                              guestName: editForm.guestName !== guest?.name ? editForm.guestName : undefined,
+                              newStudioDateId: rescheduledStudioDate?.id,
+                              slot: rescheduleSlot,
+                              oldStudioDateId: selectedInterview.studioDateId,
                             });
                             setSelectedInterview({
                               ...selectedInterview,
-                              scheduledDate: editForm.scheduledDate || null,
-                              scheduledTime: editForm.scheduledTime || null,
+                              scheduledDate: finalDate || null,
+                              scheduledTime: finalTime || null,
                               location: editForm.location || null,
                               notes: editForm.notes || null,
                             });
