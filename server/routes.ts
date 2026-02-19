@@ -5,7 +5,7 @@ import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
-  insertEpisodeFileSchema, insertEpisodeShortSchema, insertSharedLinkSchema,
+  insertEpisodeFileSchema, insertEpisodeShortSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { createCalendarEvent } from "./google-calendar";
@@ -278,6 +278,47 @@ export async function registerRoutes(
   app.delete("/api/interview-participants/:id", async (req, res) => {
     await storage.deleteInterviewParticipant(req.params.id);
     res.status(204).send();
+  });
+
+  app.get("/api/interviewer-unavailability", async (_req, res) => {
+    const entries = await storage.getInterviewerUnavailability();
+    res.json(entries);
+  });
+
+  app.post("/api/interviewer-unavailability", async (req, res) => {
+    const parsed = insertInterviewerUnavailabilitySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const entry = await storage.createInterviewerUnavailability(parsed.data);
+    res.status(201).json(entry);
+  });
+
+  app.delete("/api/interviewer-unavailability/:id", async (req, res) => {
+    await storage.deleteInterviewerUnavailability(req.params.id);
+    res.status(204).send();
+  });
+
+  app.post("/api/interviewer-unavailability/toggle", async (req, res) => {
+    const { teamMemberId, studioDateId, slotLabel } = req.body;
+    if (!teamMemberId || !studioDateId) {
+      return res.status(400).json({ message: "teamMemberId and studioDateId required" });
+    }
+    const all = await storage.getInterviewerUnavailability();
+    const existing = all.find(e =>
+      e.teamMemberId === teamMemberId &&
+      e.studioDateId === studioDateId &&
+      (slotLabel ? e.slotLabel === slotLabel : !e.slotLabel)
+    );
+    if (existing) {
+      await storage.deleteInterviewerUnavailability(existing.id);
+      res.json({ action: "removed" });
+    } else {
+      const entry = await storage.createInterviewerUnavailability({
+        teamMemberId,
+        studioDateId,
+        slotLabel: slotLabel || null,
+      });
+      res.json({ action: "added", entry });
+    }
   });
 
   app.get("/api/publishing", async (_req, res) => {

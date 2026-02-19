@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
-import type { Guest, TeamMember, StudioDate } from "@shared/schema";
+import type { Guest, TeamMember, StudioDate, InterviewerUnavailability } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
@@ -80,6 +80,33 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     queryKey: ["/api/studio-dates"],
     enabled: open,
   });
+
+  const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
+    queryKey: ["/api/interviewer-unavailability"],
+    enabled: open,
+  });
+
+  const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
+
+  const getAvailableInterviewers = (studioDateId: string, slotLabel?: string) => {
+    if (!unavailabilityData) return interviewerMembers;
+    return interviewerMembers.filter((m) => {
+      return !unavailabilityData.some((u) =>
+        u.teamMemberId === m.id &&
+        u.studioDateId === studioDateId &&
+        (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
+      );
+    });
+  };
+
+  const hasAnyInterviewerAvailable = (studioDateId: string, notes?: string | null) => {
+    if (interviewerMembers.length === 0) return true;
+    const slots = notes ? parseTimeSlots(notes) : [];
+    if (slots.length === 0) {
+      return getAvailableInterviewers(studioDateId).length > 0;
+    }
+    return slots.some((slot) => getAvailableInterviewers(studioDateId, slot.label).length > 0);
+  };
 
   const availableDates = studioDates
     ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()))
@@ -265,8 +292,10 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                       {availableDates.map((d) => {
                         const slots = d.notes ? parseTimeSlots(d.notes) : [];
                         const isExpanded = selectedDate === d.date && slots.length > 0;
+                        const dateAvailInterviewers = getAvailableInterviewers(d.id);
+                        const noOneAvailable = interviewerMembers.length > 0 && !hasAnyInterviewerAvailable(d.id, d.notes);
                         return (
-                          <div key={d.id}>
+                          <div key={d.id} className={noOneAvailable ? "opacity-40" : ""}>
                             <button
                               className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
                                 selectedDate === d.date
@@ -286,7 +315,21 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
-                                {d.notes && <p className="text-[11px] text-muted-foreground truncate">{d.notes}</p>}
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {d.notes && <span className="text-[11px] text-muted-foreground truncate">{d.notes}</span>}
+                                  {interviewerMembers.length > 0 && slots.length === 0 && (
+                                    <div className="flex items-center gap-0.5 ml-1">
+                                      {interviewerMembers.map((m) => (
+                                        <div
+                                          key={m.id}
+                                          className={`h-2 w-2 rounded-full ${dateAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                          style={{ backgroundColor: m.color }}
+                                          title={`${m.name}: ${dateAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               {selectedDate === d.date && slots.length === 0 && (
                                 <Check className="h-4 w-4 text-primary shrink-0" />
@@ -299,24 +342,42 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                                   {t.guests.selectHourSlot}
                                 </p>
                                 <div className="grid grid-cols-2 gap-1">
-                                  {slots.map((slot) => (
-                                    <button
-                                      key={slot.label}
-                                      className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
-                                        selectedSlot?.label === slot.label
-                                          ? "bg-primary text-primary-foreground shadow-sm"
-                                          : "bg-muted/50 hover:bg-muted text-foreground"
-                                      }`}
-                                      onClick={() => handleSelectSlot(slot)}
-                                      data-testid={`button-pick-slot-${slot.start}`}
-                                    >
-                                      <Clock className="h-3 w-3" />
-                                      {slot.label}
-                                      {selectedSlot?.label === slot.label && (
-                                        <Check className="h-3 w-3" />
-                                      )}
-                                    </button>
-                                  ))}
+                                  {slots.map((slot) => {
+                                    const slotAvailInterviewers = getAvailableInterviewers(d.id, slot.label);
+                                    const slotNoOne = interviewerMembers.length > 0 && slotAvailInterviewers.length === 0;
+                                    return (
+                                      <button
+                                        key={slot.label}
+                                        className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                          slotNoOne ? "opacity-40 " : ""
+                                        }${
+                                          selectedSlot?.label === slot.label
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "bg-muted/50 hover:bg-muted text-foreground"
+                                        }`}
+                                        onClick={() => handleSelectSlot(slot)}
+                                        data-testid={`button-pick-slot-${slot.start}`}
+                                      >
+                                        <Clock className="h-3 w-3" />
+                                        {slot.label}
+                                        {interviewerMembers.length > 0 && (
+                                          <div className="flex items-center gap-0.5 ml-0.5">
+                                            {interviewerMembers.map((m) => (
+                                              <div
+                                                key={m.id}
+                                                className={`h-1.5 w-1.5 rounded-full ${slotAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                                style={{ backgroundColor: selectedSlot?.label === slot.label ? "white" : m.color }}
+                                                title={`${m.name}: ${slotAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                              />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {selectedSlot?.label === slot.label && (
+                                          <Check className="h-3 w-3" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

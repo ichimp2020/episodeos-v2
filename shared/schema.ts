@@ -126,6 +126,13 @@ export const episodeShorts = pgTable("episode_shorts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const interviewerUnavailability = pgTable("interviewer_unavailability", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  teamMemberId: varchar("team_member_id").notNull(),
+  studioDateId: varchar("studio_date_id").notNull(),
+  slotLabel: text("slot_label"),
+});
+
 export const sharedLinks = pgTable("shared_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
@@ -146,6 +153,7 @@ export const insertPublishingSchema = createInsertSchema(publishing).omit({ id: 
 export const insertReminderSchema = createInsertSchema(reminders).omit({ id: true, sentAt: true });
 export const insertEpisodeFileSchema = createInsertSchema(episodeFiles).omit({ id: true, uploadedAt: true });
 export const insertEpisodeShortSchema = createInsertSchema(episodeShorts).omit({ id: true, createdAt: true });
+export const insertInterviewerUnavailabilitySchema = createInsertSchema(interviewerUnavailability).omit({ id: true });
 export const insertSharedLinkSchema = createInsertSchema(sharedLinks).omit({ id: true, createdAt: true });
 
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
@@ -170,5 +178,7 @@ export type InsertEpisodeFile = z.infer<typeof insertEpisodeFileSchema>;
 export type EpisodeFile = typeof episodeFiles.$inferSelect;
 export type InsertEpisodeShort = z.infer<typeof insertEpisodeShortSchema>;
 export type EpisodeShort = typeof episodeShorts.$inferSelect;
+export type InsertInterviewerUnavailability = z.infer<typeof insertInterviewerUnavailabilitySchema>;
+export type InterviewerUnavailability = typeof interviewerUnavailability.$inferSelect;
 export type InsertSharedLink = z.infer<typeof insertSharedLinkSchema>;
 export type SharedLink = typeof sharedLinks.$inferSelect;

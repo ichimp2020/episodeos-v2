@@ -10,10 +10,11 @@ import {
   type Reminder, type InsertReminder,
   type EpisodeFile, type InsertEpisodeFile,
   type EpisodeShort, type InsertEpisodeShort,
+  type InterviewerUnavailability, type InsertInterviewerUnavailability,
   type SharedLink, type InsertSharedLink,
   teamMembers, episodes, tasks, studioDates,
   guests, interviews, interviewParticipants, publishing, reminders,
-  episodeFiles, episodeShorts, sharedLinks,
+  episodeFiles, episodeShorts, interviewerUnavailability, sharedLinks,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lte, and } from "drizzle-orm";
@@ -79,6 +80,11 @@ export interface IStorage {
   createEpisodeShort(short: InsertEpisodeShort): Promise<EpisodeShort>;
   updateEpisodeShort(id: string, data: Partial<InsertEpisodeShort>): Promise<EpisodeShort | undefined>;
   deleteEpisodeShort(id: string): Promise<void>;
+
+  getInterviewerUnavailability(): Promise<InterviewerUnavailability[]>;
+  createInterviewerUnavailability(entry: InsertInterviewerUnavailability): Promise<InterviewerUnavailability>;
+  deleteInterviewerUnavailability(id: string): Promise<void>;
+  deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, studioDateId: string, slotLabel?: string | null): Promise<void>;
 
   getSharedLinks(): Promise<SharedLink[]>;
   createSharedLink(link: InsertSharedLink): Promise<SharedLink>;
@@ -317,6 +323,38 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEpisodeShort(id: string): Promise<void> {
     await db.delete(episodeShorts).where(eq(episodeShorts.id, id));
+  }
+
+  async getInterviewerUnavailability(): Promise<InterviewerUnavailability[]> {
+    return db.select().from(interviewerUnavailability);
+  }
+
+  async createInterviewerUnavailability(entry: InsertInterviewerUnavailability): Promise<InterviewerUnavailability> {
+    const [created] = await db.insert(interviewerUnavailability).values(entry).returning();
+    return created;
+  }
+
+  async deleteInterviewerUnavailability(id: string): Promise<void> {
+    await db.delete(interviewerUnavailability).where(eq(interviewerUnavailability.id, id));
+  }
+
+  async deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, studioDateId: string, slotLabel?: string | null): Promise<void> {
+    if (slotLabel) {
+      await db.delete(interviewerUnavailability).where(
+        and(
+          eq(interviewerUnavailability.teamMemberId, teamMemberId),
+          eq(interviewerUnavailability.studioDateId, studioDateId),
+          eq(interviewerUnavailability.slotLabel, slotLabel)
+        )
+      );
+    } else {
+      await db.delete(interviewerUnavailability).where(
+        and(
+          eq(interviewerUnavailability.teamMemberId, teamMemberId),
+          eq(interviewerUnavailability.studioDateId, studioDateId)
+        )
+      );
+    }
   }
 
   async getSharedLinks(): Promise<SharedLink[]> {

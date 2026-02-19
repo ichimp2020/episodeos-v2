@@ -17,7 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, UserPlus, Phone, Calendar, Check } from "lucide-react";
-import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant } from "@shared/schema";
+import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, InterviewerUnavailability } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
@@ -94,6 +94,9 @@ export default function Scheduling() {
   const { data: members } = useQuery<TeamMember[]>({
     queryKey: ["/api/team-members"],
   });
+  const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
+    queryKey: ["/api/interviewer-unavailability"],
+  });
 
   const availableStudioDates = studioDates?.filter(
     (d) => d.status === "available" && isAfter(parseISO(d.date), new Date())
@@ -102,6 +105,17 @@ export default function Scheduling() {
   const confirmedGuests = guests?.filter((g) => g.status === "confirmed" || g.status === "contacted") || [];
 
   const interviewers = members?.filter((m) => m.role === "Interviewer") || [];
+
+  const getAvailableInterviewers = (studioDateId: string, slotLabel?: string) => {
+    if (!unavailabilityData) return interviewers;
+    return interviewers.filter((m) => {
+      return !unavailabilityData.some((u) =>
+        u.teamMemberId === m.id &&
+        u.studioDateId === studioDateId &&
+        (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
+      );
+    });
+  };
 
   const createInterview = useMutation({
     mutationFn: async () => {
@@ -490,12 +504,17 @@ export default function Scheduling() {
                   <SelectValue placeholder="Pick an available studio date" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableStudioDates.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {format(parseISO(d.date), "EEE, MMM d, yyyy")}
-                      {d.notes && ` - ${d.notes}`}
-                    </SelectItem>
-                  ))}
+                  {availableStudioDates.map((d) => {
+                    const availInterviewers = getAvailableInterviewers(d.id);
+                    const noOneAvail = interviewers.length > 0 && availInterviewers.length === 0;
+                    return (
+                      <SelectItem key={d.id} value={d.id} className={noOneAvail ? "opacity-40" : ""}>
+                        {format(parseISO(d.date), "EEE, MMM d, yyyy")}
+                        {d.notes && ` - ${d.notes}`}
+                        {interviewers.length > 0 && ` (${availInterviewers.map((m) => m.initials).join(", ") || "none free"})`}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -689,8 +708,10 @@ export default function Scheduling() {
                               {availableStudioDates.map((d) => {
                                 const slots = d.notes ? parseTimeSlots(d.notes) : [];
                                 const isExpanded = rescheduleDate === d.date && slots.length > 0;
+                                const dateAvailInterviewers = getAvailableInterviewers(d.id);
+                                const noOneAvail = interviewers.length > 0 && dateAvailInterviewers.length === 0 && slots.length === 0;
                                 return (
-                                  <div key={d.id}>
+                                  <div key={d.id} className={noOneAvail ? "opacity-40" : ""}>
                                     <button
                                       className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
                                         rescheduleDate === d.date
@@ -719,7 +740,21 @@ export default function Scheduling() {
                                       </div>
                                       <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
-                                        {d.notes && <p className="text-[11px] text-muted-foreground truncate">{d.notes}</p>}
+                                        <div className="flex items-center gap-1 mt-0.5">
+                                          {d.notes && <span className="text-[11px] text-muted-foreground truncate">{d.notes}</span>}
+                                          {interviewers.length > 0 && slots.length === 0 && (
+                                            <div className="flex items-center gap-0.5 ml-1">
+                                              {interviewers.map((m) => (
+                                                <div
+                                                  key={m.id}
+                                                  className={`h-2 w-2 rounded-full ${dateAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                                  style={{ backgroundColor: m.color }}
+                                                  title={`${m.name}: ${dateAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                                />
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                       {rescheduleDate === d.date && slots.length === 0 && (
                                         <Check className="h-4 w-4 text-primary shrink-0" />
@@ -732,10 +767,15 @@ export default function Scheduling() {
                                           {t.guests.selectHourSlot}
                                         </p>
                                         <div className="grid grid-cols-2 gap-1">
-                                          {slots.map((slot) => (
+                                          {slots.map((slot) => {
+                                            const slotAvailInterviewers = getAvailableInterviewers(d.id, slot.label);
+                                            const slotNoOne = interviewers.length > 0 && slotAvailInterviewers.length === 0;
+                                            return (
                                             <button
                                               key={slot.label}
                                               className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                                slotNoOne ? "opacity-40 " : ""
+                                              }${
                                                 rescheduleSlot?.label === slot.label
                                                   ? "bg-primary text-primary-foreground shadow-sm"
                                                   : "bg-muted/50 hover:bg-muted text-foreground"
@@ -748,11 +788,24 @@ export default function Scheduling() {
                                             >
                                               <Clock className="h-3 w-3" />
                                               {slot.label}
+                                              {interviewers.length > 0 && (
+                                                <div className="flex items-center gap-0.5 ml-0.5">
+                                                  {interviewers.map((m) => (
+                                                    <div
+                                                      key={m.id}
+                                                      className={`h-1.5 w-1.5 rounded-full ${slotAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                                      style={{ backgroundColor: rescheduleSlot?.label === slot.label ? "white" : m.color }}
+                                                      title={`${m.name}: ${slotAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                                    />
+                                                  ))}
+                                                </div>
+                                              )}
                                               {rescheduleSlot?.label === slot.label && (
                                                 <Check className="h-3 w-3" />
                                               )}
                                             </button>
-                                          ))}
+                                            );
+                                          })}
                                         </div>
                                       </div>
                                     )}

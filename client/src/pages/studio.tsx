@@ -16,8 +16,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users } from "lucide-react";
-import type { StudioDate } from "@shared/schema";
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck } from "lucide-react";
+import type { StudioDate, TeamMember, InterviewerUnavailability } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -201,6 +201,37 @@ export default function Studio() {
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
     queryKey: ["/api/studio-dates"],
   });
+
+  const { data: teamMembersData } = useQuery<TeamMember[]>({
+    queryKey: ["/api/team-members"],
+  });
+
+  const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
+    queryKey: ["/api/interviewer-unavailability"],
+  });
+
+  const interviewers = useMemo(() =>
+    teamMembersData?.filter((m) => m.role?.toLowerCase() === "interviewer") || [],
+    [teamMembersData]
+  );
+
+  const toggleUnavailability = useMutation({
+    mutationFn: async ({ teamMemberId, studioDateId, slotLabel }: { teamMemberId: string; studioDateId: string; slotLabel?: string }) => {
+      await apiRequest("POST", "/api/interviewer-unavailability/toggle", { teamMemberId, studioDateId, slotLabel });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/interviewer-unavailability"] });
+    },
+  });
+
+  const isUnavailable = (teamMemberId: string, studioDateId: string, slotLabel?: string) => {
+    if (!unavailabilityData) return false;
+    return unavailabilityData.some((u) =>
+      u.teamMemberId === teamMemberId &&
+      u.studioDateId === studioDateId &&
+      (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
+    );
+  };
 
   const createDate = useMutation({
     mutationFn: async () => {
@@ -523,6 +554,134 @@ export default function Studio() {
           </div>
         </div>
       </div>
+
+      {interviewers.length > 0 && (
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Interviewer Availability
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Interviewers can mark dates/slots where they're unavailable
+            </p>
+          </div>
+          <div className="px-5 pb-5">
+            {(() => {
+              const availableDates = studioDates
+                ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()))
+                .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
+
+              if (availableDates.length === 0) {
+                return (
+                  <div className="text-center py-8">
+                    <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">No upcoming available dates</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4 mb-3">
+                    {interviewers.map((interviewer) => (
+                      <div key={interviewer.id} className="flex items-center gap-1.5">
+                        <div
+                          className="h-3 w-3 rounded-full"
+                          style={{ backgroundColor: interviewer.color }}
+                        />
+                        <span className="text-xs font-medium">{interviewer.name}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <UserCheck className="h-3 w-3 text-chart-2" />
+                      <span className="text-xs text-muted-foreground">Available</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <UserX className="h-3 w-3 text-destructive" />
+                      <span className="text-xs text-muted-foreground">Unavailable</span>
+                    </div>
+                  </div>
+                  {availableDates.map((dateRecord) => {
+                    const slots = dateRecord.notes ? parseTimeRange(dateRecord.notes) : [];
+                    return (
+                      <div key={dateRecord.id} className="rounded-lg border p-3 space-y-2" data-testid={`availability-date-${dateRecord.id}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{format(parseISO(dateRecord.date), "EEE, MMM d")}</span>
+                            {dateRecord.notes && (
+                              <span className="text-xs text-muted-foreground">{dateRecord.notes}</span>
+                            )}
+                          </div>
+                          {slots.length === 0 && (
+                            <div className="flex items-center gap-1">
+                              {interviewers.map((interviewer) => {
+                                const unavail = isUnavailable(interviewer.id, dateRecord.id);
+                                return (
+                                  <button
+                                    key={interviewer.id}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                                      unavail
+                                        ? "bg-destructive/10 text-destructive"
+                                        : "bg-chart-2/10 text-chart-2"
+                                    }`}
+                                    onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, studioDateId: dateRecord.id })}
+                                    data-testid={`toggle-avail-${dateRecord.id}-${interviewer.id}`}
+                                  >
+                                    <div
+                                      className="h-2 w-2 rounded-full"
+                                      style={{ backgroundColor: interviewer.color }}
+                                    />
+                                    {interviewer.initials}
+                                    {unavail ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        {slots.length > 0 && (
+                          <div className="space-y-1.5">
+                            {slots.map((slot, slotIdx) => (
+                              <div key={slotIdx} className="flex items-center justify-between pl-3 py-1 rounded bg-muted/30">
+                                <span className="text-xs font-medium text-muted-foreground">{slot.label}</span>
+                                <div className="flex items-center gap-1">
+                                  {interviewers.map((interviewer) => {
+                                    const unavail = isUnavailable(interviewer.id, dateRecord.id, slot.label);
+                                    return (
+                                      <button
+                                        key={interviewer.id}
+                                        className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                                          unavail
+                                            ? "bg-destructive/10 text-destructive"
+                                            : "bg-chart-2/10 text-chart-2"
+                                        }`}
+                                        onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, studioDateId: dateRecord.id, slotLabel: slot.label })}
+                                        data-testid={`toggle-avail-${dateRecord.id}-${interviewer.id}-slot-${slotIdx}`}
+                                      >
+                                        <div
+                                          className="h-2 w-2 rounded-full"
+                                          style={{ backgroundColor: interviewer.color }}
+                                        />
+                                        {interviewer.initials}
+                                        {unavail ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       <Dialog open={showAddDate} onOpenChange={setShowAddDate}>
         <DialogContent>
