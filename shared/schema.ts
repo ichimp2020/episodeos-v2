@@ -129,7 +129,7 @@ export const episodeShorts = pgTable("episode_shorts", {
 export const interviewerUnavailability = pgTable("interviewer_unavailability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   teamMemberId: varchar("team_member_id").notNull(),
-  studioDateId: varchar("studio_date_id").notNull(),
+  unavailableDate: date("unavailable_date").notNull(),
   slotLabel: text("slot_label"),
 });
 

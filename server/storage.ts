@@ -84,7 +84,7 @@ export interface IStorage {
   getInterviewerUnavailability(): Promise<InterviewerUnavailability[]>;
   createInterviewerUnavailability(entry: InsertInterviewerUnavailability): Promise<InterviewerUnavailability>;
   deleteInterviewerUnavailability(id: string): Promise<void>;
-  deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, studioDateId: string, slotLabel?: string | null): Promise<void>;
+  deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, unavailableDate: string, slotLabel?: string | null): Promise<void>;
 
   getSharedLinks(): Promise<SharedLink[]>;
   createSharedLink(link: InsertSharedLink): Promise<SharedLink>;
@@ -338,12 +338,12 @@ export class DatabaseStorage implements IStorage {
     await db.delete(interviewerUnavailability).where(eq(interviewerUnavailability.id, id));
   }
 
-  async deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, studioDateId: string, slotLabel?: string | null): Promise<void> {
+  async deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, unavailableDate: string, slotLabel?: string | null): Promise<void> {
     if (slotLabel) {
       await db.delete(interviewerUnavailability).where(
         and(
           eq(interviewerUnavailability.teamMemberId, teamMemberId),
-          eq(interviewerUnavailability.studioDateId, studioDateId),
+          eq(interviewerUnavailability.unavailableDate, unavailableDate),
           eq(interviewerUnavailability.slotLabel, slotLabel)
         )
       );
@@ -351,7 +351,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(interviewerUnavailability).where(
         and(
           eq(interviewerUnavailability.teamMemberId, teamMemberId),
-          eq(interviewerUnavailability.studioDateId, studioDateId)
+          eq(interviewerUnavailability.unavailableDate, unavailableDate)
         )
       );
     }

@@ -88,24 +88,26 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
 
   const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
 
-  const getAvailableInterviewers = (studioDateId: string, slotLabel?: string) => {
+  const getAvailableInterviewers = (dateStr: string, slotLabel?: string) => {
     if (!unavailabilityData) return interviewerMembers;
     return interviewerMembers.filter((m) => {
       return !unavailabilityData.some((u) =>
         u.teamMemberId === m.id &&
-        u.studioDateId === studioDateId &&
+        u.unavailableDate === dateStr &&
         (slotLabel ? (u.slotLabel === slotLabel || u.slotLabel === null) : !u.slotLabel)
       );
     });
   };
 
-  const hasAnyInterviewerAvailable = (studioDateId: string, notes?: string | null) => {
+  const hasAnyInterviewerAvailable = (dateStr: string, notes?: string | null) => {
     if (interviewerMembers.length === 0) return true;
-    const slots = notes ? parseTimeSlots(notes) : [];
-    if (slots.length === 0) {
-      return getAvailableInterviewers(studioDateId).length > 0;
-    }
-    return slots.some((slot) => getAvailableInterviewers(studioDateId, slot.label).length > 0);
+    const allFree = interviewerMembers.every((m) => {
+      if (unavailabilityData?.some((u) => u.teamMemberId === m.id && u.unavailableDate === dateStr && !u.slotLabel)) return false;
+      const slots = notes ? parseTimeSlots(notes) : [];
+      if (slots.length === 0) return true;
+      return !slots.every((slot) => unavailabilityData?.some((u) => u.teamMemberId === m.id && u.unavailableDate === dateStr && (u.slotLabel === slot.label || u.slotLabel === null)));
+    });
+    return allFree;
   };
 
   const availableDates = studioDates
@@ -292,8 +294,8 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                       {availableDates.map((d) => {
                         const slots = d.notes ? parseTimeSlots(d.notes) : [];
                         const isExpanded = selectedDate === d.date && slots.length > 0;
-                        const dateAvailInterviewers = getAvailableInterviewers(d.id);
-                        const noOneAvailable = interviewerMembers.length > 0 && !hasAnyInterviewerAvailable(d.id, d.notes);
+                        const dateAvailInterviewers = getAvailableInterviewers(d.date);
+                        const noOneAvailable = interviewerMembers.length > 0 && !hasAnyInterviewerAvailable(d.date, d.notes);
                         return (
                           <div key={d.id} className={noOneAvailable ? "opacity-40" : ""}>
                             <button
@@ -343,7 +345,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                                 </p>
                                 <div className="grid grid-cols-2 gap-1">
                                   {slots.map((slot) => {
-                                    const slotAvailInterviewers = getAvailableInterviewers(d.id, slot.label);
+                                    const slotAvailInterviewers = getAvailableInterviewers(d.date, slot.label);
                                     const slotNoOne = interviewerMembers.length > 0 && slotAvailInterviewers.length === 0;
                                     return (
                                       <button

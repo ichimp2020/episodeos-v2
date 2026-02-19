@@ -106,12 +106,12 @@ export default function Scheduling() {
 
   const interviewers = members?.filter((m) => m.role === "Interviewer") || [];
 
-  const getAvailableInterviewers = (studioDateId: string, slotLabel?: string) => {
+  const getAvailableInterviewers = (dateStr: string, slotLabel?: string) => {
     if (!unavailabilityData) return interviewers;
     return interviewers.filter((m) => {
       return !unavailabilityData.some((u) =>
         u.teamMemberId === m.id &&
-        u.studioDateId === studioDateId &&
+        u.unavailableDate === dateStr &&
         (slotLabel ? (u.slotLabel === slotLabel || u.slotLabel === null) : !u.slotLabel)
       );
     });
@@ -505,7 +505,7 @@ export default function Scheduling() {
                 </SelectTrigger>
                 <SelectContent>
                   {availableStudioDates.map((d) => {
-                    const availInterviewers = getAvailableInterviewers(d.id);
+                    const availInterviewers = getAvailableInterviewers(d.date);
                     const noOneAvail = interviewers.length > 0 && availInterviewers.length === 0;
                     return (
                       <SelectItem key={d.id} value={d.id} className={noOneAvail ? "opacity-40" : ""}>
@@ -708,7 +708,7 @@ export default function Scheduling() {
                               {availableStudioDates.map((d) => {
                                 const slots = d.notes ? parseTimeSlots(d.notes) : [];
                                 const isExpanded = rescheduleDate === d.date && slots.length > 0;
-                                const dateAvailInterviewers = getAvailableInterviewers(d.id);
+                                const dateAvailInterviewers = getAvailableInterviewers(d.date);
                                 const noOneAvail = interviewers.length > 0 && dateAvailInterviewers.length === 0 && slots.length === 0;
                                 return (
                                   <div key={d.id} className={noOneAvail ? "opacity-40" : ""}>
@@ -768,7 +768,7 @@ export default function Scheduling() {
                                         </p>
                                         <div className="grid grid-cols-2 gap-1">
                                           {slots.map((slot) => {
-                                            const slotAvailInterviewers = getAvailableInterviewers(d.id, slot.label);
+                                            const slotAvailInterviewers = getAvailableInterviewers(d.date, slot.label);
                                             const slotNoOne = interviewers.length > 0 && slotAvailInterviewers.length === 0;
                                             return (
                                             <button

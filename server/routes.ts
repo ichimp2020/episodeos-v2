@@ -298,14 +298,14 @@ export async function registerRoutes(
   });
 
   app.post("/api/interviewer-unavailability/toggle", async (req, res) => {
-    const { teamMemberId, studioDateId, slotLabel } = req.body;
-    if (!teamMemberId || !studioDateId) {
-      return res.status(400).json({ message: "teamMemberId and studioDateId required" });
+    const { teamMemberId, unavailableDate, slotLabel } = req.body;
+    if (!teamMemberId || !unavailableDate) {
+      return res.status(400).json({ message: "teamMemberId and unavailableDate required" });
     }
     const all = await storage.getInterviewerUnavailability();
     const existing = all.find(e =>
       e.teamMemberId === teamMemberId &&
-      e.studioDateId === studioDateId &&
+      e.unavailableDate === unavailableDate &&
       (slotLabel ? e.slotLabel === slotLabel : !e.slotLabel)
     );
     if (existing) {
@@ -314,7 +314,7 @@ export async function registerRoutes(
     } else {
       const entry = await storage.createInterviewerUnavailability({
         teamMemberId,
-        studioDateId,
+        unavailableDate,
         slotLabel: slotLabel || null,
       });
       res.json({ action: "added", entry });

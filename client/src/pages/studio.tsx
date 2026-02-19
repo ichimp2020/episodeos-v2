@@ -43,6 +43,44 @@ interface ParsedStudioDate {
   selected: boolean;
 }
 
+interface TimeSlot {
+  start: string;
+  end: string;
+  label: string;
+}
+
+function parseTimeSlots(notes: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
+
 const hebrewMonths: Record<string, number> = {
   "ינואר": 0, "פברואר": 1, "מרץ": 2, "מרס": 2, "אפריל": 3,
   "מאי": 4, "יוני": 5, "יולי": 6, "אוגוסט": 7,
@@ -216,21 +254,31 @@ export default function Studio() {
   );
 
   const toggleUnavailability = useMutation({
-    mutationFn: async ({ teamMemberId, studioDateId, slotLabel }: { teamMemberId: string; studioDateId: string; slotLabel?: string }) => {
-      await apiRequest("POST", "/api/interviewer-unavailability/toggle", { teamMemberId, studioDateId, slotLabel });
+    mutationFn: async ({ teamMemberId, unavailableDate, slotLabel }: { teamMemberId: string; unavailableDate: string; slotLabel?: string }) => {
+      await apiRequest("POST", "/api/interviewer-unavailability/toggle", { teamMemberId, unavailableDate, slotLabel });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviewer-unavailability"] });
     },
   });
 
-  const isUnavailable = (teamMemberId: string, studioDateId: string, slotLabel?: string) => {
+  const isUnavailable = (teamMemberId: string, dateStr: string, slotLabel?: string) => {
     if (!unavailabilityData) return false;
     return unavailabilityData.some((u) =>
       u.teamMemberId === teamMemberId &&
-      u.studioDateId === studioDateId &&
+      u.unavailableDate === dateStr &&
       (slotLabel ? u.slotLabel === slotLabel : !u.slotLabel)
     );
+  };
+
+  const isDateBlockedByInterviewers = (dateStr: string, notes?: string | null) => {
+    if (interviewers.length === 0) return false;
+    return interviewers.some((m) => {
+      if (isUnavailable(m.id, dateStr)) return true;
+      const slots = notes ? parseTimeSlots(notes) : [];
+      if (slots.length === 0) return false;
+      return slots.every((slot) => isUnavailable(m.id, dateStr, slot.label));
+    });
   };
 
   const createDate = useMutation({
@@ -475,8 +523,11 @@ export default function Studio() {
               {calendarDays.map((day) => {
                 const dayRecords = getDatesForDay(day);
                 const dateInfo = getDateInfo(day);
-                const hasAvailable = dayRecords.some((d) => d.status === "available");
+                const dayStr = format(day, "yyyy-MM-dd");
+                const availableRecords = dayRecords.filter((d) => d.status === "available");
                 const hasTaken = dayRecords.some((d) => d.status === "taken");
+                const allAvailableBlocked = availableRecords.length > 0 && availableRecords.every((d) => isDateBlockedByInterviewers(d.date, d.notes));
+                const hasAvailable = availableRecords.length > 0 && !allAvailableBlocked;
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isToday = isSameDay(day, new Date());
                 const isPast = isBefore(day, new Date()) && !isToday;
@@ -488,12 +539,14 @@ export default function Studio() {
                     } ${isToday ? "ring-1 ring-primary/30" : ""} ${
                       hasAvailable
                         ? "bg-chart-2/8"
+                        : allAvailableBlocked
+                        ? "bg-amber-500/8"
                         : hasTaken
                         ? "bg-chart-5/8"
                         : ""
                     }`}
                     onClick={() => dateInfo && setSelectedDate(dateInfo)}
-                    data-testid={`cell-day-${format(day, "yyyy-MM-dd")}`}
+                    data-testid={`cell-day-${dayStr}`}
                   >
                     <span className={`text-sm ${isToday ? "font-semibold text-primary" : isPast ? "text-muted-foreground" : ""}`}>
                       {format(day, "d")}
@@ -501,6 +554,7 @@ export default function Studio() {
                     {dayRecords.length > 0 && (
                       <div className="mt-0.5 flex items-center justify-center gap-0.5">
                         {hasAvailable && <div className="h-1.5 w-1.5 rounded-full bg-chart-2" />}
+                        {allAvailableBlocked && <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />}
                         {hasTaken && <div className="h-1.5 w-1.5 rounded-full bg-chart-5" />}
                       </div>
                     )}
@@ -513,6 +567,10 @@ export default function Studio() {
               <div className="flex items-center gap-1.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-chart-2" />
                 <span className="text-xs text-muted-foreground">Available</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                <span className="text-xs text-muted-foreground">Interviewer Unavailable</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="h-2.5 w-2.5 rounded-full bg-chart-5" />
@@ -616,7 +674,7 @@ export default function Studio() {
                           {slots.length === 0 && (
                             <div className="flex items-center gap-1">
                               {interviewers.map((interviewer) => {
-                                const unavail = isUnavailable(interviewer.id, dateRecord.id);
+                                const unavail = isUnavailable(interviewer.id, dateRecord.date);
                                 return (
                                   <button
                                     key={interviewer.id}
@@ -625,7 +683,7 @@ export default function Studio() {
                                         ? "bg-destructive/10 text-destructive"
                                         : "bg-chart-2/10 text-chart-2"
                                     }`}
-                                    onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, studioDateId: dateRecord.id })}
+                                    onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, unavailableDate: dateRecord.date })}
                                     data-testid={`toggle-avail-${dateRecord.id}-${interviewer.id}`}
                                   >
                                     <div
@@ -647,7 +705,7 @@ export default function Studio() {
                                 <span className="text-xs font-medium text-muted-foreground">{slot.label}</span>
                                 <div className="flex items-center gap-1">
                                   {interviewers.map((interviewer) => {
-                                    const unavail = isUnavailable(interviewer.id, dateRecord.id, slot.label);
+                                    const unavail = isUnavailable(interviewer.id, dateRecord.date, slot.label);
                                     return (
                                       <button
                                         key={interviewer.id}
@@ -656,7 +714,7 @@ export default function Studio() {
                                             ? "bg-destructive/10 text-destructive"
                                             : "bg-chart-2/10 text-chart-2"
                                         }`}
-                                        onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, studioDateId: dateRecord.id, slotLabel: slot.label })}
+                                        onClick={() => toggleUnavailability.mutate({ teamMemberId: interviewer.id, unavailableDate: dateRecord.date, slotLabel: slot.label })}
                                         data-testid={`toggle-avail-${dateRecord.id}-${interviewer.id}-slot-${slotIdx}`}
                                       >
                                         <div
@@ -890,6 +948,33 @@ export default function Studio() {
                     {selectedDate.status}
                   </Badge>
                 </div>
+
+                {selectedDate.status === "available" && interviewers.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5" />
+                      Interviewer Availability
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      {interviewers.map((m) => {
+                        const blocked = isUnavailable(m.id, selectedDate.date) || (selectedDate.notes && parseTimeSlots(selectedDate.notes).length > 0 && parseTimeSlots(selectedDate.notes).every((slot) => isUnavailable(m.id, selectedDate.date, slot.label)));
+                        return (
+                          <div key={m.id} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${blocked ? "bg-destructive/10 text-destructive" : "bg-chart-2/10 text-chart-2"}`}>
+                            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
+                            {m.name}
+                            {blocked ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {isDateBlockedByInterviewers(selectedDate.date, selectedDate.notes) && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        No interviewers available for this date
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {selectedDate.status === "available" && selectedDate.notes && (() => {
                   const slots = parseTimeRange(selectedDate.notes);
