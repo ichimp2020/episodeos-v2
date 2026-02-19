@@ -45,8 +45,8 @@ function App() {
             <div className="flex h-screen w-full">
               <AppSidebar />
               <div className="flex flex-col flex-1 min-w-0">
-                <header className="flex items-center justify-between gap-2 p-2 border-b sticky top-0 z-50 bg-background">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" />
+                <header className="glass-header flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50">
+                  <SidebarTrigger className="rounded-xl" data-testid="button-sidebar-toggle" />
                   <ThemeToggle />
                 </header>
                 <main className="flex-1 overflow-auto">

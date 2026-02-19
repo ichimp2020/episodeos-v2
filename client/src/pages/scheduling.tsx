@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -188,27 +187,29 @@ export default function Scheduling() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-scheduling-title">Interview Scheduling</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-scheduling-title">Interview Scheduling</h1>
           <p className="text-sm text-muted-foreground mt-1">Coordinate interviews with guests, studio, and interviewers</p>
         </div>
-        <Button onClick={() => setShowNewInterview(true)} data-testid="button-new-interview">
+        <Button onClick={() => setShowNewInterview(true)} data-testid="button-new-interview" className="rounded-full px-5 shadow-md">
           <Plus className="h-4 w-4 mr-2" />
           Schedule Interview
         </Button>
       </div>
 
       {(!allInterviews || allInterviews.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <CalendarClock className="h-12 w-12 text-muted-foreground/30 mb-3" />
+        <div className="ios-section">
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+              <CalendarClock className="h-6 w-6 text-muted-foreground" />
+            </div>
             <p className="text-muted-foreground font-medium">No interviews scheduled</p>
             <p className="text-sm text-muted-foreground mt-1">Schedule your first interview with a guest</p>
-            <Button className="mt-4" onClick={() => setShowNewInterview(true)} data-testid="button-create-first-interview">
+            <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewInterview(true)} data-testid="button-create-first-interview">
               <Plus className="h-4 w-4 mr-2" />
               Schedule Interview
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           {upcomingInterviews.length > 0 && (
@@ -222,20 +223,20 @@ export default function Scheduling() {
                   const guest = getGuest(interview.guestId);
                   const studio = getStudioDate(interview.studioDateId);
                   return (
-                    <Card
+                    <div
                       key={interview.id}
-                      className="hover-elevate cursor-pointer"
+                      className="ios-card cursor-pointer"
                       onClick={() => setSelectedInterview(interview)}
                       data-testid={`card-interview-${interview.id}`}
                     >
-                      <CardContent className="py-4 px-5">
+                      <div className="py-4 px-5">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="text-sm font-medium">{guest?.name || "Unknown Guest"}</h3>
-                              <Badge variant="secondary" className={statusColors[interview.status]}>
+                              <div className={`ios-badge border-0 ${statusColors[interview.status]}`}>
                                 {interview.status}
-                              </Badge>
+                              </div>
                             </div>
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                               {interview.scheduledDate && (
@@ -264,8 +265,8 @@ export default function Scheduling() {
                             <CheckCircle className="h-4 w-4 text-chart-2 shrink-0" />
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -282,19 +283,19 @@ export default function Scheduling() {
                 {pastInterviews.map((interview) => {
                   const guest = getGuest(interview.guestId);
                   return (
-                    <Card
+                    <div
                       key={interview.id}
-                      className="hover-elevate cursor-pointer opacity-60"
+                      className="ios-card cursor-pointer opacity-60"
                       onClick={() => setSelectedInterview(interview)}
                       data-testid={`card-interview-${interview.id}`}
                     >
-                      <CardContent className="py-3 px-5">
+                      <div className="py-3 px-5">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-medium">{guest?.name || "Unknown"}</h3>
-                            <Badge variant="secondary" className={statusColors[interview.status]}>
+                            <div className={`ios-badge border-0 ${statusColors[interview.status]}`}>
                               {interview.status}
-                            </Badge>
+                            </div>
                           </div>
                           {interview.scheduledDate && (
                             <span className="text-xs text-muted-foreground">
@@ -302,8 +303,8 @@ export default function Scheduling() {
                             </span>
                           )}
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -341,9 +342,8 @@ export default function Scheduling() {
               {!showQuickAdd ? (
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-1 text-xs gap-1.5"
+                  variant="secondary"
+                  className="mt-1 text-xs gap-1.5 rounded-full px-4"
                   onClick={() => setShowQuickAdd(true)}
                   data-testid="button-quick-add-guest"
                 >
@@ -375,7 +375,7 @@ export default function Scheduling() {
                   />
                   <div className="flex gap-2">
                     <Button
-                      size="sm"
+                      className="flex-1 rounded-full px-5 shadow-md"
                       disabled={!quickGuest.name.trim() || quickAddGuest.isPending}
                       onClick={() => quickAddGuest.mutate()}
                       data-testid="button-save-quick-guest"
@@ -383,8 +383,8 @@ export default function Scheduling() {
                       {quickAddGuest.isPending ? "Adding..." : "Add Guest"}
                     </Button>
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      variant="secondary"
+                      className="flex-1 rounded-full px-4"
                       onClick={() => { setShowQuickAdd(false); setQuickGuest({ name: "", phone: "", email: "" }); }}
                       data-testid="button-cancel-quick-guest"
                     >
@@ -446,11 +446,10 @@ export default function Scheduling() {
                 {interviewers.map((member) => (
                   <Button
                     key={member.id}
-                    variant={newInterview.participantIds.includes(member.id) ? "default" : "outline"}
-                    size="sm"
+                    variant={newInterview.participantIds.includes(member.id) ? "default" : "secondary"}
+                    className={`rounded-full px-5 ${newInterview.participantIds.includes(member.id) ? "shadow-md" : ""}`}
                     onClick={() => toggleParticipant(member.id)}
                     data-testid={`button-toggle-interviewer-${member.id}`}
-                    className="toggle-elevate"
                   >
                     <Avatar className="h-5 w-5 mr-1.5">
                       <AvatarFallback className="text-[8px] text-white" style={{ backgroundColor: member.color }}>
@@ -477,7 +476,7 @@ export default function Scheduling() {
             </div>
 
             <Button
-              className="w-full"
+              className="w-full rounded-full px-5 shadow-md"
               onClick={() => createInterview.mutate()}
               disabled={!newInterview.guestId || createInterview.isPending}
               data-testid="button-submit-interview"
@@ -503,8 +502,8 @@ export default function Scheduling() {
                     <span>Interview: {guest?.name || "Unknown"}</span>
                     {!isEditing && (
                       <Button
-                        variant="outline"
-                        size="icon"
+                        variant="secondary"
+                        className="rounded-full px-4"
                         onClick={() => {
                           setEditForm({
                             scheduledDate: selectedInterview.scheduledDate || "",
@@ -586,16 +585,15 @@ export default function Scheduling() {
                         />
                       </div>
                       <div className="flex items-center gap-2 pt-1">
-                        <Button
-                          variant="outline"
-                          className="flex-1"
+                        <button
+                          className="flex-1 ios-pill-button ios-pill-button-secondary"
                           onClick={() => setIsEditing(false)}
                           data-testid="button-cancel-edit"
                         >
                           Cancel
-                        </Button>
-                        <Button
-                          className="flex-1"
+                        </button>
+                        <button
+                          className="flex-1 ios-pill-button ios-pill-button-primary"
                           disabled={updateInterview.isPending}
                           onClick={() => {
                             updateInterview.mutate({
@@ -618,7 +616,7 @@ export default function Scheduling() {
                           data-testid="button-save-edit"
                         >
                           {updateInterview.isPending ? "Saving..." : "Save Changes"}
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -663,16 +661,14 @@ export default function Scheduling() {
 
                   {!isEditing && (
                     <div className="flex justify-end pt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
+                      <button
+                        className="ios-pill-button ios-pill-button-secondary"
                         onClick={() => deleteInterview.mutate(selectedInterview.id)}
                         data-testid="button-delete-interview"
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
                         Delete Interview
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>

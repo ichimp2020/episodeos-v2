@@ -394,47 +394,47 @@ export default function Studio() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-studio-title">Studio Calendar</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-studio-title">Studio Calendar</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage studio availability from your partner</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowWhatsAppPaste(true)} data-testid="button-paste-whatsapp">
+          <Button variant="secondary" className="rounded-full px-4" onClick={() => setShowWhatsAppPaste(true)} data-testid="button-paste-whatsapp">
             <MessageSquare className="h-4 w-4 mr-2" />
             Paste WhatsApp
           </Button>
-          <Button onClick={() => setShowAddDate(true)} data-testid="button-add-studio-date">
-            <Plus className="h-4 w-4 mr-2" />
+          <Button className="rounded-full px-5 shadow-md" onClick={() => setShowAddDate(true)} data-testid="button-add-studio-date">
+            <Plus className="h-4 w-4" />
             Add Date
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-            <CardTitle className="text-base font-medium" data-testid="text-calendar-month">
+        <div className="ios-section lg:col-span-2">
+          <div className="ios-section-header flex flex-row items-center justify-between gap-2">
+            <h2 className="ios-section-title" data-testid="text-calendar-month">
               {format(currentMonth, "MMMM yyyy")}
-            </CardTitle>
+            </h2>
             <div className="flex items-center gap-1">
               <Button
-                variant="ghost"
-                size="icon"
+                variant="secondary"
+                className="rounded-full px-4"
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
                 data-testid="button-prev-month"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
+                variant="secondary"
+                className="rounded-full px-4"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
                 data-testid="button-next-month"
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div className="px-5 pb-5">
             <div className="grid grid-cols-7 gap-px">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                 <div key={d} className="p-2 text-center text-xs font-medium text-muted-foreground">
@@ -488,14 +488,14 @@ export default function Studio() {
                 <span className="text-xs text-muted-foreground">Taken</span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Upcoming Available</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title">Upcoming Available</h2>
+          </div>
+          <div className="px-5 pb-5 space-y-2">
             {upcomingDates.length === 0 ? (
               <div className="text-center py-8">
                 <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -520,8 +520,8 @@ export default function Studio() {
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <Dialog open={showAddDate} onOpenChange={setShowAddDate}>
@@ -550,7 +550,7 @@ export default function Studio() {
               />
             </div>
             <Button
-              className="w-full"
+              className="w-full rounded-full px-5 shadow-md"
               onClick={() => createDate.mutate()}
               disabled={!newDate.date || createDate.isPending}
               data-testid="button-submit-studio-date"
@@ -594,7 +594,7 @@ export default function Studio() {
                 />
               </div>
               <Button
-                className="w-full"
+                className="w-full rounded-full px-5 shadow-md"
                 onClick={handleParseMessage}
                 disabled={!whatsappText.trim()}
                 data-testid="button-parse-whatsapp"
@@ -610,10 +610,10 @@ export default function Studio() {
                   {" "} ({parsedDates.filter((d) => d.selected).length} selected)
                 </p>
                 <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" onClick={selectAllParsed} data-testid="button-select-all-dates">
+                  <Button variant="secondary" className="rounded-full px-4" onClick={selectAllParsed} data-testid="button-select-all-dates">
                     Select All
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={deselectAllParsed} data-testid="button-deselect-all-dates">
+                  <Button variant="secondary" className="rounded-full px-4" onClick={deselectAllParsed} data-testid="button-deselect-all-dates">
                     None
                   </Button>
                 </div>
@@ -625,10 +625,10 @@ export default function Studio() {
                   return (
                     <div
                       key={idx}
-                      className={`flex items-center gap-3 p-3 rounded-md cursor-pointer transition-colors ${
+                      className={`ios-list-item cursor-pointer ${
                         pd.selected
                           ? "bg-chart-2/8"
-                          : "bg-card"
+                          : ""
                       } ${isExisting ? "opacity-50" : ""}`}
                       onClick={() => toggleParsedDate(idx)}
                       data-testid={`row-parsed-date-${idx}`}
@@ -648,12 +648,12 @@ export default function Studio() {
                             {format(parseISO(pd.date), "EEE, MMM d, yyyy")}
                           </span>
                           {pd.hasQuestion && (
-                            <Badge variant="secondary" className="bg-chart-4/10 text-chart-4 border-transparent text-[10px]">
+                            <Badge variant="secondary" className="ios-badge border-0 bg-chart-4/10 text-chart-4 text-[10px]">
                               tentative
                             </Badge>
                           )}
                           {isExisting && (
-                            <Badge variant="secondary" className="text-[10px]">
+                            <Badge variant="secondary" className="ios-badge border-0 text-[10px]">
                               exists
                             </Badge>
                           )}
@@ -672,8 +672,8 @@ export default function Studio() {
 
               <div className="flex items-center gap-2 pt-2">
                 <Button
-                  variant="outline"
-                  className="flex-1"
+                  variant="secondary"
+                  className="flex-1 rounded-full px-4"
                   onClick={() => {
                     setShowPreview(false);
                     setParsedDates([]);
@@ -683,7 +683,7 @@ export default function Studio() {
                   Back
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 rounded-full px-5 shadow-md"
                   onClick={() => bulkCreateDates.mutate(parsedDates)}
                   disabled={parsedDates.filter((d) => d.selected).length === 0 || bulkCreateDates.isPending}
                   data-testid="button-import-dates"
@@ -723,10 +723,10 @@ export default function Studio() {
                   <label className="text-sm text-muted-foreground">Status:</label>
                   <Badge
                     variant="secondary"
-                    className={selectedDate.status === "available"
-                      ? "bg-chart-2/10 text-chart-2 border-transparent"
-                      : "bg-chart-5/10 text-chart-5 border-transparent"
-                    }
+                    className={`ios-badge border-0 ${selectedDate.status === "available"
+                      ? "bg-chart-2/10 text-chart-2"
+                      : "bg-chart-5/10 text-chart-5"
+                    }`}
                   >
                     {selectedDate.status}
                   </Badge>
@@ -743,16 +743,15 @@ export default function Studio() {
                         </Label>
                         <div className="grid grid-cols-2 gap-2">
                           {slots.map((slot, idx) => (
-                            <Button
+                            <button
                               key={idx}
-                              variant="outline"
-                              className="justify-center"
+                              className="ios-pill-button ios-pill-button-secondary justify-center"
                               onClick={() => setSelectedSlot(slot)}
                               data-testid={`button-slot-${idx}`}
                             >
                               <Clock className="h-3.5 w-3.5 mr-1.5" />
                               {slot.label}
-                            </Button>
+                            </button>
                           ))}
                         </div>
                       </div>
@@ -836,9 +835,8 @@ export default function Studio() {
 
                 <div className="flex items-center gap-2 pt-2">
                   {selectedDate.status === "available" ? (
-                    <Button
-                      variant="secondary"
-                      className="flex-1"
+                    <button
+                      className="ios-pill-button ios-pill-button-secondary flex-1"
                       onClick={() => {
                         updateDateStatus.mutate({ id: selectedDate.id, status: "taken" });
                         setSelectedDate({ ...selectedDate, status: "taken" });
@@ -846,11 +844,10 @@ export default function Studio() {
                       data-testid="button-mark-taken"
                     >
                       Mark as Taken
-                    </Button>
+                    </button>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      className="flex-1"
+                    <button
+                      className="ios-pill-button ios-pill-button-secondary flex-1"
                       onClick={() => {
                         updateDateStatus.mutate({ id: selectedDate.id, status: "available" });
                         setSelectedDate({ ...selectedDate, status: "available" });
@@ -858,16 +855,15 @@ export default function Studio() {
                       data-testid="button-mark-available"
                     >
                       Mark as Available
-                    </Button>
+                    </button>
                   )}
-                  <Button
-                    variant="ghost"
-                    className="text-destructive"
+                  <button
+                    className="ios-pill-button ios-pill-button-secondary"
                     onClick={() => deleteDate.mutate(selectedDate.id)}
                     data-testid="button-delete-studio-date"
                   >
                     <Trash2 className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
               </div>
             </>
@@ -953,9 +949,8 @@ export default function Studio() {
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
+                  <button
+                    className="ios-pill-button ios-pill-button-secondary flex-1"
                     onClick={() => {
                       setSelectedSlot(null);
                       setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
@@ -963,16 +958,16 @@ export default function Studio() {
                     data-testid="button-back-to-slots"
                   >
                     Back
-                  </Button>
-                  <Button
-                    className="flex-1"
+                  </button>
+                  <button
+                    className="ios-pill-button ios-pill-button-primary flex-1"
                     disabled={bookSlot.isPending}
                     onClick={() => bookSlot.mutate({ dateRecord: selectedDate, slot: selectedSlot, emails: bookingEmails })}
                     data-testid="button-confirm-booking"
                   >
                     {bookSlot.isPending ? <Clock className="h-4 w-4 mr-1.5 animate-spin" /> : <Users className="h-4 w-4 mr-1.5" />}
                     {bookSlot.isPending ? "Booking & Sending Invites..." : "Confirm Booking"}
-                  </Button>
+                  </button>
                 </div>
               </div>
             </>

@@ -149,27 +149,29 @@ export default function Team() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-team-title">Team</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-team-title">Team</h1>
           <p className="text-sm text-muted-foreground mt-1">Your podcast crew and their responsibilities</p>
         </div>
-        <Button onClick={() => setShowAddMember(true)} data-testid="button-add-member">
+        <Button onClick={() => setShowAddMember(true)} className="rounded-full px-5 shadow-md" data-testid="button-add-member">
           <Plus className="h-4 w-4 mr-2" />
           Add Member
         </Button>
       </div>
 
       {(!members || members.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Users className="h-12 w-12 text-muted-foreground/30 mb-3" />
+        <div className="ios-card p-6">
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+              <Users className="h-6 w-6 text-muted-foreground/60" />
+            </div>
             <p className="text-muted-foreground font-medium">No team members yet</p>
             <p className="text-sm text-muted-foreground mt-1">Add your crew to start assigning tasks</p>
-            <Button className="mt-4" onClick={() => setShowAddMember(true)} data-testid="button-add-first-member">
+            <Button onClick={() => setShowAddMember(true)} className="rounded-full px-5 shadow-md mt-4" data-testid="button-add-first-member">
               <Plus className="h-4 w-4 mr-2" />
               Add Member
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedMembers.map((member, idx) => {
@@ -177,16 +179,15 @@ export default function Team() {
             const openTasks = memberTasks.filter((t) => t.status !== "done");
             const doneTasks = memberTasks.filter((t) => t.status === "done");
             return (
-              <Card
+              <div
                 key={member.id}
-                className="cursor-pointer hover-elevate"
+                className="ios-card cursor-pointer p-5"
                 onClick={() => setSelectedMember(member)}
                 data-testid={`card-member-${member.id}`}
               >
-                <CardContent className="pt-5 pb-4 px-5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10">
+                      <Avatar className="h-10 w-10 ring-2 ring-background shadow-sm">
                         <AvatarFallback
                           className="text-sm font-medium text-white"
                           style={{ backgroundColor: member.color }}
@@ -235,12 +236,12 @@ export default function Team() {
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <Badge variant="secondary" size="sm">
+                    <span className="ios-badge border-0 bg-primary/10 text-primary">
                       {openTasks.length} open
-                    </Badge>
-                    <Badge variant="secondary" size="sm" className="bg-chart-2/10 text-chart-2 border-transparent">
+                    </span>
+                    <span className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                       {doneTasks.length} done
-                    </Badge>
+                    </span>
                   </div>
                   {openTasks.length > 0 && (
                     <div className="mt-3 space-y-1.5">
@@ -255,8 +256,7 @@ export default function Team() {
                       )}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+              </div>
             );
           })}
         </div>
@@ -268,7 +268,7 @@ export default function Team() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-3 mb-1">
-                  <Avatar className="h-12 w-12">
+                  <Avatar className="h-12 w-12 ring-2 ring-background shadow-sm">
                     <AvatarFallback
                       className="text-base font-medium text-white"
                       style={{ backgroundColor: selectedMember.color }}
@@ -380,16 +380,14 @@ export default function Team() {
                 />
 
                 <div className="pt-2 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive w-full"
+                  <button
+                    className="text-destructive w-full p-2 text-sm font-medium rounded-lg hover:bg-destructive/10 transition-colors"
                     onClick={() => deleteMember.mutate(selectedMember.id)}
                     data-testid="button-delete-member"
                   >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    <Trash2 className="h-3.5 w-3.5 mr-2 inline" />
                     Remove Team Member
-                  </Button>
+                  </button>
                 </div>
               </div>
             </>
@@ -451,7 +449,7 @@ export default function Team() {
               />
             </div>
             <Button
-              className="w-full"
+              className="w-full rounded-full px-5 shadow-md"
               onClick={() => createMember.mutate()}
               disabled={!newMember.name || !newMember.role || createMember.isPending}
               data-testid="button-submit-member"

@@ -292,30 +292,32 @@ export default function Episodes() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-episodes-title">Episodes</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-episodes-title">Episodes</h1>
           <p className="text-sm text-muted-foreground mt-1">Plan, track, and manage your episodes</p>
         </div>
-        <Button onClick={() => setShowNewEpisode(true)} data-testid="button-new-episode">
+        <Button onClick={() => setShowNewEpisode(true)} className="rounded-full px-5 shadow-md" data-testid="button-new-episode">
           <Plus className="h-4 w-4 mr-2" />
           New Episode
         </Button>
       </div>
 
       {(!episodes || episodes.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Mic className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="text-muted-foreground font-medium">No episodes yet</p>
+        <div className="ios-section">
+          <div className="flex flex-col items-center justify-center py-16 px-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
+              <Mic className="h-7 w-7 text-muted-foreground/40" />
+            </div>
+            <p className="text-muted-foreground font-semibold">No episodes yet</p>
             <p className="text-sm text-muted-foreground mt-1">Create your first episode to get started</p>
-            <Button className="mt-4" onClick={() => setShowNewEpisode(true)} data-testid="button-create-first-episode">
+            <Button className="rounded-full px-5 shadow-md mt-5" onClick={() => setShowNewEpisode(true)} data-testid="button-create-first-episode">
               <Plus className="h-4 w-4 mr-2" />
               Create Episode
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="space-y-3">
           {[...episodes].sort((a, b) => {
@@ -326,60 +328,74 @@ export default function Episodes() {
             const eTasks = episodeTasks(episode.id);
             const done = eTasks.filter((t) => t.status === "done").length;
             return (
-              <Card
+              <div
                 key={episode.id}
-                className="hover-elevate cursor-pointer"
+                className="ios-card cursor-pointer p-4 px-5"
                 onClick={() => setSelectedEpisode(episode)}
                 data-testid={`card-episode-${episode.id}`}
               >
-                <CardContent className="py-4 px-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {episode.episodeNumber && (
-                          <span className="text-xs text-muted-foreground font-mono">#{episode.episodeNumber}</span>
-                        )}
-                        <h3 className="text-sm font-medium">{episode.title}</h3>
-                        <Badge variant="secondary" className={statusColors[episode.status]}>
-                          {episode.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1.5 flex-wrap">
-                        {episode.scheduledDate && (
-                          <span className="text-xs text-muted-foreground">
-                            {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
-                          </span>
-                        )}
-                        {eTasks.length > 0 && (
-                          <span className="text-xs text-muted-foreground">
-                            {done}/{eTasks.length} tasks done
-                          </span>
-                        )}
-                        {eTasks.length > 0 && (
-                          <div className="flex -space-x-1">
-                            {[...new Set(eTasks.map((t) => t.assigneeId).filter((id): id is string => !!id))].slice(0, 4).map((id) => {
-                              const m = getMember(id!);
-                              if (!m) return null;
-                              return (
-                                <Avatar key={m.id} className="h-5 w-5 border-2 border-background">
-                                  <AvatarFallback className="text-[8px] text-white" style={{ backgroundColor: m.color }}>
-                                    {m.initials}
-                                  </AvatarFallback>
-                                </Avatar>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {episode.episodeNumber && (
+                        <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
+                      )}
+                      <h3 className="text-sm font-semibold">{episode.title}</h3>
+                      <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
+                        {episode.status}
+                      </Badge>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="flex items-center gap-4 mt-2 flex-wrap">
+                      {episode.scheduledDate && (
+                        <span className="text-xs text-muted-foreground">
+                          {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
+                        </span>
+                      )}
+                      {eTasks.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-chart-2 rounded-full transition-all duration-500"
+                              style={{ width: `${eTasks.length > 0 ? (done / eTasks.length) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground font-medium">
+                            {done}/{eTasks.length}
+                          </span>
+                        </div>
+                      )}
+                      {eTasks.length > 0 && (
+                        <div className="flex -space-x-1.5">
+                          {[...new Set(eTasks.map((t) => t.assigneeId).filter((id): id is string => !!id))].slice(0, 4).map((id) => {
+                            const m = getMember(id!);
+                            if (!m) return null;
+                            return (
+                              <Avatar key={m.id} className="h-6 w-6 border-2 border-card ring-0">
+                                <AvatarFallback className="text-[9px] font-semibold text-white" style={{ backgroundColor: m.color }}>
+                                  {m.initials}
+                                </AvatarFallback>
+                              </Avatar>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                </div>
+              </div>
             );
           })}
         </div>
       )}
+
+      <Button
+        onClick={() => setShowNewEpisode(true)}
+        className="ios-floating-action md:hidden"
+        data-testid="button-fab-new-episode"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
 
       <Dialog open={showNewEpisode} onOpenChange={setShowNewEpisode}>
         <DialogContent>
@@ -763,20 +779,16 @@ export default function Episodes() {
                         ) : (
                           <div
                             key={task.id}
-                            className="flex items-center gap-3 p-3 rounded-md bg-card group"
+                            className="ios-list-item group"
                             data-testid={`card-task-${task.id}`}
                           >
                             <button
                               onClick={() => toggleTaskDone(task)}
-                              className={`shrink-0 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                task.status === "done"
-                                  ? "bg-chart-2 border-chart-2 text-white"
-                                  : "border-muted-foreground/40 hover:border-chart-2/60"
-                              }`}
+                              className={`ios-toggle-done ${task.status === "done" ? "checked" : ""}`}
                               title={task.status === "done" ? "Mark as not done" : "Mark as done"}
                               data-testid={`button-toggle-task-${task.id}`}
                             >
-                              {task.status === "done" && <Check className="h-3 w-3" />}
+                              {task.status === "done" && <Check className="h-3.5 w-3.5" />}
                             </button>
                             <div
                               className="flex-1 min-w-0 cursor-pointer"
@@ -790,7 +802,7 @@ export default function Episodes() {
                               }}
                               data-testid={`text-task-title-${task.id}`}
                             >
-                              <p className={`text-sm ${task.status === "done" ? "line-through text-muted-foreground" : ""}`}>
+                              <p className={`text-sm font-medium transition-all duration-200 ${task.status === "done" ? "line-through text-muted-foreground/60" : ""}`}>
                                 {task.title}
                               </p>
                               {task.dueDate && (
@@ -800,14 +812,14 @@ export default function Episodes() {
                               )}
                             </div>
                             {assignee && (
-                              <Avatar className="h-6 w-6">
-                                <AvatarFallback className="text-[9px] text-white" style={{ backgroundColor: assignee.color }}>
+                              <Avatar className="h-7 w-7 ring-2 ring-background shadow-sm">
+                                <AvatarFallback className="text-[10px] font-semibold text-white" style={{ backgroundColor: assignee.color }}>
                                   {assignee.initials}
                                 </AvatarFallback>
                               </Avatar>
                             )}
                             <Pencil
-                              className="h-3 w-3 text-muted-foreground/40 shrink-0 cursor-pointer"
+                              className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 cursor-pointer hover:text-muted-foreground transition-colors"
                               onClick={() => {
                                 setEditTaskValues({
                                   title: task.title,

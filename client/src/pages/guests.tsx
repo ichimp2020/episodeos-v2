@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -178,27 +177,27 @@ export default function Guests() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-guests-title">Guests</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-guests-title">Guests</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage potential and confirmed interviewees</p>
         </div>
-        <Button onClick={() => setShowNewGuest(true)} data-testid="button-new-guest">
-          <UserPlus className="h-4 w-4 mr-2" />
+        <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewGuest(true)} data-testid="button-new-guest">
+          <UserPlus className="h-4 w-4" />
           Add Guest
         </Button>
       </div>
 
       {(!guests || guests.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <UserPlus className="h-12 w-12 text-muted-foreground/30 mb-3" />
-            <p className="text-muted-foreground font-medium">No guests yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Start by adding potential interviewees</p>
-            <Button className="mt-4" onClick={() => setShowNewGuest(true)} data-testid="button-create-first-guest">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Guest
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="ios-section flex flex-col items-center justify-center py-16">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+            <UserPlus className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <p className="text-muted-foreground font-medium">No guests yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Start by adding potential interviewees</p>
+          <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewGuest(true)} data-testid="button-create-first-guest">
+            <Plus className="h-4 w-4" />
+            Add Guest
+          </Button>
+        </div>
       ) : (
         <div className="space-y-6">
           {(["confirmed", "contacted", "prospect", "declined"] as const).map((status) => {
@@ -206,57 +205,53 @@ export default function Guests() {
             if (groupGuests.length === 0) return null;
             return (
               <div key={status}>
-                <div className="flex items-center gap-2 mb-3">
-                  <h2 className="text-sm font-medium capitalize">{status}</h2>
-                  <Badge variant="secondary" className="text-xs">{groupGuests.length}</Badge>
+                <div className="ios-section-header">
+                  <h2 className="ios-section-title capitalize">{status}</h2>
+                  <span className="ios-badge border-0 bg-primary/10 text-primary text-xs">{groupGuests.length}</span>
                 </div>
-                <div className="space-y-2">
+                <div className="ios-section space-y-2 p-0 overflow-visible">
                   {groupGuests.map((guest) => (
-                    <Card
+                    <div
                       key={guest.id}
-                      className="hover-elevate cursor-pointer"
+                      className="ios-list-item hover-elevate cursor-pointer"
                       onClick={() => openEditDialog(guest)}
                       data-testid={`card-guest-${guest.id}`}
                     >
-                      <CardContent className="py-4 px-5">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-sm font-medium" data-testid={`text-guest-name-${guest.id}`}>{guest.name}</h3>
-                              <Badge variant="secondary" className={statusColors[guest.status]}>
-                                {guest.status}
-                              </Badge>
-                            </div>
-                            {guest.shortDescription && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{guest.shortDescription}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                              {guest.phone && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Phone className="h-3 w-3" /> {guest.phone}
-                                </span>
-                              )}
-                              {guest.email && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Mail className="h-3 w-3" /> {guest.email}
-                                </span>
-                              )}
-                              {guest.links && guest.links.length > 0 && (
-                                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <ExternalLink className="h-3 w-3" /> {guest.links.length} link{guest.links.length !== 1 ? "s" : ""}
-                                </span>
-                              )}
-                              {guest.addedBy && (
-                                <span className="text-xs text-muted-foreground">
-                                  Added by {getMemberName(guest.addedBy)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-medium" data-testid={`text-guest-name-${guest.id}`}>{guest.name}</h3>
+                          <span className={`ios-badge border-0 ${statusColors[guest.status]}`}>
+                            {guest.status}
+                          </span>
                         </div>
-                      </CardContent>
-                    </Card>
+                        {guest.shortDescription && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{guest.shortDescription}</p>
+                        )}
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          {guest.phone && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Phone className="h-3 w-3" /> {guest.phone}
+                            </span>
+                          )}
+                          {guest.email && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Mail className="h-3 w-3" /> {guest.email}
+                            </span>
+                          )}
+                          {guest.links && guest.links.length > 0 && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <ExternalLink className="h-3 w-3" /> {guest.links.length} link{guest.links.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {guest.addedBy && (
+                            <span className="text-xs text-muted-foreground">
+                              Added by {getMemberName(guest.addedBy)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                    </div>
                   ))}
                 </div>
               </div>
@@ -342,7 +337,7 @@ export default function Guests() {
               </Button>
             </div>
             <Button
-              className="w-full"
+              className="w-full rounded-full px-5 shadow-md"
               onClick={() => createGuest.mutate()}
               disabled={!newGuest.name || createGuest.isPending}
               data-testid="button-submit-guest"
@@ -412,7 +407,7 @@ export default function Guests() {
                       )}
                     </div>
                   ))}
-                  <Button variant="ghost" size="sm" onClick={() => addLinkField("edit")}>
+                  <Button variant="ghost" size="sm" onClick={() => addLinkField("edit")} data-testid="button-add-link-edit">
                     <Plus className="h-3 w-3 mr-1" />
                     Add Link
                   </Button>
@@ -450,6 +445,7 @@ export default function Guests() {
                     Delete
                   </Button>
                   <Button
+                    className="rounded-full px-5 shadow-md"
                     onClick={() => updateGuest.mutate()}
                     disabled={!editForm.name || updateGuest.isPending}
                     data-testid="button-save-guest"

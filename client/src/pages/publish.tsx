@@ -141,34 +141,36 @@ export default function Publish() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-publishing-title">Publishing</h1>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-publishing-title">Publishing</h1>
           <p className="text-sm text-muted-foreground mt-1">Schedule and track episode releases across platforms</p>
         </div>
-        <Button onClick={() => setShowNewPublish(true)} data-testid="button-new-publish">
-          <Plus className="h-4 w-4 mr-2" />
+        <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewPublish(true)} data-testid="button-new-publish">
+          <Plus className="h-4 w-4" />
           Schedule Release
         </Button>
       </div>
 
       {(!allPublishing || allPublishing.length === 0) ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Upload className="h-12 w-12 text-muted-foreground/30 mb-3" />
+        <div className="ios-section">
+          <div className="flex flex-col items-center justify-center py-16 px-5">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+              <Upload className="h-6 w-6 text-muted-foreground/60" />
+            </div>
             <p className="text-muted-foreground font-medium">No releases scheduled</p>
             <p className="text-sm text-muted-foreground mt-1">Schedule your first episode release</p>
-            <Button className="mt-4" onClick={() => setShowNewPublish(true)} data-testid="button-create-first-publish">
-              <Plus className="h-4 w-4 mr-2" />
+            <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewPublish(true)} data-testid="button-create-first-publish">
+              <Plus className="h-4 w-4" />
               Schedule Release
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="space-y-6">
           {scheduled.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-medium">Scheduled</h2>
-                <Badge variant="secondary" className="text-xs">{scheduled.length}</Badge>
+              <div className="ios-section-header flex items-center gap-2 mb-3 px-0">
+                <h2 className="ios-section-title">Scheduled</h2>
+                <Badge variant="secondary" className="ios-badge border-0 text-xs">{scheduled.length}</Badge>
               </div>
               <div className="space-y-2">
                 {scheduled.map((pub) => {
@@ -176,8 +178,7 @@ export default function Publish() {
                   const platform = getPlatformInfo(pub.platform);
                   const PlatformIcon = platform?.icon || Upload;
                   return (
-                    <Card key={pub.id} data-testid={`card-publishing-${pub.id}`}>
-                      <CardContent className="py-4 px-5">
+                    <div key={pub.id} className="ios-card p-4" data-testid={`card-publishing-${pub.id}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0 flex-1">
                             <div
@@ -189,7 +190,7 @@ export default function Publish() {
                             <div className="min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="text-sm font-medium truncate">{pub.title || ep?.title || "Untitled"}</h3>
-                                <Badge variant="secondary" className={statusColors[pub.status]}>
+                                <Badge variant="secondary" className={`ios-badge border-0 ${statusColors[pub.status]}`}>
                                   {pub.status}
                                 </Badge>
                               </div>
@@ -207,16 +208,16 @@ export default function Publish() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="secondary"
+                              className="rounded-full px-4"
                               onClick={() => openEditPublish(pub)}
                               data-testid={`button-edit-publishing-${pub.id}`}
                             >
                               <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                             </Button>
                             <Button
-                              variant="ghost"
-                              size="sm"
+                              variant="secondary"
+                              className="rounded-full px-4"
                               onClick={() => updatePublishing.mutate({ id: pub.id, data: { status: "published" } })}
                               data-testid={`button-mark-published-${pub.id}`}
                             >
@@ -224,8 +225,8 @@ export default function Publish() {
                               Done
                             </Button>
                             <Button
-                              variant="ghost"
-                              size="icon"
+                              variant="secondary"
+                              className="rounded-full px-4"
                               onClick={() => deletePublishing.mutate(pub.id)}
                               data-testid={`button-delete-publishing-${pub.id}`}
                             >
@@ -233,8 +234,7 @@ export default function Publish() {
                             </Button>
                           </div>
                         </div>
-                      </CardContent>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
@@ -243,9 +243,9 @@ export default function Publish() {
 
           {published.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <h2 className="text-sm font-medium">Published</h2>
-                <Badge variant="secondary" className="text-xs">{published.length}</Badge>
+              <div className="ios-section-header flex items-center gap-2 mb-3 px-0">
+                <h2 className="ios-section-title">Published</h2>
+                <Badge variant="secondary" className="ios-badge border-0 text-xs">{published.length}</Badge>
               </div>
               <div className="space-y-2">
                 {published.map((pub) => {
@@ -253,8 +253,7 @@ export default function Publish() {
                   const platform = getPlatformInfo(pub.platform);
                   const PlatformIcon = platform?.icon || Upload;
                   return (
-                    <Card key={pub.id} className="opacity-60" data-testid={`card-publishing-${pub.id}`}>
-                      <CardContent className="py-3 px-5">
+                    <div key={pub.id} className="ios-card p-3 opacity-60" data-testid={`card-publishing-${pub.id}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
                             <PlatformIcon className="h-4 w-4 shrink-0" style={{ color: platform?.color }} />
@@ -262,15 +261,15 @@ export default function Publish() {
                             <Badge variant="secondary" className={statusColors.published}>published</Badge>
                           </div>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant="secondary"
+                            className="rounded-full px-4"
                             onClick={() => deletePublishing.mutate(pub.id)}
+                            data-testid={`button-delete-publishing-${pub.id}`}
                           >
                             <Trash2 className="h-3 w-3 text-muted-foreground" />
                           </Button>
                         </div>
-                      </CardContent>
-                    </Card>
+                    </div>
                   );
                 })}
               </div>
@@ -348,7 +347,7 @@ export default function Publish() {
                   />
                 </div>
                 <Button
-                  className="w-full"
+                  className="w-full rounded-full px-5 shadow-md"
                   onClick={() => {
                     updatePublishing.mutate({
                       id: editingPublish.id,
@@ -405,11 +404,10 @@ export default function Publish() {
                   return (
                     <Button
                       key={p.value}
-                      variant={newPublish.platform === p.value ? "default" : "outline"}
-                      size="sm"
+                      variant={newPublish.platform === p.value ? "default" : "secondary"}
+                      className={`rounded-full px-5 ${newPublish.platform === p.value ? "shadow-md" : ""}`}
                       onClick={() => setNewPublish({ ...newPublish, platform: p.value })}
                       data-testid={`button-platform-${p.value}`}
-                      className="toggle-elevate"
                     >
                       <Icon className="h-4 w-4 mr-1.5" />
                       {p.label}
@@ -461,7 +459,7 @@ export default function Publish() {
             </div>
 
             <Button
-              className="w-full"
+              className="w-full rounded-full px-5 shadow-md"
               onClick={() => createPublishing.mutate()}
               disabled={!newPublish.episodeId || !newPublish.platform || createPublishing.isPending}
               data-testid="button-submit-publish"

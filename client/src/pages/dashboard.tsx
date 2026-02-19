@@ -1,26 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload } from "lucide-react";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 import { Link } from "wouter";
 
 const statusColors: Record<string, string> = {
-  planning: "bg-chart-4/10 text-chart-4 border-transparent",
-  scheduled: "bg-primary/10 text-primary border-transparent",
-  recording: "bg-chart-5/10 text-chart-5 border-transparent",
-  editing: "bg-chart-3/10 text-chart-3 border-transparent",
-  published: "bg-chart-2/10 text-chart-2 border-transparent",
+  planning: "bg-chart-4/10 text-chart-4",
+  scheduled: "bg-primary/10 text-primary",
+  recording: "bg-chart-5/10 text-chart-5",
+  editing: "bg-chart-3/10 text-chart-3",
+  published: "bg-chart-2/10 text-chart-2",
 };
 
 const interviewStatusColors: Record<string, string> = {
-  proposed: "bg-chart-4/10 text-chart-4 border-transparent",
-  confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
-  completed: "bg-primary/10 text-primary border-transparent",
-  cancelled: "bg-destructive/10 text-destructive border-transparent",
+  proposed: "bg-chart-4/10 text-chart-4",
+  confirmed: "bg-chart-2/10 text-chart-2",
+  completed: "bg-primary/10 text-primary",
+  cancelled: "bg-destructive/10 text-destructive",
 };
 
 export default function Dashboard() {
@@ -83,15 +82,15 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="p-6 space-y-6">
-        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-10 w-64 rounded-2xl" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-28" />
+            <Skeleton key={i} className="h-28 rounded-2xl" />
           ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Skeleton className="h-64" />
-          <Skeleton className="h-64" />
+          <Skeleton className="h-64 rounded-2xl" />
+          <Skeleton className="h-64 rounded-2xl" />
         </div>
       </div>
     );
@@ -100,82 +99,51 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-dashboard-title">
+        <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
           Dashboard{settings?.podcastName ? <span className="text-muted-foreground font-normal"> "{settings.podcastName}"</span> : ""}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">Your podcast at a glance</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-5 pb-4 px-5">
-            <div className="flex items-center justify-between gap-2">
+        {[
+          { label: "Active Episodes", value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10" },
+          { label: "Upcoming Interviews", value: upcomingInterviews.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
+          { label: "Open Tasks", value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10" },
+          { label: "Guest Pipeline", value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10" },
+        ].map((stat) => (
+          <div key={stat.label} className="ios-stat-card" data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}>
+            <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} rounded-2xl pointer-events-none`} />
+            <div className="relative flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Active Episodes</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-active-episodes-count">{activeEpisodes.length}</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                <p className="text-3xl font-bold mt-2 tracking-tight">{stat.value}</p>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
-                <Mic className="h-5 w-5 text-primary" />
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${stat.iconBg}`}>
+                <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-5 pb-4 px-5">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Upcoming Interviews</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-interviews-count">{upcomingInterviews.length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-2/10">
-                <CalendarClock className="h-5 w-5 text-chart-2" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-5 pb-4 px-5">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Open Tasks</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-open-tasks-count">{pendingTasks.length}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-4/10">
-                <Clock className="h-5 w-5 text-chart-4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-5 pb-4 px-5">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Guest Pipeline</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-guests-count">{guests?.length || 0}</p>
-              </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-3/10">
-                <UserPlus className="h-5 w-5 text-chart-3" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-base font-medium">Active Episodes</CardTitle>
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title" data-testid="text-active-episodes-title">Active Episodes</h2>
             <Link href="/episodes">
-              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-all-episodes">View all</span>
+              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-episodes">
+                View all
+                <ChevronRight className="h-3 w-3" />
+              </span>
             </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </div>
+          <div className="px-4 pb-4 space-y-2">
             {activeEpisodes.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Mic className="h-8 w-8 text-muted-foreground/40 mb-2" />
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+                  <Mic className="h-6 w-6 text-muted-foreground/40" />
+                </div>
                 <p className="text-sm text-muted-foreground">No active episodes yet</p>
               </div>
             ) : (
@@ -185,29 +153,37 @@ export default function Dashboard() {
                 return (
                   <div
                     key={episode.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-md bg-card hover-elevate"
+                    className="ios-list-item cursor-pointer"
                     data-testid={`card-episode-${episode.id}`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {episode.episodeNumber && (
-                          <span className="text-xs text-muted-foreground font-mono">#{episode.episodeNumber}</span>
+                          <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                         )}
-                        <p className="text-sm font-medium truncate">{episode.title}</p>
+                        <p className="text-sm font-semibold truncate">{episode.title}</p>
                       </div>
                       {episode.scheduledDate && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-1">
                           {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       {episodeTasks.length > 0 && (
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {doneTasks}/{episodeTasks.length}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-chart-2 rounded-full transition-all duration-500"
+                              style={{ width: `${(doneTasks / episodeTasks.length) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground font-medium">
+                            {doneTasks}/{episodeTasks.length}
+                          </span>
+                        </div>
                       )}
-                      <Badge variant="secondary" className={statusColors[episode.status]}>
+                      <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
                         {episode.status}
                       </Badge>
                     </div>
@@ -215,20 +191,25 @@ export default function Dashboard() {
                 );
               })
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-base font-medium">Upcoming Interviews</CardTitle>
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title">Upcoming Interviews</h2>
             <Link href="/scheduling">
-              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-scheduling">View all</span>
+              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-scheduling">
+                View all
+                <ChevronRight className="h-3 w-3" />
+              </span>
             </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </div>
+          <div className="px-4 pb-4 space-y-2">
             {upcomingInterviews.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <CalendarClock className="h-8 w-8 text-muted-foreground/40 mb-2" />
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+                  <CalendarClock className="h-6 w-6 text-muted-foreground/40" />
+                </div>
                 <p className="text-sm text-muted-foreground">No upcoming interviews</p>
               </div>
             ) : (
@@ -237,11 +218,14 @@ export default function Dashboard() {
                 return (
                   <div
                     key={interview.id}
-                    className="flex items-center justify-between gap-3 p-3 rounded-md bg-card"
+                    className="ios-list-item"
                     data-testid={`card-interview-${interview.id}`}
                   >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10 shrink-0">
+                      <CalendarClock className="h-4.5 w-4.5 text-chart-2" />
+                    </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{guest?.name || "Unknown"}</p>
+                      <p className="text-sm font-semibold truncate">{guest?.name || "Unknown"}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {interview.scheduledDate && (
                           <span className="text-xs text-muted-foreground">
@@ -251,96 +235,107 @@ export default function Dashboard() {
                         )}
                       </div>
                     </div>
-                    <Badge variant="secondary" className={interviewStatusColors[interview.status]}>
+                    <Badge className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
                       {interview.status}
                     </Badge>
                   </div>
                 );
               })
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-base font-medium">Studio Availability</CardTitle>
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title">Studio Availability</h2>
             <Link href="/studio">
-              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-studio">View calendar</span>
+              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-studio">
+                View calendar
+                <ChevronRight className="h-3 w-3" />
+              </span>
             </Link>
-          </CardHeader>
-          <CardContent className="space-y-3">
+          </div>
+          <div className="px-4 pb-4 space-y-2">
             {upcomingDates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Calendar className="h-8 w-8 text-muted-foreground/40 mb-2" />
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+                  <Calendar className="h-6 w-6 text-muted-foreground/40" />
+                </div>
                 <p className="text-sm text-muted-foreground">No upcoming studio dates</p>
               </div>
             ) : (
               upcomingDates.map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-md bg-card"
+                  className="ios-list-item"
                   data-testid={`card-studio-date-${d.id}`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 flex-col items-center justify-center rounded-md bg-chart-2/10">
-                      <span className="text-[10px] font-medium text-chart-2 leading-none">
-                        {format(parseISO(d.date), "MMM")}
-                      </span>
-                      <span className="text-sm font-semibold text-chart-2 leading-tight">
-                        {format(parseISO(d.date), "d")}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE")}</p>
-                      {d.notes && <p className="text-xs text-muted-foreground">{d.notes}</p>}
-                    </div>
+                  <div className="flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                    <span className="text-[10px] font-semibold text-chart-2 leading-none uppercase">
+                      {format(parseISO(d.date), "MMM")}
+                    </span>
+                    <span className="text-base font-bold text-chart-2 leading-tight">
+                      {format(parseISO(d.date), "d")}
+                    </span>
                   </div>
-                  <Badge variant="secondary" className="bg-chart-2/10 text-chart-2 border-transparent">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{format(parseISO(d.date), "EEEE")}</p>
+                    {d.notes && <p className="text-xs text-muted-foreground mt-0.5">{d.notes}</p>}
+                  </div>
+                  <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                     Available
                   </Badge>
                 </div>
               ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-            <CardTitle className="text-base font-medium">Team Workload</CardTitle>
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title">Team Workload</h2>
             <Link href="/team">
-              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-team">View team</span>
+              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-team">
+                View team
+                <ChevronRight className="h-3 w-3" />
+              </span>
             </Link>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          </div>
+          <div className="px-4 pb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {members?.map((member) => {
                 const memberTasks = pendingTasks.filter((t) => t.assigneeId === member.id);
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center gap-3 p-3 rounded-md bg-card"
+                    className="ios-list-item"
                     data-testid={`card-member-workload-${member.id}`}
                   >
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-9 w-9 ring-2 ring-background shadow-sm">
                       <AvatarFallback
-                        className="text-xs font-medium text-white"
+                        className="text-xs font-semibold text-white"
                         style={{ backgroundColor: member.color }}
                       >
                         {member.initials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.role} | {memberTasks.length} task{memberTasks.length !== 1 ? "s" : ""}</p>
+                      <p className="text-sm font-semibold truncate">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{member.role}</p>
                     </div>
+                    {memberTasks.length > 0 && (
+                      <span className="inline-flex items-center justify-center h-6 min-w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold px-1.5">
+                        {memberTasks.length}
+                      </span>
+                    )}
                   </div>
                 );
               })}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
