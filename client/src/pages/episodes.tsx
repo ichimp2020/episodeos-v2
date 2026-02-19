@@ -58,7 +58,7 @@ export default function Episodes() {
   const [showNewEpisode, setShowNewEpisode] = useState(false);
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
-  const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "" });
+  const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
   const [newTask, setNewTask] = useState({ title: "", assigneeId: "", dueDate: "" });
   const { toast } = useToast();
 
@@ -108,6 +108,39 @@ export default function Episodes() {
     return map;
   }, [studioDates]);
 
+  const slotsForSelectedDate = useMemo(() => {
+    if (!newEpisode.scheduledDate || !studioDates) return [];
+    const selectedKey = newEpisode.scheduledDate;
+    const availableRecords = studioDates.filter(
+      (d) => d.status === "available" && d.notes && format(parseISO(d.date), "yyyy-MM-dd") === selectedKey
+    );
+    const slots: { start: string; end: string; label: string }[] = [];
+    for (const record of availableRecords) {
+      const ranges = record.notes!.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+      if (!ranges) continue;
+      for (const range of ranges) {
+        const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+        if (!match) continue;
+        const startH = parseInt(match[1]);
+        const startM = parseInt(match[2]);
+        const endH = parseInt(match[3]);
+        const endM = parseInt(match[4]);
+        let curH = startH, curM = startM;
+        while (curH < endH || (curH === endH && curM < endM)) {
+          let nextH = curH + 1, nextM = curM;
+          if (nextH > endH || (nextH === endH && nextM > endM)) {
+            nextH = endH; nextM = endM;
+          }
+          const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+          const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+          slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+          curH = nextH; curM = nextM;
+        }
+      }
+    }
+    return slots;
+  }, [newEpisode.scheduledDate, studioDates]);
+
   const createEpisode = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/episodes", {
@@ -115,13 +148,14 @@ export default function Episodes() {
         description: newEpisode.description || null,
         episodeNumber: newEpisode.episodeNumber ? parseInt(newEpisode.episodeNumber) : null,
         scheduledDate: newEpisode.scheduledDate || null,
+        scheduledTime: newEpisode.scheduledTime || null,
         status: "planning",
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       setShowNewEpisode(false);
-      setNewEpisode({ title: "", description: "", episodeNumber: "", scheduledDate: "" });
+      setNewEpisode({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
       toast({ title: "Episode created" });
     },
     onError: () => toast({ title: "Failed to create episode", variant: "destructive" }),
@@ -261,7 +295,7 @@ export default function Episodes() {
                       <div className="flex items-center gap-4 mt-1.5 flex-wrap">
                         {episode.scheduledDate && (
                           <span className="text-xs text-muted-foreground">
-                            {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}
+                            {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
                           </span>
                         )}
                         {eTasks.length > 0 && (
@@ -341,7 +375,7 @@ export default function Episodes() {
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {newEpisode.scheduledDate
-                      ? format(parseISO(newEpisode.scheduledDate), "MMM d, yyyy")
+                      ? `${format(parseISO(newEpisode.scheduledDate), "MMM d, yyyy")}${newEpisode.scheduledTime ? ` at ${newEpisode.scheduledTime}` : ""}`
                       : "Pick a date"}
                     {newEpisode.scheduledDate && availableStudioDates.has(newEpisode.scheduledDate) && (
                       <Badge variant="secondary" className="ml-auto text-xs">Studio Available</Badge>
@@ -406,7 +440,7 @@ export default function Episodes() {
                                   : "hover-elevate"
                               } ${isToday && !isSelected ? "ring-1 ring-primary/30" : ""}`}
                               onClick={() => {
-                                setNewEpisode({ ...newEpisode, scheduledDate: dateStr });
+                                setNewEpisode({ ...newEpisode, scheduledDate: dateStr, scheduledTime: "" });
                                 setDatePickerOpen(false);
                               }}
                               title={isAvailable ? `Studio available${notes ? `: ${notes}` : ""}` : isTaken ? "Studio taken" : ""}
@@ -438,7 +472,7 @@ export default function Episodes() {
                         variant="ghost"
                         size="sm"
                         className="w-full mt-2"
-                        onClick={() => setNewEpisode({ ...newEpisode, scheduledDate: "" })}
+                        onClick={() => setNewEpisode({ ...newEpisode, scheduledDate: "", scheduledTime: "" })}
                         data-testid="button-clear-date"
                       >
                         Clear date
@@ -447,6 +481,26 @@ export default function Episodes() {
                   </div>
                 </PopoverContent>
               </Popover>
+              {newEpisode.scheduledDate && slotsForSelectedDate.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Available studio time slots:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {slotsForSelectedDate.map((slot, i) => (
+                      <Button
+                        key={slot.label}
+                        type="button"
+                        variant={newEpisode.scheduledTime === slot.label ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setNewEpisode({ ...newEpisode, scheduledTime: slot.label })}
+                        data-testid={`button-time-slot-${i}`}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        {slot.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <Button
               className="w-full"
@@ -503,7 +557,7 @@ export default function Episodes() {
                   </div>
                   {selectedEpisode.scheduledDate && (
                     <span className="text-sm text-muted-foreground">
-                      Scheduled: {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}
+                      Scheduled: {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
                     </span>
                   )}
                 </div>

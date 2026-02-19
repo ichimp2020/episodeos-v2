@@ -187,7 +187,7 @@ export default function Dashboard() {
                       </div>
                       {episode.scheduledDate && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}
+                          {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
                         </p>
                       )}
                     </div>

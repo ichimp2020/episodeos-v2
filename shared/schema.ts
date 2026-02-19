@@ -17,6 +17,7 @@ export const episodes = pgTable("episodes", {
   description: text("description"),
   status: text("status").notNull().default("planning"),
   scheduledDate: date("scheduled_date"),
+  scheduledTime: text("scheduled_time"),
   episodeNumber: integer("episode_number"),
   interviewId: varchar("interview_id"),
   recordingLink: text("recording_link"),
