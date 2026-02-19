@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, Label } from "lucide-react";
 import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 
@@ -32,6 +32,8 @@ const statusColors: Record<string, string> = {
 export default function Scheduling() {
   const [showNewInterview, setShowNewInterview] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ scheduledDate: "", scheduledTime: "", location: "", notes: "" });
   const [newInterview, setNewInterview] = useState({
     guestId: "", studioDateId: "", scheduledDate: "", scheduledTime: "", location: "", notes: "",
     participantIds: [] as string[],
@@ -99,6 +101,18 @@ export default function Scheduling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
     },
+  });
+
+  const updateInterview = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      await apiRequest("PATCH", `/api/interviews/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      setIsEditing(false);
+      toast({ title: "Interview updated" });
+    },
+    onError: () => toast({ title: "Failed to update interview", variant: "destructive" }),
   });
 
   const deleteInterview = useMutation({
@@ -395,7 +409,9 @@ export default function Scheduling() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedInterview} onOpenChange={(open) => !open && setSelectedInterview(null)}>
+      <Dialog open={!!selectedInterview} onOpenChange={(open) => {
+        if (!open) { setSelectedInterview(null); setIsEditing(false); }
+      }}>
         <DialogContent className="max-w-lg">
           {selectedInterview && (() => {
             const guest = getGuest(selectedInterview.guestId);
@@ -404,7 +420,27 @@ export default function Scheduling() {
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle>Interview: {guest?.name || "Unknown"}</DialogTitle>
+                  <DialogTitle className="flex items-center justify-between gap-2">
+                    <span>Interview: {guest?.name || "Unknown"}</span>
+                    {!isEditing && (
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => {
+                          setEditForm({
+                            scheduledDate: selectedInterview.scheduledDate || "",
+                            scheduledTime: selectedInterview.scheduledTime || "",
+                            location: selectedInterview.location || "",
+                            notes: selectedInterview.notes || "",
+                          });
+                          setIsEditing(true);
+                        }}
+                        data-testid="button-edit-interview"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </DialogTitle>
                   <DialogDescription>{guest?.shortDescription}</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 mt-2">
@@ -430,54 +466,136 @@ export default function Scheduling() {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {selectedInterview.scheduledDate && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                        <span>{format(parseISO(selectedInterview.scheduledDate), "EEEE, MMM d, yyyy")}</span>
-                        {selectedInterview.scheduledTime && <span>at {selectedInterview.scheduledTime}</span>}
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium">Date</label>
+                          <Input
+                            type="date"
+                            value={editForm.scheduledDate}
+                            onChange={(e) => setEditForm({ ...editForm, scheduledDate: e.target.value })}
+                            data-testid="input-edit-date"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-sm font-medium">Time</label>
+                          <Input
+                            type="time"
+                            value={editForm.scheduledTime}
+                            onChange={(e) => setEditForm({ ...editForm, scheduledTime: e.target.value })}
+                            data-testid="input-edit-time"
+                          />
+                        </div>
                       </div>
-                    )}
-                    {selectedInterview.location && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{selectedInterview.location}</span>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Location</label>
+                        <Input
+                          value={editForm.location}
+                          onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                          placeholder="Main Studio"
+                          data-testid="input-edit-location"
+                        />
                       </div>
-                    )}
-                    {guest?.phone && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{guest.phone}</span>
-                        {guest.email && <span className="text-muted-foreground">| {guest.email}</span>}
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-medium">Notes</label>
+                        <Textarea
+                          value={editForm.notes}
+                          onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                          placeholder="Interview topic, special requirements..."
+                          data-testid="input-edit-notes"
+                        />
                       </div>
-                    )}
-                    {confirmer && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <CheckCircle className="h-4 w-4 text-chart-2" />
-                        <span className="text-muted-foreground">Confirmed by {confirmer.name}</span>
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => setIsEditing(false)}
+                          data-testid="button-cancel-edit"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className="flex-1"
+                          disabled={updateInterview.isPending}
+                          onClick={() => {
+                            updateInterview.mutate({
+                              id: selectedInterview.id,
+                              data: {
+                                scheduledDate: editForm.scheduledDate || null,
+                                scheduledTime: editForm.scheduledTime || null,
+                                location: editForm.location || null,
+                                notes: editForm.notes || null,
+                              },
+                            });
+                            setSelectedInterview({
+                              ...selectedInterview,
+                              scheduledDate: editForm.scheduledDate || null,
+                              scheduledTime: editForm.scheduledTime || null,
+                              location: editForm.location || null,
+                              notes: editForm.notes || null,
+                            });
+                          }}
+                          data-testid="button-save-edit"
+                        >
+                          {updateInterview.isPending ? "Saving..." : "Save Changes"}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-
-                  {selectedInterview.notes && (
-                    <div>
-                      <label className="text-xs text-muted-foreground">Notes</label>
-                      <p className="text-sm mt-1">{selectedInterview.notes}</p>
                     </div>
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        {selectedInterview.scheduledDate && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                            <span>{format(parseISO(selectedInterview.scheduledDate), "EEEE, MMM d, yyyy")}</span>
+                            {selectedInterview.scheduledTime && <span>at {selectedInterview.scheduledTime}</span>}
+                          </div>
+                        )}
+                        {selectedInterview.location && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span>{selectedInterview.location}</span>
+                          </div>
+                        )}
+                        {guest?.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <span>{guest.phone}</span>
+                            {guest.email && <span className="text-muted-foreground">| {guest.email}</span>}
+                          </div>
+                        )}
+                        {confirmer && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-chart-2" />
+                            <span className="text-muted-foreground">Confirmed by {confirmer.name}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedInterview.notes && (
+                        <div>
+                          <label className="text-xs text-muted-foreground">Notes</label>
+                          <p className="text-sm mt-1">{selectedInterview.notes}</p>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive"
-                      onClick={() => deleteInterview.mutate(selectedInterview.id)}
-                      data-testid="button-delete-interview"
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete Interview
-                    </Button>
-                  </div>
+                  {!isEditing && (
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => deleteInterview.mutate(selectedInterview.id)}
+                        data-testid="button-delete-interview"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete Interview
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             );
