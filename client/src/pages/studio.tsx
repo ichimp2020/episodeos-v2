@@ -709,7 +709,11 @@ export default function Studio() {
               <DialogHeader>
                 <DialogTitle>{format(parseISO(selectedDate.date), "EEEE, MMMM d, yyyy")}</DialogTitle>
                 <DialogDescription>
-                  {selectedDate.status === "available" ? "Pick a 1-hour slot to book" : "Studio date details"}
+                  {selectedDate.status === "available"
+                    ? (selectedDate.notes && parseTimeRange(selectedDate.notes).length > 0
+                      ? "Pick a 1-hour slot to book"
+                      : "Studio date details")
+                    : "Studio date details"}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-2">
@@ -749,6 +753,27 @@ export default function Studio() {
                             </Button>
                           ))}
                         </div>
+                      </div>
+                    );
+                  }
+                  const notesLower = selectedDate.notes.toLowerCase();
+                  const timeOfDay = notesLower.includes("morning") || notesLower.includes("בוקר")
+                    ? "Morning"
+                    : notesLower.includes("evening") || notesLower.includes("ערב")
+                    ? "Evening"
+                    : notesLower.includes("afternoon") || notesLower.includes("צהריים")
+                    ? "Afternoon"
+                    : null;
+                  if (timeOfDay) {
+                    return (
+                      <div className="space-y-2">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          Available Time
+                        </Label>
+                        <Badge variant="secondary" className="text-sm" data-testid="badge-time-of-day">
+                          {timeOfDay}
+                        </Badge>
                       </div>
                     );
                   }

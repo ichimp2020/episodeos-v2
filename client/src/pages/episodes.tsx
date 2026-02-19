@@ -141,6 +141,20 @@ export default function Episodes() {
     return slots;
   }, [newEpisode.scheduledDate, studioDates]);
 
+  const timeOfDayForSelectedDate = useMemo(() => {
+    if (!newEpisode.scheduledDate || !studioDates || slotsForSelectedDate.length > 0) return null;
+    const selectedKey = newEpisode.scheduledDate;
+    const record = studioDates.find(
+      (d) => d.status === "available" && d.notes && format(parseISO(d.date), "yyyy-MM-dd") === selectedKey
+    );
+    if (!record || !record.notes) return null;
+    const notesLower = record.notes.toLowerCase();
+    if (notesLower.includes("morning") || notesLower.includes("בוקר")) return "Morning";
+    if (notesLower.includes("evening") || notesLower.includes("ערב")) return "Evening";
+    if (notesLower.includes("afternoon") || notesLower.includes("צהריים")) return "Afternoon";
+    return null;
+  }, [newEpisode.scheduledDate, studioDates, slotsForSelectedDate]);
+
   const createEpisode = useMutation({
     mutationFn: async () => {
       await apiRequest("POST", "/api/episodes", {
@@ -499,6 +513,15 @@ export default function Episodes() {
                       </Button>
                     ))}
                   </div>
+                </div>
+              )}
+              {newEpisode.scheduledDate && timeOfDayForSelectedDate && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Studio available:</span>
+                  <Badge variant="secondary" className="text-xs" data-testid="badge-time-of-day">
+                    {timeOfDayForSelectedDate}
+                  </Badge>
                 </div>
               )}
             </div>
