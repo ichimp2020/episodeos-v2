@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,29 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock } from "lucide-react";
-import type { Episode, Task, TeamMember } from "@shared/schema";
-import { format, parseISO } from "date-fns";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft } from "lucide-react";
+import type { Episode, Task, TeamMember, StudioDate } from "@shared/schema";
+import {
+  format,
+  parseISO,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  isSameDay,
+  isSameMonth,
+  addMonths,
+  subMonths,
+  startOfWeek,
+  endOfWeek,
+  isBefore,
+} from "date-fns";
 
 const statuses = ["planning", "scheduled", "recording", "editing", "published"];
 const statusColors: Record<string, string> = {
@@ -53,6 +71,42 @@ export default function Episodes() {
   const { data: members } = useQuery<TeamMember[]>({
     queryKey: ["/api/team-members"],
   });
+  const { data: studioDates } = useQuery<StudioDate[]>({
+    queryKey: ["/api/studio-dates"],
+  });
+
+  const [datePickerMonth, setDatePickerMonth] = useState(new Date());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  const availableStudioDates = useMemo(() => {
+    if (!studioDates) return new Set<string>();
+    return new Set(
+      studioDates
+        .filter((d) => d.status === "available")
+        .map((d) => d.date)
+    );
+  }, [studioDates]);
+
+  const takenStudioDates = useMemo(() => {
+    if (!studioDates) return new Set<string>();
+    return new Set(
+      studioDates
+        .filter((d) => d.status === "taken")
+        .map((d) => d.date)
+    );
+  }, [studioDates]);
+
+  const studioDateNotes = useMemo(() => {
+    if (!studioDates) return new Map<string, string>();
+    const map = new Map<string, string>();
+    studioDates
+      .filter((d) => d.status === "available" && d.notes)
+      .forEach((d) => {
+        const existing = map.get(d.date);
+        map.set(d.date, existing ? `${existing}, ${d.notes}` : d.notes!);
+      });
+    return map;
+  }, [studioDates]);
 
   const createEpisode = useMutation({
     mutationFn: async () => {
@@ -217,7 +271,7 @@ export default function Episodes() {
                         )}
                         {eTasks.length > 0 && (
                           <div className="flex -space-x-1">
-                            {[...new Set(eTasks.map((t) => t.assigneeId).filter(Boolean))].slice(0, 4).map((id) => {
+                            {[...new Set(eTasks.map((t) => t.assigneeId).filter((id): id is string => !!id))].slice(0, 4).map((id) => {
                               const m = getMember(id!);
                               if (!m) return null;
                               return (
@@ -278,12 +332,121 @@ export default function Episodes() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Scheduled Date</label>
-              <Input
-                type="date"
-                value={newEpisode.scheduledDate}
-                onChange={(e) => setNewEpisode({ ...newEpisode, scheduledDate: e.target.value })}
-                data-testid="input-episode-date"
-              />
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                    data-testid="input-episode-date"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {newEpisode.scheduledDate
+                      ? format(parseISO(newEpisode.scheduledDate), "MMM d, yyyy")
+                      : "Pick a date"}
+                    {newEpisode.scheduledDate && availableStudioDates.has(newEpisode.scheduledDate) && (
+                      <Badge variant="secondary" className="ml-auto text-xs">Studio Available</Badge>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-3">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDatePickerMonth(subMonths(datePickerMonth, 1))}
+                        data-testid="button-datepicker-prev"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <span className="text-sm font-medium" data-testid="text-datepicker-month">
+                        {format(datePickerMonth, "MMMM yyyy")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDatePickerMonth(addMonths(datePickerMonth, 1))}
+                        data-testid="button-datepicker-next"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-7 gap-0">
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                        <div key={d} className="p-1.5 text-center text-xs font-medium text-muted-foreground">
+                          {d}
+                        </div>
+                      ))}
+                      {(() => {
+                        const ms = startOfMonth(datePickerMonth);
+                        const me = endOfMonth(datePickerMonth);
+                        const cs = startOfWeek(ms, { weekStartsOn: 0 });
+                        const ce = endOfWeek(me, { weekStartsOn: 0 });
+                        const days = eachDayOfInterval({ start: cs, end: ce });
+                        return days.map((day) => {
+                          const dateStr = format(day, "yyyy-MM-dd");
+                          const isCurrentMonth = isSameMonth(day, datePickerMonth);
+                          const isToday = isSameDay(day, new Date());
+                          const isPast = isBefore(day, new Date()) && !isToday;
+                          const isAvailable = availableStudioDates.has(dateStr);
+                          const isTaken = takenStudioDates.has(dateStr) && !isAvailable;
+                          const isSelected = newEpisode.scheduledDate === dateStr;
+                          const notes = studioDateNotes.get(dateStr);
+                          return (
+                            <button
+                              key={dateStr}
+                              type="button"
+                              className={`relative p-1.5 text-center text-sm rounded-md transition-colors ${
+                                !isCurrentMonth ? "opacity-30" : ""
+                              } ${isPast ? "text-muted-foreground" : ""} ${
+                                isSelected
+                                  ? "bg-primary text-primary-foreground"
+                                  : isAvailable
+                                  ? "bg-chart-2/15 hover-elevate"
+                                  : "hover-elevate"
+                              } ${isToday && !isSelected ? "ring-1 ring-primary/30" : ""}`}
+                              onClick={() => {
+                                setNewEpisode({ ...newEpisode, scheduledDate: dateStr });
+                                setDatePickerOpen(false);
+                              }}
+                              title={isAvailable ? `Studio available${notes ? `: ${notes}` : ""}` : isTaken ? "Studio taken" : ""}
+                              data-testid={`datepicker-day-${dateStr}`}
+                            >
+                              {format(day, "d")}
+                              {(isAvailable || isTaken) && (
+                                <div className="absolute bottom-0.5 left-1/2 -translate-x-1/2">
+                                  <div className={`h-1 w-1 rounded-full ${isAvailable ? "bg-chart-2" : "bg-chart-5"}`} />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+                    <div className="flex items-center gap-3 mt-2 pt-2 border-t text-xs text-muted-foreground flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <div className="h-2 w-2 rounded-full bg-chart-2" />
+                        Studio available
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="h-2 w-2 rounded-full bg-chart-5" />
+                        Studio taken
+                      </div>
+                    </div>
+                    {newEpisode.scheduledDate && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => setNewEpisode({ ...newEpisode, scheduledDate: "" })}
+                        data-testid="button-clear-date"
+                      >
+                        Clear date
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <Button
               className="w-full"
