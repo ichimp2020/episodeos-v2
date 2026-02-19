@@ -96,6 +96,8 @@ interface BookingEmails {
   studio: string;
   interviewers: string;
   interviewee: string;
+  intervieweeName: string;
+  intervieweePhone: string;
 }
 
 function parseWhatsAppMessage(text: string): ParsedStudioDate[] {
@@ -193,7 +195,7 @@ export default function Studio() {
   const [parsedDates, setParsedDates] = useState<ParsedStudioDate[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [bookingEmails, setBookingEmails] = useState<BookingEmails>({ studio: "", interviewers: "", interviewee: "" });
+  const [bookingEmails, setBookingEmails] = useState<BookingEmails>({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
   const { toast } = useToast();
 
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
@@ -298,7 +300,7 @@ export default function Studio() {
             startTime: slot.start,
             endTime: slot.end,
             summary: `Podcast Studio Recording - ${slot.label}`,
-            description: `Studio recording session on ${dateStr} from ${slot.label}.\n\nParticipants:\n- Studio: ${emails.studio || "N/A"}\n- Interviewers: ${emails.interviewers || "N/A"}\n- Interviewee: ${emails.interviewee || "N/A"}`,
+            description: `Studio recording session on ${dateStr} from ${slot.label}.\n\nParticipants:\n- Studio: ${emails.studio || "N/A"}\n- Interviewers: ${emails.interviewers || "N/A"}\n- Interviewee: ${emails.intervieweeName || "N/A"}${emails.intervieweePhone ? ` (${emails.intervieweePhone})` : ""}\n- Interviewee Email: ${emails.interviewee || "N/A"}`,
             attendeeEmails: Array.from(emailSet),
           });
         } catch {
@@ -700,7 +702,7 @@ export default function Studio() {
         if (!open) {
           setSelectedDate(null);
           setSelectedSlot(null);
-          setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+          setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
         }
       }}>
         <DialogContent className="max-w-md">
@@ -801,9 +803,18 @@ export default function Studio() {
                                 <span>{emails.interviewers}</span>
                               </div>
                             )}
-                            {emails.interviewee && (
+                            {(emails.intervieweeName || emails.interviewee) && (
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">Interviewee:</span>
+                                <span>
+                                  {emails.intervieweeName || emails.interviewee}
+                                  {emails.intervieweeName && emails.intervieweePhone ? ` (${emails.intervieweePhone})` : ""}
+                                </span>
+                              </div>
+                            )}
+                            {emails.intervieweeName && emails.interviewee && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">Email:</span>
                                 <span>{emails.interviewee}</span>
                               </div>
                             )}
@@ -907,6 +918,28 @@ export default function Studio() {
                     <p className="text-[11px] text-muted-foreground">Separate multiple emails with commas</p>
                   </div>
                   <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor="interviewee-name">Interviewee Name</Label>
+                    <Input
+                      id="interviewee-name"
+                      type="text"
+                      placeholder="Guest name"
+                      value={bookingEmails.intervieweeName}
+                      onChange={(e) => setBookingEmails({ ...bookingEmails, intervieweeName: e.target.value })}
+                      data-testid="input-interviewee-name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm" htmlFor="interviewee-phone">Interviewee Phone</Label>
+                    <Input
+                      id="interviewee-phone"
+                      type="tel"
+                      placeholder="+972-50-123-4567"
+                      value={bookingEmails.intervieweePhone}
+                      onChange={(e) => setBookingEmails({ ...bookingEmails, intervieweePhone: e.target.value })}
+                      data-testid="input-interviewee-phone"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
                     <Label className="text-sm" htmlFor="email-interviewee">Interviewee Email</Label>
                     <Input
                       id="email-interviewee"
@@ -925,7 +958,7 @@ export default function Studio() {
                     className="flex-1"
                     onClick={() => {
                       setSelectedSlot(null);
-                      setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+                      setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
                     }}
                     data-testid="button-back-to-slots"
                   >
