@@ -12,6 +12,9 @@ import Dashboard from "@/pages/dashboard";
 import Episodes from "@/pages/episodes";
 import Team from "@/pages/team";
 import Studio from "@/pages/studio";
+import Guests from "@/pages/guests";
+import Scheduling from "@/pages/scheduling";
+import Publish from "@/pages/publish";
 
 function Router() {
   return (
@@ -20,6 +23,9 @@ function Router() {
       <Route path="/episodes" component={Episodes} />
       <Route path="/team" component={Team} />
       <Route path="/studio" component={Studio} />
+      <Route path="/guests" component={Guests} />
+      <Route path="/scheduling" component={Scheduling} />
+      <Route path="/publishing" component={Publish} />
       <Route component={NotFound} />
     </Switch>
   );

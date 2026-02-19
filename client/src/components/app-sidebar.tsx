@@ -1,4 +1,4 @@
-import { LayoutDashboard, Mic, Users, Calendar } from "lucide-react";
+import { LayoutDashboard, Mic, Users, Calendar, UserPlus, CalendarClock, Upload } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -14,11 +14,17 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 
-const navItems = [
+const mainNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Episodes", url: "/episodes", icon: Mic },
   { title: "Team", url: "/team", icon: Users },
+];
+
+const workflowNav = [
+  { title: "Guests", url: "/guests", icon: UserPlus },
+  { title: "Scheduling", url: "/scheduling", icon: CalendarClock },
   { title: "Studio Calendar", url: "/studio", icon: Calendar },
+  { title: "Publishing", url: "/publishing", icon: Upload },
 ];
 
 export function AppSidebar() {
@@ -40,10 +46,31 @@ export function AppSidebar() {
       <SidebarSeparator />
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Overview</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {mainNav.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    tooltip={item.title}
+                  >
+                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Workflow</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {workflowNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

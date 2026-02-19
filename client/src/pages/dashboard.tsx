@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, CheckCircle, Clock, AlertCircle } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate } from "@shared/schema";
-import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload } from "lucide-react";
+import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
+import { format, parseISO, isAfter } from "date-fns";
 import { Link } from "wouter";
 
 const statusColors: Record<string, string> = {
@@ -14,6 +14,13 @@ const statusColors: Record<string, string> = {
   recording: "bg-chart-5/10 text-chart-5 border-transparent",
   editing: "bg-chart-3/10 text-chart-3 border-transparent",
   published: "bg-chart-2/10 text-chart-2 border-transparent",
+};
+
+const interviewStatusColors: Record<string, string> = {
+  proposed: "bg-chart-4/10 text-chart-4 border-transparent",
+  confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
+  completed: "bg-primary/10 text-primary border-transparent",
+  cancelled: "bg-destructive/10 text-destructive border-transparent",
 };
 
 export default function Dashboard() {
@@ -29,6 +36,15 @@ export default function Dashboard() {
   const { data: studioDates, isLoading: loadingStudio } = useQuery<StudioDate[]>({
     queryKey: ["/api/studio-dates"],
   });
+  const { data: guests } = useQuery<Guest[]>({
+    queryKey: ["/api/guests"],
+  });
+  const { data: allInterviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
+  });
+  const { data: allPublishing } = useQuery<Publishing[]>({
+    queryKey: ["/api/publishing"],
+  });
 
   const isLoading = loadingEpisodes || loadingTasks || loadingMembers || loadingStudio;
 
@@ -38,7 +54,23 @@ export default function Dashboard() {
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
     .slice(0, 5) || [];
   const pendingTasks = tasks?.filter((t) => t.status !== "done") || [];
-  const completedTasks = tasks?.filter((t) => t.status === "done") || [];
+  const upcomingInterviews = allInterviews
+    ?.filter((i) => i.status === "proposed" || i.status === "confirmed")
+    .sort((a, b) => {
+      if (!a.scheduledDate) return 1;
+      if (!b.scheduledDate) return -1;
+      return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
+    })
+    .slice(0, 3) || [];
+  const scheduledPublishing = allPublishing?.filter((p) => p.status === "scheduled")
+    .sort((a, b) => {
+      if (!a.scheduledDate) return 1;
+      if (!b.scheduledDate) return -1;
+      return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
+    })
+    .slice(0, 3) || [];
+
+  const getGuest = (id: string) => guests?.find((g) => g.id === id);
 
   if (isLoading) {
     return (
@@ -83,11 +115,11 @@ export default function Dashboard() {
           <CardContent className="pt-5 pb-4 px-5">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Team Members</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-team-count">{members?.length || 0}</p>
+                <p className="text-sm text-muted-foreground">Upcoming Interviews</p>
+                <p className="text-2xl font-semibold mt-1" data-testid="text-interviews-count">{upcomingInterviews.length}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-2/10">
-                <Users className="h-5 w-5 text-chart-2" />
+                <CalendarClock className="h-5 w-5 text-chart-2" />
               </div>
             </div>
           </CardContent>
@@ -111,11 +143,11 @@ export default function Dashboard() {
           <CardContent className="pt-5 pb-4 px-5">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-sm text-muted-foreground">Studio Dates</p>
-                <p className="text-2xl font-semibold mt-1" data-testid="text-studio-dates-count">{upcomingDates.length}</p>
+                <p className="text-sm text-muted-foreground">Guest Pipeline</p>
+                <p className="text-2xl font-semibold mt-1" data-testid="text-guests-count">{guests?.length || 0}</p>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-md bg-chart-3/10">
-                <Calendar className="h-5 w-5 text-chart-3" />
+                <UserPlus className="h-5 w-5 text-chart-3" />
               </div>
             </div>
           </CardContent>
@@ -178,6 +210,51 @@ export default function Dashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+            <CardTitle className="text-base font-medium">Upcoming Interviews</CardTitle>
+            <Link href="/scheduling">
+              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-scheduling">View all</span>
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {upcomingInterviews.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <CalendarClock className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                <p className="text-sm text-muted-foreground">No upcoming interviews</p>
+              </div>
+            ) : (
+              upcomingInterviews.map((interview) => {
+                const guest = getGuest(interview.guestId);
+                return (
+                  <div
+                    key={interview.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-md bg-card"
+                    data-testid={`card-interview-${interview.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{guest?.name || "Unknown"}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {interview.scheduledDate && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
+                            {interview.scheduledTime && ` at ${interview.scheduledTime}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className={interviewStatusColors[interview.status]}>
+                      {interview.status}
+                    </Badge>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
             <CardTitle className="text-base font-medium">Studio Availability</CardTitle>
             <Link href="/studio">
               <span className="text-xs text-primary cursor-pointer" data-testid="link-view-studio">View calendar</span>
@@ -218,43 +295,43 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
-          <CardTitle className="text-base font-medium">Team Workload</CardTitle>
-          <Link href="/team">
-            <span className="text-xs text-primary cursor-pointer" data-testid="link-view-team">View team</span>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {members?.map((member) => {
-              const memberTasks = pendingTasks.filter((t) => t.assigneeId === member.id);
-              return (
-                <div
-                  key={member.id}
-                  className="flex items-center gap-3 p-3 rounded-md bg-card"
-                  data-testid={`card-member-workload-${member.id}`}
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback
-                      className="text-xs font-medium text-white"
-                      style={{ backgroundColor: member.color }}
-                    >
-                      {member.initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{member.name}</p>
-                    <p className="text-xs text-muted-foreground">{memberTasks.length} open task{memberTasks.length !== 1 ? "s" : ""}</p>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+            <CardTitle className="text-base font-medium">Team Workload</CardTitle>
+            <Link href="/team">
+              <span className="text-xs text-primary cursor-pointer" data-testid="link-view-team">View team</span>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {members?.map((member) => {
+                const memberTasks = pendingTasks.filter((t) => t.assigneeId === member.id);
+                return (
+                  <div
+                    key={member.id}
+                    className="flex items-center gap-3 p-3 rounded-md bg-card"
+                    data-testid={`card-member-workload-${member.id}`}
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback
+                        className="text-xs font-medium text-white"
+                        style={{ backgroundColor: member.color }}
+                      >
+                        {member.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{member.name}</p>
+                      <p className="text-xs text-muted-foreground">{member.role} | {memberTasks.length} task{memberTasks.length !== 1 ? "s" : ""}</p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
