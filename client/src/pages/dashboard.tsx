@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -6,6 +7,7 @@ import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRi
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter, subDays } from "date-fns";
 import { Link } from "wouter";
+import GuestEditDialog from "@/components/GuestEditDialog";
 
 const statusColors: Record<string, string> = {
   planning: "bg-chart-4/10 text-chart-4",
@@ -31,6 +33,9 @@ const guestStatusColors: Record<string, string> = {
 };
 
 export default function Dashboard() {
+  const [quickEditGuest, setQuickEditGuest] = useState<Guest | null>(null);
+  const [quickEditOpen, setQuickEditOpen] = useState(false);
+
   const { data: settings } = useQuery<{ podcastName: string }>({
     queryKey: ["/api/settings"],
   });
@@ -260,7 +265,12 @@ export default function Dashboard() {
                     .map((guest) => {
                       const assignee = guest.addedBy ? getMember(guest.addedBy) : null;
                       return (
-                        <div key={guest.id} className="ios-list-item" data-testid={`card-pipeline-guest-${guest.id}`}>
+                        <div
+                          key={guest.id}
+                          className="ios-list-item cursor-pointer hover-elevate"
+                          onClick={() => { setQuickEditGuest(guest); setQuickEditOpen(true); }}
+                          data-testid={`card-pipeline-guest-${guest.id}`}
+                        >
                           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500/10 shrink-0">
                             <UserPlus className="h-4 w-4 text-purple-500" />
                           </div>
@@ -427,6 +437,13 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      <GuestEditDialog
+        guest={quickEditGuest}
+        open={quickEditOpen}
+        onOpenChange={(open) => { setQuickEditOpen(open); if (!open) setQuickEditGuest(null); }}
+        members={members}
+      />
     </div>
   );
 }

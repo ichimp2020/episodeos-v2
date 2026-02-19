@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,8 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, UserPlus, Phone, Mail, ExternalLink, Trash2, ChevronRight, X, Pencil } from "lucide-react";
+import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X } from "lucide-react";
 import type { Guest, TeamMember } from "@shared/schema";
+import GuestEditDialog from "@/components/GuestEditDialog";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
 const statusColors: Record<string, string> = {
@@ -32,9 +32,6 @@ export default function Guests() {
   const [editingGuest, setEditingGuest] = useState(false);
   const [newGuest, setNewGuest] = useState({
     name: "", phone: "", email: "", shortDescription: "", notes: "", links: [""],
-  });
-  const [editForm, setEditForm] = useState({
-    name: "", phone: "", email: "", shortDescription: "", notes: "", status: "prospect", links: [""],
   });
   const { toast } = useToast();
 
@@ -66,87 +63,22 @@ export default function Guests() {
     onError: () => toast({ title: "Failed to add guest", variant: "destructive" }),
   });
 
-  const updateGuest = useMutation({
-    mutationFn: async () => {
-      if (!selectedGuest) return;
-      await apiRequest("PATCH", `/api/guests/${selectedGuest.id}`, {
-        name: editForm.name,
-        phone: editForm.phone || null,
-        email: editForm.email || null,
-        shortDescription: editForm.shortDescription || null,
-        notes: editForm.notes || null,
-        status: editForm.status,
-        links: editForm.links.filter((l) => l.trim() !== ""),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
-      setEditingGuest(false);
-      setSelectedGuest(null);
-      toast({ title: "Guest updated" });
-    },
-    onError: () => toast({ title: "Failed to update guest", variant: "destructive" }),
-  });
-
-  const updateGuestStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await apiRequest("PATCH", `/api/guests/${id}`, { status });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
-    },
-  });
-
-  const deleteGuest = useMutation({
-    mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/guests/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
-      setSelectedGuest(null);
-      toast({ title: "Guest removed" });
-    },
-  });
-
-  const addLinkField = (form: "new" | "edit") => {
-    if (form === "new") {
-      setNewGuest({ ...newGuest, links: [...newGuest.links, ""] });
-    } else {
-      setEditForm({ ...editForm, links: [...editForm.links, ""] });
-    }
+  const addLinkField = () => {
+    setNewGuest({ ...newGuest, links: [...newGuest.links, ""] });
   };
 
-  const removeLinkField = (form: "new" | "edit", index: number) => {
-    if (form === "new") {
-      setNewGuest({ ...newGuest, links: newGuest.links.filter((_, i) => i !== index) });
-    } else {
-      setEditForm({ ...editForm, links: editForm.links.filter((_, i) => i !== index) });
-    }
+  const removeLinkField = (index: number) => {
+    setNewGuest({ ...newGuest, links: newGuest.links.filter((_, i) => i !== index) });
   };
 
-  const updateLink = (form: "new" | "edit", index: number, value: string) => {
-    if (form === "new") {
-      const links = [...newGuest.links];
-      links[index] = value;
-      setNewGuest({ ...newGuest, links });
-    } else {
-      const links = [...editForm.links];
-      links[index] = value;
-      setEditForm({ ...editForm, links });
-    }
+  const updateLink = (index: number, value: string) => {
+    const links = [...newGuest.links];
+    links[index] = value;
+    setNewGuest({ ...newGuest, links });
   };
 
   const openEditDialog = (guest: Guest) => {
     setSelectedGuest(guest);
-    setEditForm({
-      name: guest.name,
-      phone: guest.phone || "",
-      email: guest.email || "",
-      shortDescription: guest.shortDescription || "",
-      notes: guest.notes || "",
-      status: guest.status,
-      links: guest.links && guest.links.length > 0 ? [...guest.links] : [""],
-    });
     setEditingGuest(true);
   };
 
@@ -320,18 +252,18 @@ export default function Guests() {
                 <div key={i} className="flex items-center gap-2">
                   <Input
                     value={link}
-                    onChange={(e) => updateLink("new", i, e.target.value)}
+                    onChange={(e) => updateLink(i, e.target.value)}
                     placeholder="https://youtube.com/..."
                     data-testid={`input-guest-link-${i}`}
                   />
                   {newGuest.links.length > 1 && (
-                    <Button variant="ghost" size="icon" onClick={() => removeLinkField("new", i)} data-testid={`button-remove-link-${i}`}>
+                    <Button variant="ghost" size="icon" onClick={() => removeLinkField(i)} data-testid={`button-remove-link-${i}`}>
                       <X className="h-3 w-3" />
                     </Button>
                   )}
                 </div>
               ))}
-              <Button variant="ghost" size="sm" onClick={() => addLinkField("new")} data-testid="button-add-link">
+              <Button variant="ghost" size="sm" onClick={() => addLinkField()} data-testid="button-add-link">
                 <Plus className="h-3 w-3 mr-1" />
                 Add Link
               </Button>
@@ -348,116 +280,12 @@ export default function Guests() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={editingGuest} onOpenChange={(open) => { if (!open) { setEditingGuest(false); setSelectedGuest(null); } }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-          {selectedGuest && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Pencil className="h-4 w-4" />
-                  Edit Guest
-                </DialogTitle>
-                <DialogDescription>Update guest details and status</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <Select value={editForm.status} onValueChange={(val) => setEditForm({ ...editForm, status: val })}>
-                    <SelectTrigger data-testid="select-guest-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {guestStatuses.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Name</label>
-                  <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} data-testid="input-edit-guest-name" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Phone</label>
-                    <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} data-testid="input-edit-guest-phone" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Email</label>
-                    <Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} data-testid="input-edit-guest-email" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Short Description</label>
-                  <Input value={editForm.shortDescription} onChange={(e) => setEditForm({ ...editForm, shortDescription: e.target.value })} data-testid="input-edit-guest-description" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Notes</label>
-                  <Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} data-testid="input-edit-guest-notes" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Links</label>
-                  {editForm.links.map((link, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input value={link} onChange={(e) => updateLink("edit", i, e.target.value)} data-testid={`input-edit-guest-link-${i}`} />
-                      {editForm.links.length > 1 && (
-                        <Button variant="ghost" size="icon" onClick={() => removeLinkField("edit", i)}>
-                          <X className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button variant="ghost" size="sm" onClick={() => addLinkField("edit")} data-testid="button-add-link-edit">
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add Link
-                  </Button>
-                </div>
-                {editForm.links.some((l) => l.trim()) && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Quick Links</label>
-                    <div className="flex flex-wrap gap-2">
-                      {editForm.links.filter((l) => l.trim()).map((link, i) => (
-                        <a
-                          key={i}
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-primary flex items-center gap-1 hover:underline"
-                          data-testid={`link-guest-external-${i}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          {new URL(link).hostname.replace("www.", "")}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center justify-between gap-2 pt-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    onClick={() => deleteGuest.mutate(selectedGuest.id)}
-                    data-testid="button-delete-guest"
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    Delete
-                  </Button>
-                  <Button
-                    className="rounded-full px-5 shadow-md"
-                    onClick={() => updateGuest.mutate()}
-                    disabled={!editForm.name || updateGuest.isPending}
-                    data-testid="button-save-guest"
-                  >
-                    {updateGuest.isPending ? "Saving..." : "Save Changes"}
-                  </Button>
-                </div>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      <GuestEditDialog
+        guest={selectedGuest}
+        open={editingGuest}
+        onOpenChange={(open) => { setEditingGuest(open); if (!open) setSelectedGuest(null); }}
+        members={members}
+      />
     </div>
   );
 }
