@@ -26,6 +26,10 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/settings", (_req, res) => {
+    res.json({ podcastName: process.env.PODCAST_NAME || "My Podcast" });
+  });
+
   app.get("/api/team-members", async (_req, res) => {
     const members = await storage.getTeamMembers();
     res.json(members);

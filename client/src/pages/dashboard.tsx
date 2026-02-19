@@ -24,6 +24,9 @@ const interviewStatusColors: Record<string, string> = {
 };
 
 export default function Dashboard() {
+  const { data: settings } = useQuery<{ podcastName: string }>({
+    queryKey: ["/api/settings"],
+  });
   const { data: episodes, isLoading: loadingEpisodes } = useQuery<Episode[]>({
     queryKey: ["/api/episodes"],
   });
@@ -97,7 +100,9 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-dashboard-title">Dashboard</h1>
+        <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-dashboard-title">
+          Dashboard{settings?.podcastName ? <span className="text-muted-foreground font-normal"> "{settings.podcastName}"</span> : ""}
+        </h1>
         <p className="text-sm text-muted-foreground mt-1">Your podcast at a glance</p>
       </div>
 
