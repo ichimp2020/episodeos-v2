@@ -10,10 +10,11 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - **State Management**: TanStack React Query
 
 ## Core Features
-1. **Dashboard** - Overview of active episodes, studio dates, team workload
+1. **Dashboard** - Overview of active episodes, guest pipeline (detailed), confirmed recently (2-week shelf), studio dates, team workload
 2. **Episodes** - Episode lifecycle management (planning → scheduled → recording → editing → published) with per-episode task assignment
 3. **Team** - Team member management with role display and task tracking
 4. **Studio Calendar** - Calendar view of studio availability dates that can be added/removed/toggled (available ↔ taken)
+5. **Back Office** - Google Drive links & shared resources page for team-wide access
 
 ## Data Model
 - `teamMembers` - name, role, color, initials, phone, email, responsibilities
@@ -22,6 +23,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `studioDates` - date, status (available/taken), notes, bookedSlot, participantEmails (JSON)
 - `episodeFiles` - episodeId, name, category (graphic/thumbnail/document), objectPath, contentType, size
 - `episodeShorts` - episodeId, title, objectPath, status (pending/approved/rejected), notes, approvedBy
+- `sharedLinks` - title, url, description, category (google-drive/general/tools/templates)
 
 ## Integrations
 - **Google Calendar** - Connected via Replit connector. Creates calendar events with attendees when studio slots are booked. Client module at `server/google-calendar.ts`.
@@ -35,6 +37,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `GET/POST /api/episodes/:episodeId/files`, `DELETE /api/episode-files/:id`
 - `GET/POST /api/episodes/:episodeId/shorts`, `PATCH/DELETE /api/episode-shorts/:id`
 - `POST /api/uploads/request-url` - Get presigned URL for file upload
+- `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees
 
 ## Running

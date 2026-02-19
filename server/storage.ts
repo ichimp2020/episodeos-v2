@@ -10,9 +10,10 @@ import {
   type Reminder, type InsertReminder,
   type EpisodeFile, type InsertEpisodeFile,
   type EpisodeShort, type InsertEpisodeShort,
+  type SharedLink, type InsertSharedLink,
   teamMembers, episodes, tasks, studioDates,
   guests, interviews, interviewParticipants, publishing, reminders,
-  episodeFiles, episodeShorts,
+  episodeFiles, episodeShorts, sharedLinks,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lte, and } from "drizzle-orm";
@@ -78,6 +79,11 @@ export interface IStorage {
   createEpisodeShort(short: InsertEpisodeShort): Promise<EpisodeShort>;
   updateEpisodeShort(id: string, data: Partial<InsertEpisodeShort>): Promise<EpisodeShort | undefined>;
   deleteEpisodeShort(id: string): Promise<void>;
+
+  getSharedLinks(): Promise<SharedLink[]>;
+  createSharedLink(link: InsertSharedLink): Promise<SharedLink>;
+  updateSharedLink(id: string, data: Partial<InsertSharedLink>): Promise<SharedLink | undefined>;
+  deleteSharedLink(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -311,6 +317,24 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEpisodeShort(id: string): Promise<void> {
     await db.delete(episodeShorts).where(eq(episodeShorts.id, id));
+  }
+
+  async getSharedLinks(): Promise<SharedLink[]> {
+    return db.select().from(sharedLinks);
+  }
+
+  async createSharedLink(link: InsertSharedLink): Promise<SharedLink> {
+    const [created] = await db.insert(sharedLinks).values(link).returning();
+    return created;
+  }
+
+  async updateSharedLink(id: string, data: Partial<InsertSharedLink>): Promise<SharedLink | undefined> {
+    const [updated] = await db.update(sharedLinks).set(data).where(eq(sharedLinks.id, id)).returning();
+    return updated;
+  }
+
+  async deleteSharedLink(id: string): Promise<void> {
+    await db.delete(sharedLinks).where(eq(sharedLinks.id, id));
   }
 }
 

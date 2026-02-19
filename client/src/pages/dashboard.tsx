@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
-import { format, parseISO, isAfter } from "date-fns";
+import { format, parseISO, isAfter, subDays } from "date-fns";
 import { Link } from "wouter";
 
 const statusColors: Record<string, string> = {
@@ -20,6 +20,14 @@ const interviewStatusColors: Record<string, string> = {
   confirmed: "bg-chart-2/10 text-chart-2",
   completed: "bg-primary/10 text-primary",
   cancelled: "bg-destructive/10 text-destructive",
+};
+
+const guestStatusColors: Record<string, string> = {
+  prospect: "bg-chart-4/10 text-chart-4",
+  contacted: "bg-amber-500/10 text-amber-600",
+  confirmed: "bg-chart-2/10 text-chart-2",
+  declined: "bg-destructive/10 text-destructive",
+  completed: "bg-primary/10 text-primary",
 };
 
 export default function Dashboard() {
@@ -61,14 +69,22 @@ export default function Dashboard() {
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
     .slice(0, 5) || [];
   const pendingTasks = tasks?.filter((t) => t.status !== "done") || [];
-  const upcomingInterviews = allInterviews
-    ?.filter((i) => i.status === "proposed" || i.status === "confirmed")
+
+  const twoWeeksAgo = subDays(new Date(), 14);
+  const confirmedRecently = allInterviews
+    ?.filter((i) => {
+      if (i.status !== "confirmed") return false;
+      if (i.scheduledDate && isAfter(parseISO(i.scheduledDate), twoWeeksAgo)) return true;
+      if (i.createdAt && isAfter(parseISO(i.createdAt as unknown as string), twoWeeksAgo)) return true;
+      return false;
+    })
     .sort((a, b) => {
       if (!a.scheduledDate) return 1;
       if (!b.scheduledDate) return -1;
       return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
     })
-    .slice(0, 3) || [];
+    .slice(0, 5) || [];
+
   const scheduledPublishing = allPublishing?.filter((p) => p.status === "scheduled")
     .sort((a, b) => {
       if (!a.scheduledDate) return 1;
@@ -77,7 +93,14 @@ export default function Dashboard() {
     })
     .slice(0, 3) || [];
 
+  const pipelineGuests = guests || [];
+  const prospectGuests = pipelineGuests.filter((g) => g.status === "prospect");
+  const contactedGuests = pipelineGuests.filter((g) => g.status === "contacted");
+  const confirmedGuests = pipelineGuests.filter((g) => g.status === "confirmed");
+  const declinedGuests = pipelineGuests.filter((g) => g.status === "declined");
+
   const getGuest = (id: string) => guests?.find((g) => g.id === id);
+  const getMember = (id: string) => members?.find((m) => m.id === id);
 
   if (isLoading) {
     return (
@@ -108,7 +131,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Active Episodes", value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10" },
-          { label: "Upcoming Interviews", value: upcomingInterviews.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
+          { label: "Confirmed Recently", value: confirmedRecently.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
           { label: "Open Tasks", value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10" },
           { label: "Guest Pipeline", value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10" },
         ].map((stat) => (
@@ -196,7 +219,82 @@ export default function Dashboard() {
 
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title">Upcoming Interviews</h2>
+            <h2 className="ios-section-title" data-testid="text-guest-pipeline-title">Guest Pipeline</h2>
+            <Link href="/guests">
+              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-guests">
+                View all
+                <ChevronRight className="h-3 w-3" />
+              </span>
+            </Link>
+          </div>
+          <div className="px-4 pb-4 space-y-3">
+            {pipelineGuests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
+                  <UserPlus className="h-6 w-6 text-muted-foreground/40" />
+                </div>
+                <p className="text-sm text-muted-foreground">No guests in pipeline</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Prospects", count: prospectGuests.length, color: "bg-chart-4/10 text-chart-4" },
+                    { label: "Contacted", count: contactedGuests.length, color: "bg-amber-500/10 text-amber-600" },
+                    { label: "Confirmed", count: confirmedGuests.length, color: "bg-chart-2/10 text-chart-2" },
+                    { label: "Declined", count: declinedGuests.length, color: "bg-destructive/10 text-destructive" },
+                  ].map((stage) => (
+                    <div key={stage.label} className="text-center py-2.5 rounded-xl bg-muted/30" data-testid={`stat-pipeline-${stage.label.toLowerCase()}`}>
+                      <p className="text-lg font-bold">{stage.count}</p>
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{stage.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1.5">
+                  {pipelineGuests
+                    .sort((a, b) => {
+                      const order = ["prospect", "contacted", "confirmed", "declined", "completed"];
+                      return order.indexOf(a.status) - order.indexOf(b.status);
+                    })
+                    .slice(0, 5)
+                    .map((guest) => {
+                      const assignee = guest.addedBy ? getMember(guest.addedBy) : null;
+                      return (
+                        <div key={guest.id} className="ios-list-item" data-testid={`card-pipeline-guest-${guest.id}`}>
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-500/10 shrink-0">
+                            <UserPlus className="h-4 w-4 text-purple-500" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold truncate">{guest.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {assignee && (
+                                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold text-white" style={{ backgroundColor: assignee.color }}>{assignee.initials}</span>
+                                  {assignee.name}
+                                </span>
+                              )}
+                              {guest.shortDescription && (
+                                <span className="text-[11px] text-muted-foreground truncate">{guest.shortDescription}</span>
+                              )}
+                            </div>
+                          </div>
+                          <Badge className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
+                            {guest.status}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="ios-section">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title" data-testid="text-confirmed-recently-title">Confirmed Recently</h2>
             <Link href="/scheduling">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-scheduling">
                 View all
@@ -205,38 +303,36 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="px-4 pb-4 space-y-2">
-            {upcomingInterviews.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
-                  <CalendarClock className="h-6 w-6 text-muted-foreground/40" />
+            {confirmedRecently.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/50 mb-2">
+                  <CalendarClock className="h-5 w-5 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground">No upcoming interviews</p>
+                <p className="text-xs text-muted-foreground">No recent confirmations</p>
               </div>
             ) : (
-              upcomingInterviews.map((interview) => {
+              confirmedRecently.map((interview) => {
                 const guest = getGuest(interview.guestId);
                 return (
                   <div
                     key={interview.id}
                     className="ios-list-item"
-                    data-testid={`card-interview-${interview.id}`}
+                    data-testid={`card-confirmed-${interview.id}`}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-chart-2/10 shrink-0">
-                      <CalendarClock className="h-4.5 w-4.5 text-chart-2" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-chart-2/10 shrink-0">
+                      <CalendarClock className="h-4 w-4 text-chart-2" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{guest?.name || "Unknown"}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {interview.scheduledDate && (
-                          <span className="text-xs text-muted-foreground">
-                            {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
-                            {interview.scheduledTime && ` at ${interview.scheduledTime}`}
-                          </span>
-                        )}
-                      </div>
+                      {interview.scheduledDate && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
+                          {interview.scheduledTime && ` at ${interview.scheduledTime}`}
+                        </span>
+                      )}
                     </div>
-                    <Badge className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
-                      {interview.status}
+                    <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
+                      confirmed
                     </Badge>
                   </div>
                 );
@@ -244,9 +340,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="ios-section">
           <div className="ios-section-header">
             <h2 className="ios-section-title">Studio Availability</h2>
@@ -259,34 +353,31 @@ export default function Dashboard() {
           </div>
           <div className="px-4 pb-4 space-y-2">
             {upcomingDates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
-                  <Calendar className="h-6 w-6 text-muted-foreground/40" />
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/50 mb-2">
+                  <Calendar className="h-5 w-5 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground">No upcoming studio dates</p>
+                <p className="text-xs text-muted-foreground">No upcoming studio dates</p>
               </div>
             ) : (
-              upcomingDates.map((d) => (
+              upcomingDates.slice(0, 3).map((d) => (
                 <div
                   key={d.id}
                   className="ios-list-item"
                   data-testid={`card-studio-date-${d.id}`}
                 >
-                  <div className="flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
-                    <span className="text-[10px] font-semibold text-chart-2 leading-none uppercase">
+                  <div className="flex h-10 w-10 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                    <span className="text-[9px] font-semibold text-chart-2 leading-none uppercase">
                       {format(parseISO(d.date), "MMM")}
                     </span>
-                    <span className="text-base font-bold text-chart-2 leading-tight">
+                    <span className="text-sm font-bold text-chart-2 leading-tight">
                       {format(parseISO(d.date), "d")}
                     </span>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold">{format(parseISO(d.date), "EEEE")}</p>
-                    {d.notes && <p className="text-xs text-muted-foreground mt-0.5">{d.notes}</p>}
+                    {d.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{d.notes}</p>}
                   </div>
-                  <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
-                    Available
-                  </Badge>
                 </div>
               ))
             )}
@@ -304,8 +395,8 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="px-4 pb-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {members?.map((member) => {
+            <div className="space-y-1.5">
+              {members?.slice(0, 6).map((member) => {
                 const memberTasks = pendingTasks.filter((t) => t.assigneeId === member.id);
                 return (
                   <div
@@ -313,9 +404,9 @@ export default function Dashboard() {
                     className="ios-list-item"
                     data-testid={`card-member-workload-${member.id}`}
                   >
-                    <Avatar className="h-9 w-9 ring-2 ring-background shadow-sm">
+                    <Avatar className="h-8 w-8 ring-2 ring-background shadow-sm">
                       <AvatarFallback
-                        className="text-xs font-semibold text-white"
+                        className="text-[10px] font-semibold text-white"
                         style={{ backgroundColor: member.color }}
                       >
                         {member.initials}
@@ -323,10 +414,9 @@ export default function Dashboard() {
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">{member.role}</p>
                     </div>
                     {memberTasks.length > 0 && (
-                      <span className="inline-flex items-center justify-center h-6 min-w-6 rounded-full bg-primary/10 text-primary text-[11px] font-bold px-1.5">
+                      <span className="inline-flex items-center justify-center h-5 min-w-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold px-1">
                         {memberTasks.length}
                       </span>
                     )}

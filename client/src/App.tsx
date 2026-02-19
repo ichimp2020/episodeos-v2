@@ -15,6 +15,7 @@ import Studio from "@/pages/studio";
 import Guests from "@/pages/guests";
 import Scheduling from "@/pages/scheduling";
 import Publish from "@/pages/publish";
+import BackOffice from "@/pages/backoffice";
 
 function Router() {
   return (
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/guests" component={Guests} />
       <Route path="/scheduling" component={Scheduling} />
       <Route path="/publishing" component={Publish} />
+      <Route path="/backoffice" component={BackOffice} />
       <Route component={NotFound} />
     </Switch>
   );

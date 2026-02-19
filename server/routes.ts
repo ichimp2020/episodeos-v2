@@ -5,7 +5,7 @@ import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
-  insertEpisodeFileSchema, insertEpisodeShortSchema,
+  insertEpisodeFileSchema, insertEpisodeShortSchema, insertSharedLinkSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { createCalendarEvent } from "./google-calendar";
@@ -20,6 +20,7 @@ const updateGuestSchema = insertGuestSchema.partial();
 const updateInterviewSchema = insertInterviewSchema.partial();
 const updatePublishingSchema = insertPublishingSchema.partial();
 const updateReminderSchema = insertReminderSchema.partial();
+const updateSharedLinkSchema = insertSharedLinkSchema.partial();
 
 export async function registerRoutes(
   httpServer: Server,
@@ -158,7 +159,15 @@ export async function registerRoutes(
   app.post("/api/guests", async (req, res) => {
     const parsed = insertGuestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-    const guest = await storage.createGuest(parsed.data);
+    const guestData = { ...parsed.data };
+    if ((!guestData.status || guestData.status === "prospect") && !guestData.addedBy) {
+      const members = await storage.getTeamMembers();
+      const sharon = members.find((m) => m.name.toLowerCase().includes("sharon"));
+      if (sharon) {
+        guestData.addedBy = sharon.id;
+      }
+    }
+    const guest = await storage.createGuest(guestData);
     res.status(201).json(guest);
   });
 
@@ -390,6 +399,31 @@ export async function registerRoutes(
 
   app.delete("/api/episode-shorts/:id", async (req, res) => {
     await storage.deleteEpisodeShort(req.params.id);
+    res.status(204).send();
+  });
+
+  app.get("/api/shared-links", async (_req, res) => {
+    const links = await storage.getSharedLinks();
+    res.json(links);
+  });
+
+  app.post("/api/shared-links", async (req, res) => {
+    const parsed = insertSharedLinkSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const link = await storage.createSharedLink(parsed.data);
+    res.status(201).json(link);
+  });
+
+  app.patch("/api/shared-links/:id", async (req, res) => {
+    const parsed = updateSharedLinkSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const updated = await storage.updateSharedLink(req.params.id, parsed.data);
+    if (!updated) return res.status(404).json({ message: "Link not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/shared-links/:id", async (req, res) => {
+    await storage.deleteSharedLink(req.params.id);
     res.status(204).send();
   });
 

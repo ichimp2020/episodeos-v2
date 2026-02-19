@@ -1,4 +1,4 @@
-import { LayoutDashboard, Mic, Users, Calendar, UserPlus, CalendarClock, Upload, Sparkles } from "lucide-react";
+import { LayoutDashboard, Mic, Users, Calendar, UserPlus, CalendarClock, Upload, Sparkles, FolderOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -25,6 +25,10 @@ const workflowNav = [
   { title: "Scheduling", url: "/scheduling", icon: CalendarClock },
   { title: "Studio Calendar", url: "/studio", icon: Calendar },
   { title: "Publishing", url: "/publishing", icon: Upload },
+];
+
+const backOfficeNav = [
+  { title: "Google Drive Links", url: "/backoffice", icon: FolderOpen },
 ];
 
 export function AppSidebar() {
@@ -72,6 +76,28 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
               {workflowNav.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    tooltip={item.title}
+                    className="rounded-xl"
+                  >
+                    <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s/g, "-")}`}>
+                      <item.icon className="h-[18px] w-[18px]" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground/70 px-3 mb-1">Back Office</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-0.5">
+              {backOfficeNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild

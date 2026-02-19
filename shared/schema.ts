@@ -126,6 +126,15 @@ export const episodeShorts = pgTable("episode_shorts", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const sharedLinks = pgTable("shared_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  url: text("url").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("general"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true });
 export const insertEpisodeSchema = createInsertSchema(episodes).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
@@ -137,6 +146,7 @@ export const insertPublishingSchema = createInsertSchema(publishing).omit({ id: 
 export const insertReminderSchema = createInsertSchema(reminders).omit({ id: true, sentAt: true });
 export const insertEpisodeFileSchema = createInsertSchema(episodeFiles).omit({ id: true, uploadedAt: true });
 export const insertEpisodeShortSchema = createInsertSchema(episodeShorts).omit({ id: true, createdAt: true });
+export const insertSharedLinkSchema = createInsertSchema(sharedLinks).omit({ id: true, createdAt: true });
 
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type TeamMember = typeof teamMembers.$inferSelect;
@@ -160,3 +170,5 @@ export type InsertEpisodeFile = z.infer<typeof insertEpisodeFileSchema>;
 export type EpisodeFile = typeof episodeFiles.$inferSelect;
 export type InsertEpisodeShort = z.infer<typeof insertEpisodeShortSchema>;
 export type EpisodeShort = typeof episodeShorts.$inferSelect;
+export type InsertSharedLink = z.infer<typeof insertSharedLinkSchema>;
+export type SharedLink = typeof sharedLinks.$inferSelect;
