@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
 import type { Guest, TeamMember, StudioDate } from "@shared/schema";
+import { useLanguage } from "@/i18n/LanguageProvider";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
 
@@ -34,6 +35,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: studioDates } = useQuery<StudioDate[]>({
     queryKey: ["/api/studio-dates"],
@@ -145,13 +147,13 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Pencil className="h-4 w-4" />
-                Edit Guest
+                {t.guests.editGuest}
               </DialogTitle>
-              <DialogDescription>Update guest details and status</DialogDescription>
+              <DialogDescription>{t.guests.updateDetails}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
+                <label className="text-sm font-medium">{t.guests.status}</label>
                 <Select value={editForm.status} onValueChange={(val) => setEditForm({ ...editForm, status: val })}>
                   <SelectTrigger data-testid="select-guest-status">
                     <SelectValue />
@@ -172,7 +174,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   data-testid="button-check-availability"
                 >
                   <Calendar className="h-4 w-4 mr-2" />
-                  Check Studio Availability
+                  {t.guests.checkStudioAvailability}
                 </Button>
               )}
 
@@ -181,14 +183,14 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold flex items-center gap-1.5">
                       <Calendar className="h-4 w-4 text-primary" />
-                      Studio Availability
+                      {t.guests.studioAvailability}
                     </h3>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowCalendar(false); setSelectedDate(null); }} data-testid="button-close-availability">
                       <X className="h-3 w-3" />
                     </Button>
                   </div>
                   {availableDates.length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-3">No available studio dates</p>
+                    <p className="text-xs text-muted-foreground text-center py-3">{t.guests.noAvailableDates}</p>
                   ) : (
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {availableDates.map((d) => (
@@ -224,7 +226,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   {selectedDate && (
                     <div className="pt-1">
                       <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
-                        Selected: {format(parseISO(selectedDate), "MMM d, yyyy")} — Status set to confirmed
+                        {t.guests.selected}: {format(parseISO(selectedDate), "MMM d, yyyy")} — {t.guests.statusSetToConfirmed}
                       </Badge>
                     </div>
                   )}
@@ -232,29 +234,29 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
+                <label className="text-sm font-medium">{t.guests.name}</label>
                 <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} data-testid="input-edit-guest-name" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Phone</label>
+                  <label className="text-sm font-medium">{t.guests.phone}</label>
                   <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} data-testid="input-edit-guest-phone" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
+                  <label className="text-sm font-medium">{t.guests.email}</label>
                   <Input value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} data-testid="input-edit-guest-email" />
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Short Description</label>
+                <label className="text-sm font-medium">{t.guests.shortDescription}</label>
                 <Input value={editForm.shortDescription} onChange={(e) => setEditForm({ ...editForm, shortDescription: e.target.value })} data-testid="input-edit-guest-description" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
+                <label className="text-sm font-medium">{t.guests.notes}</label>
                 <Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} data-testid="input-edit-guest-notes" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Links</label>
+                <label className="text-sm font-medium">{t.guests.links}</label>
                 {editForm.links.map((link, i) => (
                   <div key={i} className="flex items-center gap-2">
                     <Input value={link} onChange={(e) => updateLink(i, e.target.value)} data-testid={`input-edit-guest-link-${i}`} />
@@ -267,12 +269,12 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                 ))}
                 <Button variant="ghost" size="sm" onClick={addLinkField} data-testid="button-add-link-edit">
                   <Plus className="h-3 w-3 mr-1" />
-                  Add Link
+                  {t.guests.addLink}
                 </Button>
               </div>
               {editForm.links.some((l) => l.trim()) && (
                 <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">Quick Links</label>
+                  <label className="text-xs text-muted-foreground">{t.guests.quickLinks}</label>
                   <div className="flex flex-wrap gap-2">
                     {editForm.links.filter((l) => l.trim()).map((link, i) => {
                       let hostname = link;
@@ -296,7 +298,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                 </div>
               )}
               {guest.addedBy && (
-                <p className="text-xs text-muted-foreground">Added by {getMemberName(guest.addedBy)}</p>
+                <p className="text-xs text-muted-foreground">{t.guests.addedBy} {getMemberName(guest.addedBy)}</p>
               )}
               <div className="flex items-center justify-between gap-2 pt-2">
                 <Button
@@ -307,7 +309,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   data-testid="button-delete-guest"
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
-                  Delete
+                  {t.guests.delete}
                 </Button>
                 <Button
                   className="rounded-full px-5 shadow-md"
@@ -315,7 +317,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   disabled={!editForm.name || updateGuest.isPending}
                   data-testid="button-save-guest"
                 >
-                  {updateGuest.isPending ? "Saving..." : "Save Changes"}
+                  {updateGuest.isPending ? t.guests.saving : t.guests.saveChanges}
                 </Button>
               </div>
             </div>

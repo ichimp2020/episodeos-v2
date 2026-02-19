@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export default function Episodes() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeId: "", dueDate: "" });
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: episodes, isLoading } = useQuery<Episode[]>({
     queryKey: ["/api/episodes"],
@@ -295,12 +297,12 @@ export default function Episodes() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto pb-24">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-episodes-title">Episodes</h1>
-          <p className="text-sm text-muted-foreground mt-1">Plan, track, and manage your episodes</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-episodes-title">{t.episodes.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.episodes.subtitle}</p>
         </div>
         <Button onClick={() => setShowNewEpisode(true)} className="rounded-full px-5 shadow-md" data-testid="button-new-episode">
           <Plus className="h-4 w-4 mr-2" />
-          New Episode
+          {t.episodes.newEpisode}
         </Button>
       </div>
 
@@ -310,11 +312,11 @@ export default function Episodes() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
               <Mic className="h-7 w-7 text-muted-foreground/40" />
             </div>
-            <p className="text-muted-foreground font-semibold">No episodes yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Create your first episode to get started</p>
+            <p className="text-muted-foreground font-semibold">{t.episodes.noEpisodesYet}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t.episodes.createFirstEpisode}</p>
             <Button className="rounded-full px-5 shadow-md mt-5" onClick={() => setShowNewEpisode(true)} data-testid="button-create-first-episode">
               <Plus className="h-4 w-4 mr-2" />
-              Create Episode
+              {t.episodes.createEpisode}
             </Button>
           </div>
         </div>
@@ -400,21 +402,21 @@ export default function Episodes() {
       <Dialog open={showNewEpisode} onOpenChange={setShowNewEpisode}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Episode</DialogTitle>
-            <DialogDescription>Add a new episode to your pipeline</DialogDescription>
+            <DialogTitle>{t.episodes.newEpisode}</DialogTitle>
+            <DialogDescription>{t.episodes.addToYourPipeline}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Title</label>
+              <label className="text-sm font-medium">{t.episodes.episodeTitle}</label>
               <Input
                 value={newEpisode.title}
                 onChange={(e) => setNewEpisode({ ...newEpisode, title: e.target.value })}
-                placeholder="Episode title"
+                placeholder={t.episodes.episodeTitle}
                 data-testid="input-episode-title"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Episode Number</label>
+              <label className="text-sm font-medium">{t.episodes.episodeNumber}</label>
               <Input
                 type="number"
                 value={newEpisode.episodeNumber}
@@ -424,16 +426,16 @@ export default function Episodes() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">{t.episodes.description}</label>
               <Textarea
                 value={newEpisode.description}
                 onChange={(e) => setNewEpisode({ ...newEpisode, description: e.target.value })}
-                placeholder="Brief description or topic"
+                placeholder={t.episodes.description}
                 data-testid="input-episode-description"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Scheduled Date</label>
+              <label className="text-sm font-medium">{t.episodes.scheduledDate}</label>
               <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -444,9 +446,9 @@ export default function Episodes() {
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {newEpisode.scheduledDate
                       ? `${format(parseISO(newEpisode.scheduledDate), "MMM d, yyyy")}${newEpisode.scheduledTime ? ` at ${newEpisode.scheduledTime}` : ""}`
-                      : "Pick a date"}
+                      : t.episodes.pickADate}
                     {newEpisode.scheduledDate && availableStudioDates.has(newEpisode.scheduledDate) && (
-                      <Badge variant="secondary" className="ml-auto text-xs">Studio Available</Badge>
+                      <Badge variant="secondary" className="ml-auto text-xs">{t.episodes.studioAvailable}</Badge>
                     )}
                   </Button>
                 </PopoverTrigger>
@@ -511,7 +513,7 @@ export default function Episodes() {
                                 setNewEpisode({ ...newEpisode, scheduledDate: dateStr, scheduledTime: "" });
                                 setDatePickerOpen(false);
                               }}
-                              title={isAvailable ? `Studio available${notes ? `: ${notes}` : ""}` : isTaken ? "Studio taken" : ""}
+                              title={isAvailable ? `${t.episodes.studioAvailable}${notes ? `: ${notes}` : ""}` : isTaken ? t.episodes.studioTaken : ""}
                               data-testid={`datepicker-day-${dateStr}`}
                             >
                               {format(day, "d")}
@@ -528,11 +530,11 @@ export default function Episodes() {
                     <div className="flex items-center gap-3 mt-2 pt-2 border-t text-xs text-muted-foreground flex-wrap">
                       <div className="flex items-center gap-1">
                         <div className="h-2 w-2 rounded-full bg-chart-2" />
-                        Studio available
+                        {t.episodes.studioAvailable}
                       </div>
                       <div className="flex items-center gap-1">
                         <div className="h-2 w-2 rounded-full bg-chart-5" />
-                        Studio taken
+                        {t.episodes.studioTaken}
                       </div>
                     </div>
                     {newEpisode.scheduledDate && (
@@ -585,7 +587,7 @@ export default function Episodes() {
               disabled={!newEpisode.title || createEpisode.isPending}
               data-testid="button-submit-episode"
             >
-              {createEpisode.isPending ? "Creating..." : "Create Episode"}
+              {createEpisode.isPending ? t.episodes.creating : t.episodes.createEpisode}
             </Button>
           </div>
         </DialogContent>
@@ -669,7 +671,7 @@ export default function Episodes() {
               <div className="space-y-5 mt-2">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-muted-foreground">Status:</label>
+                    <label className="text-sm text-muted-foreground">{t.episodes.status}:</label>
                     <Select
                       value={selectedEpisode.status}
                       onValueChange={(val) => {
@@ -696,16 +698,16 @@ export default function Episodes() {
 
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <h3 className="text-sm font-medium">Tasks</h3>
+                    <h3 className="text-sm font-medium">{t.episodes.tasks}</h3>
                     <Button variant="ghost" size="sm" onClick={() => setShowNewTask(true)} data-testid="button-add-task">
                       <Plus className="h-3 w-3 mr-1" />
-                      Add
+                      {t.episodes.addTask}
                     </Button>
                   </div>
 
                   {episodeTasks(selectedEpisode.id).length === 0 ? (
                     <div className="text-center py-6">
-                      <p className="text-sm text-muted-foreground">No tasks yet. Add one to assign responsibilities.</p>
+                      <p className="text-sm text-muted-foreground">{t.episodes.noTasks}. {t.episodes.addFirstTask}.</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -718,7 +720,7 @@ export default function Episodes() {
                               <Input
                                 value={editTaskValues.title}
                                 onChange={(e) => setEditTaskValues({ ...editTaskValues, title: e.target.value })}
-                                placeholder="Task title"
+                                placeholder={t.episodes.taskTitle}
                                 autoFocus
                                 className="text-sm h-8"
                                 data-testid={`input-edit-task-title-${task.id}`}
@@ -729,10 +731,10 @@ export default function Episodes() {
                                   onValueChange={(val) => setEditTaskValues({ ...editTaskValues, assigneeId: val === "__none__" ? "" : val })}
                                 >
                                   <SelectTrigger className="text-sm h-8 flex-1" data-testid={`select-edit-task-assignee-${task.id}`}>
-                                    <SelectValue placeholder="Assignee" />
+                                    <SelectValue placeholder={t.episodes.assignee} />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="__none__">Unassigned</SelectItem>
+                                    <SelectItem value="__none__">{t.episodes.unassigned}</SelectItem>
                                     {members?.map((m) => (
                                       <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                                     ))}
@@ -859,7 +861,7 @@ export default function Episodes() {
                     data-testid="button-delete-episode"
                   >
                     <Trash2 className="h-3 w-3 mr-1" />
-                    Delete Episode
+                    {t.episodes.deleteEpisode}
                   </Button>
                 </div>
               </div>
@@ -867,12 +869,12 @@ export default function Episodes() {
               <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add Task</DialogTitle>
-                    <DialogDescription>Add a task for this episode</DialogDescription>
+                    <DialogTitle>{t.episodes.newTask}</DialogTitle>
+                    <DialogDescription>{t.episodes.addATaskForThisEpisode}</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 mt-2">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Task</label>
+                      <label className="text-sm font-medium">{t.episodes.taskTitle}</label>
                       <Input
                         value={newTask.title}
                         onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
@@ -881,13 +883,13 @@ export default function Episodes() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Assign to</label>
+                      <label className="text-sm font-medium">{t.episodes.assignee}</label>
                       <Select
                         value={newTask.assigneeId}
                         onValueChange={(val) => setNewTask({ ...newTask, assigneeId: val })}
                       >
                         <SelectTrigger data-testid="select-task-assignee">
-                          <SelectValue placeholder="Select team member" />
+                          <SelectValue placeholder={t.episodes.selectAssignee} />
                         </SelectTrigger>
                         <SelectContent>
                           {members?.map((m) => (
@@ -897,7 +899,7 @@ export default function Episodes() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Due Date</label>
+                      <label className="text-sm font-medium">{t.episodes.dueDate}</label>
                       <Input
                         type="date"
                         value={newTask.dueDate}
@@ -911,7 +913,7 @@ export default function Episodes() {
                       disabled={!newTask.title || createTask.isPending}
                       data-testid="button-submit-task"
                     >
-                      {createTask.isPending ? "Adding..." : "Add Task"}
+                      {createTask.isPending ? t.episodes.adding : t.episodes.addTask}
                     </Button>
                   </div>
                 </DialogContent>
@@ -952,6 +954,7 @@ function formatFileSize(bytes: number | null | undefined): string {
 
 function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [isUploading, setIsUploading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("document");
 
@@ -1015,7 +1018,7 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">Files & Documents</h3>
+        <h3 className="text-sm font-medium">{t.episodes.files}</h3>
         <div className="flex items-center gap-2">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
             <SelectTrigger className="w-[120px]" data-testid="select-file-category">
@@ -1031,7 +1034,7 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
           <Button variant="ghost" size="sm" disabled={isUploading} asChild data-testid="button-upload-file">
             <label className="cursor-pointer">
               {isUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
-              Upload
+              {t.episodes.uploadFile}
               <input type="file" className="hidden" onChange={handleFileUpload} disabled={isUploading} />
             </label>
           </Button>
@@ -1042,7 +1045,7 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
         <Skeleton className="h-12" />
       ) : !files || files.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground">No files yet. Upload graphics, thumbnails, or documents.</p>
+          <p className="text-sm text-muted-foreground">{t.episodes.noFiles}</p>
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -1099,6 +1102,7 @@ const shortStatusColors: Record<string, string> = {
 
 function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [showAddShort, setShowAddShort] = useState(false);
   const [newShortTitle, setNewShortTitle] = useState("");
   const [isUploadingShort, setIsUploadingShort] = useState(false);
@@ -1181,10 +1185,10 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">Shorts (CEO Approval)</h3>
+        <h3 className="text-sm font-medium">{t.episodes.shorts}</h3>
         <Button variant="ghost" size="sm" onClick={() => setShowAddShort(true)} data-testid="button-add-short">
           <Plus className="h-3 w-3 mr-1" />
-          Add Short
+          {t.episodes.uploadShort}
         </Button>
       </div>
 
@@ -1192,7 +1196,7 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
         <Skeleton className="h-12" />
       ) : !shorts || shorts.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground">No shorts yet. Add up to 3 short videos for CEO approval.</p>
+          <p className="text-sm text-muted-foreground">{t.episodes.noShorts}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1289,7 +1293,7 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
               disabled={!newShortTitle || createShort.isPending}
               data-testid="button-submit-short"
             >
-              {createShort.isPending ? "Adding..." : "Add Short"}
+              {createShort.isPending ? t.episodes.adding : t.episodes.uploadShort}
             </Button>
           </div>
         </DialogContent>

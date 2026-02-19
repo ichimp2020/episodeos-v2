@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageProvider } from "@/i18n/LanguageProvider";
+import { LanguageToggle } from "@/components/language-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import NotFound from "@/pages/not-found";
@@ -42,23 +44,28 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
-          <SidebarProvider style={style as React.CSSProperties}>
-            <div className="flex h-screen w-full">
-              <AppSidebar />
-              <div className="flex flex-col flex-1 min-w-0">
-                <header className="glass-header flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50">
-                  <SidebarTrigger className="rounded-xl" data-testid="button-sidebar-toggle" />
-                  <ThemeToggle />
-                </header>
+        <LanguageProvider>
+          <TooltipProvider>
+            <SidebarProvider style={style as React.CSSProperties}>
+              <div className="flex h-screen w-full">
+                <AppSidebar />
+                <div className="flex flex-col flex-1 min-w-0">
+                  <header className="glass-header flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50">
+                    <SidebarTrigger className="rounded-xl" data-testid="button-sidebar-toggle" />
+                    <div className="flex items-center gap-1">
+                      <LanguageToggle />
+                      <ThemeToggle />
+                    </div>
+                  </header>
                 <main className="flex-1 overflow-auto">
                   <Router />
                 </main>
+                </div>
               </div>
-            </div>
-          </SidebarProvider>
-          <Toaster />
-        </TooltipProvider>
+            </SidebarProvider>
+            <Toaster />
+          </TooltipProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

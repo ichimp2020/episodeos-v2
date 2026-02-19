@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, Label, UserPlus, Phone } from "lucide-react";
 import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
+import { useLanguage } from "@/i18n/LanguageProvider";
 
 const interviewStatuses = ["proposed", "confirmed", "completed", "cancelled"];
 const statusColors: Record<string, string> = {
@@ -40,6 +41,7 @@ export default function Scheduling() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickGuest, setQuickGuest] = useState({ name: "", phone: "", email: "" });
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: allInterviews, isLoading } = useQuery<Interview[]>({
     queryKey: ["/api/interviews"],
@@ -187,12 +189,12 @@ export default function Scheduling() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-scheduling-title">Interview Scheduling</h1>
-          <p className="text-sm text-muted-foreground mt-1">Coordinate interviews with guests, studio, and interviewers</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-scheduling-title">{t.scheduling.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.scheduling.subtitle}</p>
         </div>
         <Button onClick={() => setShowNewInterview(true)} data-testid="button-new-interview" className="rounded-full px-5 shadow-md">
           <Plus className="h-4 w-4 mr-2" />
-          Schedule Interview
+          {t.scheduling.scheduleInterview}
         </Button>
       </div>
 
@@ -202,11 +204,11 @@ export default function Scheduling() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
               <CalendarClock className="h-6 w-6 text-muted-foreground" />
             </div>
-            <p className="text-muted-foreground font-medium">No interviews scheduled</p>
-            <p className="text-sm text-muted-foreground mt-1">Schedule your first interview with a guest</p>
+            <p className="text-muted-foreground font-medium">{t.scheduling.noInterviews}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t.scheduling.scheduleFirst}</p>
             <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewInterview(true)} data-testid="button-create-first-interview">
               <Plus className="h-4 w-4 mr-2" />
-              Schedule Interview
+              {t.scheduling.scheduleInterview}
             </Button>
           </div>
         </div>

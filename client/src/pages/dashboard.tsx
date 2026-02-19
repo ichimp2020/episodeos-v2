@@ -8,6 +8,7 @@ import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishin
 import { format, parseISO, isAfter, subDays } from "date-fns";
 import { Link } from "wouter";
 import GuestEditDialog from "@/components/GuestEditDialog";
+import { useLanguage } from "@/i18n/LanguageProvider";
 
 const statusColors: Record<string, string> = {
   planning: "bg-chart-4/10 text-chart-4",
@@ -33,6 +34,7 @@ const guestStatusColors: Record<string, string> = {
 };
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const [quickEditGuest, setQuickEditGuest] = useState<Guest | null>(null);
   const [quickEditOpen, setQuickEditOpen] = useState(false);
 
@@ -128,17 +130,17 @@ export default function Dashboard() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
-          Dashboard{settings?.podcastName ? <span className="text-muted-foreground font-normal"> "{settings.podcastName}"</span> : ""}
+          {t.dashboard.title}{settings?.podcastName ? <span className="text-muted-foreground font-normal"> "{settings.podcastName}"</span> : ""}
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">Your podcast at a glance</p>
+        <p className="text-sm text-muted-foreground mt-1">{t.dashboard.subtitle}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Active Episodes", value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10" },
-          { label: "Confirmed Recently", value: confirmedRecently.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
-          { label: "Open Tasks", value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10" },
-          { label: "Guest Pipeline", value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10" },
+          { label: t.dashboard.activeEpisodes, value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10" },
+          { label: t.dashboard.confirmedRecently, value: confirmedRecently.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
+          { label: t.dashboard.openTasks, value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10" },
+          { label: t.dashboard.guestPipeline, value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10" },
         ].map((stat) => (
           <div key={stat.label} className="ios-stat-card" data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}>
             <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} rounded-2xl pointer-events-none`} />
@@ -158,10 +160,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title" data-testid="text-active-episodes-title">Active Episodes</h2>
+            <h2 className="ios-section-title" data-testid="text-active-episodes-title">{t.dashboard.activeEpisodes}</h2>
             <Link href="/episodes">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-episodes">
-                View all
+                {t.dashboard.viewAll}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </Link>
@@ -172,7 +174,7 @@ export default function Dashboard() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
                   <Mic className="h-6 w-6 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground">No active episodes yet</p>
+                <p className="text-sm text-muted-foreground">{t.dashboard.noActiveEpisodes}</p>
               </div>
             ) : (
               activeEpisodes.slice(0, 4).map((episode) => {
@@ -224,10 +226,10 @@ export default function Dashboard() {
 
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title" data-testid="text-guest-pipeline-title">Guest Pipeline</h2>
+            <h2 className="ios-section-title" data-testid="text-guest-pipeline-title">{t.dashboard.guestPipeline}</h2>
             <Link href="/guests">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-guests">
-                View all
+                {t.dashboard.viewAll}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </Link>
@@ -238,16 +240,16 @@ export default function Dashboard() {
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
                   <UserPlus className="h-6 w-6 text-muted-foreground/40" />
                 </div>
-                <p className="text-sm text-muted-foreground">No guests in pipeline</p>
+                <p className="text-sm text-muted-foreground">{t.dashboard.noGuestsInPipeline}</p>
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { label: "Prospects", count: prospectGuests.length, color: "bg-chart-4/10 text-chart-4" },
-                    { label: "Contacted", count: contactedGuests.length, color: "bg-amber-500/10 text-amber-600" },
-                    { label: "Confirmed", count: confirmedGuests.length, color: "bg-chart-2/10 text-chart-2" },
-                    { label: "Declined", count: declinedGuests.length, color: "bg-destructive/10 text-destructive" },
+                    { label: t.dashboard.prospects, count: prospectGuests.length, color: "bg-chart-4/10 text-chart-4" },
+                    { label: t.dashboard.contacted, count: contactedGuests.length, color: "bg-amber-500/10 text-amber-600" },
+                    { label: t.dashboard.confirmed, count: confirmedGuests.length, color: "bg-chart-2/10 text-chart-2" },
+                    { label: t.dashboard.declined, count: declinedGuests.length, color: "bg-destructive/10 text-destructive" },
                   ].map((stage) => (
                     <div key={stage.label} className="text-center py-2.5 rounded-xl bg-muted/30" data-testid={`stat-pipeline-${stage.label.toLowerCase()}`}>
                       <p className="text-lg font-bold">{stage.count}</p>
@@ -304,10 +306,10 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title" data-testid="text-confirmed-recently-title">Confirmed Recently</h2>
+            <h2 className="ios-section-title" data-testid="text-confirmed-recently-title">{t.dashboard.confirmedRecently}</h2>
             <Link href="/scheduling">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-scheduling">
-                View all
+                {t.dashboard.viewAll}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </Link>
@@ -318,7 +320,7 @@ export default function Dashboard() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/50 mb-2">
                   <CalendarClock className="h-5 w-5 text-muted-foreground/40" />
                 </div>
-                <p className="text-xs text-muted-foreground">No recent confirmations</p>
+                <p className="text-xs text-muted-foreground">{t.dashboard.noRecentConfirmations}</p>
               </div>
             ) : (
               confirmedRecently.map((interview) => {
@@ -342,7 +344,7 @@ export default function Dashboard() {
                       )}
                     </div>
                     <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
-                      confirmed
+                      {t.dashboard.confirmed}
                     </Badge>
                   </div>
                 );
@@ -353,10 +355,10 @@ export default function Dashboard() {
 
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title">Studio Availability</h2>
+            <h2 className="ios-section-title">{t.dashboard.studioAvailability}</h2>
             <Link href="/studio">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-studio">
-                View calendar
+                {t.dashboard.viewCalendar}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </Link>
@@ -367,7 +369,7 @@ export default function Dashboard() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted/50 mb-2">
                   <Calendar className="h-5 w-5 text-muted-foreground/40" />
                 </div>
-                <p className="text-xs text-muted-foreground">No upcoming studio dates</p>
+                <p className="text-xs text-muted-foreground">{t.dashboard.noUpcomingStudioDates}</p>
               </div>
             ) : (
               upcomingDates.slice(0, 3).map((d) => (
@@ -396,10 +398,10 @@ export default function Dashboard() {
 
         <div className="ios-section">
           <div className="ios-section-header">
-            <h2 className="ios-section-title">Team Workload</h2>
+            <h2 className="ios-section-title">{t.dashboard.teamWorkload}</h2>
             <Link href="/team">
               <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-team">
-                View team
+                {t.dashboard.viewTeam}
                 <ChevronRight className="h-3 w-3" />
               </span>
             </Link>

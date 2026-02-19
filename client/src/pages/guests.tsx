@@ -17,6 +17,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X } from "lucide-react";
 import type { Guest, TeamMember } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
+import { useLanguage } from "@/i18n/LanguageProvider";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
 const statusColors: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function Guests() {
     name: "", phone: "", email: "", shortDescription: "", notes: "", links: [""],
   });
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const { data: guests, isLoading } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
@@ -109,12 +111,12 @@ export default function Guests() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-guests-title">Guests</h1>
-          <p className="text-sm text-muted-foreground mt-1">Manage potential and confirmed interviewees</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-guests-title">{t.guests.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.guests.subtitle}</p>
         </div>
         <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewGuest(true)} data-testid="button-new-guest">
           <UserPlus className="h-4 w-4" />
-          Add Guest
+          {t.guests.addGuest}
         </Button>
       </div>
 
@@ -123,11 +125,11 @@ export default function Guests() {
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
             <UserPlus className="h-6 w-6 text-muted-foreground" />
           </div>
-          <p className="text-muted-foreground font-medium">No guests yet</p>
-          <p className="text-sm text-muted-foreground mt-1">Start by adding potential interviewees</p>
+          <p className="text-muted-foreground font-medium">{t.guests.noGuestsYet}</p>
+          <p className="text-sm text-muted-foreground mt-1">{t.guests.startAdding}</p>
           <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewGuest(true)} data-testid="button-create-first-guest">
             <Plus className="h-4 w-4" />
-            Add Guest
+            {t.guests.addGuest}
           </Button>
         </div>
       ) : (
@@ -172,12 +174,12 @@ export default function Guests() {
                           )}
                           {guest.links && guest.links.length > 0 && (
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <ExternalLink className="h-3 w-3" /> {guest.links.length} link{guest.links.length !== 1 ? "s" : ""}
+                              <ExternalLink className="h-3 w-3" /> {guest.links.length} {guest.links.length !== 1 ? t.guests.links_plural : t.guests.link}
                             </span>
                           )}
                           {guest.addedBy && (
                             <span className="text-xs text-muted-foreground">
-                              Added by {getMemberName(guest.addedBy)}
+                              {t.guests.addedBy} {getMemberName(guest.addedBy)}
                             </span>
                           )}
                         </div>
@@ -195,65 +197,65 @@ export default function Guests() {
       <Dialog open={showNewGuest} onOpenChange={setShowNewGuest}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Guest</DialogTitle>
-            <DialogDescription>Add a potential interviewee to the pipeline</DialogDescription>
+            <DialogTitle>{t.guests.addGuest}</DialogTitle>
+            <DialogDescription>{t.guests.addGuestToPipeline}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t.guests.name}</label>
               <Input
                 value={newGuest.name}
                 onChange={(e) => setNewGuest({ ...newGuest, name: e.target.value })}
-                placeholder="Full name"
+                placeholder={t.guests.fullName}
                 data-testid="input-guest-name"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Phone</label>
+                <label className="text-sm font-medium">{t.guests.phone}</label>
                 <Input
                   value={newGuest.phone}
                   onChange={(e) => setNewGuest({ ...newGuest, phone: e.target.value })}
-                  placeholder="+972-50-..."
+                  placeholder={t.guests.phonePlaceholder}
                   data-testid="input-guest-phone"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
+                <label className="text-sm font-medium">{t.guests.email}</label>
                 <Input
                   value={newGuest.email}
                   onChange={(e) => setNewGuest({ ...newGuest, email: e.target.value })}
-                  placeholder="email@example.com"
+                  placeholder={t.guests.emailPlaceholder}
                   data-testid="input-guest-email"
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Short Description</label>
+              <label className="text-sm font-medium">{t.guests.shortDescription}</label>
               <Input
                 value={newGuest.shortDescription}
                 onChange={(e) => setNewGuest({ ...newGuest, shortDescription: e.target.value })}
-                placeholder="Brief description of the individual"
+                placeholder={t.guests.descriptionPlaceholder}
                 data-testid="input-guest-description"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Notes</label>
+              <label className="text-sm font-medium">{t.guests.notes}</label>
               <Textarea
                 value={newGuest.notes}
                 onChange={(e) => setNewGuest({ ...newGuest, notes: e.target.value })}
-                placeholder="Initial conversation notes, context..."
+                placeholder={t.guests.notesPlaceholder}
                 data-testid="input-guest-notes"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Links</label>
+              <label className="text-sm font-medium">{t.guests.links}</label>
               {newGuest.links.map((link, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Input
                     value={link}
                     onChange={(e) => updateLink(i, e.target.value)}
-                    placeholder="https://youtube.com/..."
+                    placeholder={t.guests.linkPlaceholder}
                     data-testid={`input-guest-link-${i}`}
                   />
                   {newGuest.links.length > 1 && (
@@ -265,7 +267,7 @@ export default function Guests() {
               ))}
               <Button variant="ghost" size="sm" onClick={() => addLinkField()} data-testid="button-add-link">
                 <Plus className="h-3 w-3 mr-1" />
-                Add Link
+                {t.guests.addLink}
               </Button>
             </div>
             <Button
@@ -274,7 +276,7 @@ export default function Guests() {
               disabled={!newGuest.name || createGuest.isPending}
               data-testid="button-submit-guest"
             >
-              {createGuest.isPending ? "Adding..." : "Add Guest"}
+              {createGuest.isPending ? t.guests.adding : t.guests.addGuest}
             </Button>
           </div>
         </DialogContent>

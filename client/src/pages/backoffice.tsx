@@ -10,9 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, ExternalLink, Pencil, Trash2, Link as LinkIcon, FolderOpen, Copy, Check } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { SharedLink } from "@shared/schema";
 
 export default function BackOffice() {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [showAddLink, setShowAddLink] = useState(false);
   const [editingLink, setEditingLink] = useState<SharedLink | null>(null);
@@ -88,10 +90,10 @@ export default function BackOffice() {
   };
 
   const categories = [
-    { value: "google-drive", label: "Google Drive" },
-    { value: "general", label: "General" },
-    { value: "tools", label: "Tools" },
-    { value: "templates", label: "Templates" },
+    { value: "google-drive", label: t.backoffice.googleDrive },
+    { value: "general", label: t.backoffice.general },
+    { value: "tools", label: t.backoffice.tools },
+    { value: "templates", label: t.backoffice.templates },
   ];
 
   const groupedLinks: Record<string, SharedLink[]> = {};
@@ -114,12 +116,12 @@ export default function BackOffice() {
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-backoffice-title">Back Office</h1>
-          <p className="text-sm text-muted-foreground mt-1">Shared links and resources for the team</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-backoffice-title">{t.backoffice.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.backoffice.subtitle}</p>
         </div>
         <Button onClick={() => { resetForm(); setShowAddLink(true); }} className="rounded-full px-5 shadow-md" data-testid="button-add-link">
           <Plus className="h-4 w-4 mr-2" />
-          Add Link
+          {t.backoffice.addLink}
         </Button>
       </div>
 
@@ -129,11 +131,11 @@ export default function BackOffice() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
               <FolderOpen className="h-7 w-7 text-muted-foreground/40" />
             </div>
-            <p className="text-muted-foreground font-semibold">No links saved yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Add Google Drive links, resources, and tools for easy team access</p>
+            <p className="text-muted-foreground font-semibold">{t.backoffice.noLinksYet}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t.backoffice.addDescription}</p>
             <Button className="rounded-full px-5 shadow-md mt-5" onClick={() => { resetForm(); setShowAddLink(true); }} data-testid="button-add-first-link">
               <Plus className="h-4 w-4 mr-2" />
-              Add Your First Link
+              {t.backoffice.addFirstLink}
             </Button>
           </div>
         </div>
@@ -213,11 +215,11 @@ export default function BackOffice() {
       <Dialog open={showAddLink || !!editingLink} onOpenChange={(open) => { if (!open) { setShowAddLink(false); setEditingLink(null); resetForm(); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingLink ? "Edit Link" : "Add New Link"}</DialogTitle>
+            <DialogTitle>{editingLink ? t.backoffice.editLink : t.backoffice.addNewLink}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Title</Label>
+              <Label>{t.backoffice.titleLabel}</Label>
               <Input
                 placeholder="e.g. Podcast Graphics"
                 value={title}
@@ -226,7 +228,7 @@ export default function BackOffice() {
               />
             </div>
             <div className="space-y-2">
-              <Label>URL</Label>
+              <Label>{t.backoffice.url}</Label>
               <Input
                 placeholder="Paste link here..."
                 value={url}
@@ -235,7 +237,7 @@ export default function BackOffice() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Description</Label>
+              <Label>{t.backoffice.description}</Label>
               <Textarea
                 placeholder="What this link is for..."
                 value={description}
@@ -245,7 +247,7 @@ export default function BackOffice() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Category</Label>
+              <Label>{t.backoffice.category}</Label>
               <div className="flex flex-wrap gap-2">
                 {categories.map((cat) => (
                   <Button
@@ -268,7 +270,7 @@ export default function BackOffice() {
               className="rounded-full px-6 shadow-md"
               data-testid="button-save-link"
             >
-              {editingLink ? "Save Changes" : "Add Link"}
+              {editingLink ? t.backoffice.saveChanges : t.backoffice.addLink}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -17,6 +17,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Users, Trash2, Pencil, Phone, Mail, Briefcase, Check, X, ArrowUp, ArrowDown } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageProvider";
 import type { TeamMember, Task } from "@shared/schema";
 
 const COLORS = [
@@ -34,6 +35,7 @@ function getInitials(name: string) {
 }
 
 export default function Team() {
+  const { t } = useLanguage();
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -149,12 +151,12 @@ export default function Team() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-team-title">Team</h1>
-          <p className="text-sm text-muted-foreground mt-1">Your podcast crew and their responsibilities</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-team-title">{t.team.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.team.subtitle}</p>
         </div>
         <Button onClick={() => setShowAddMember(true)} className="rounded-full px-5 shadow-md" data-testid="button-add-member">
           <Plus className="h-4 w-4 mr-2" />
-          Add Member
+          {t.team.addMember}
         </Button>
       </div>
 
@@ -164,11 +166,11 @@ export default function Team() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
               <Users className="h-6 w-6 text-muted-foreground/60" />
             </div>
-            <p className="text-muted-foreground font-medium">No team members yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Add your crew to start assigning tasks</p>
+            <p className="text-muted-foreground font-medium">{t.team.noMembersYet}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t.team.addCrew}</p>
             <Button onClick={() => setShowAddMember(true)} className="rounded-full px-5 shadow-md mt-4" data-testid="button-add-first-member">
               <Plus className="h-4 w-4 mr-2" />
-              Add Member
+              {t.team.addMember}
             </Button>
           </div>
         </div>
@@ -237,10 +239,10 @@ export default function Team() {
                   )}
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     <span className="ios-badge border-0 bg-primary/10 text-primary">
-                      {openTasks.length} open
+                      {openTasks.length} {t.team.open}
                     </span>
                     <span className="ios-badge border-0 bg-chart-2/10 text-chart-2">
-                      {doneTasks.length} done
+                      {doneTasks.length} {t.team.done}
                     </span>
                   </div>
                   {openTasks.length > 0 && (
@@ -252,7 +254,7 @@ export default function Team() {
                         </div>
                       ))}
                       {openTasks.length > 3 && (
-                        <p className="text-xs text-muted-foreground pl-3.5">+{openTasks.length - 3} more</p>
+                        <p className="text-xs text-muted-foreground pl-3.5">+{openTasks.length - 3} {t.team.more}</p>
                       )}
                     </div>
                   )}
@@ -338,9 +340,9 @@ export default function Team() {
               <div className="space-y-4 mt-2">
                 <EditableField
                   icon={<Phone className="h-4 w-4 text-muted-foreground" />}
-                  label="Phone"
+                  label={t.team.phone}
                   value={selectedMember.phone || ""}
-                  placeholder="Add phone number"
+                  placeholder={t.team.addPhoneNumber}
                   isEditing={editingField === "phone"}
                   editValue={editValues.phone}
                   onStartEdit={() => startEditing("phone")}
@@ -352,9 +354,9 @@ export default function Team() {
 
                 <EditableField
                   icon={<Mail className="h-4 w-4 text-muted-foreground" />}
-                  label="Email"
+                  label={t.team.email}
                   value={selectedMember.email || ""}
-                  placeholder="Add email address"
+                  placeholder={t.team.addEmailAddress}
                   isEditing={editingField === "email"}
                   editValue={editValues.email}
                   onStartEdit={() => startEditing("email")}
@@ -366,9 +368,9 @@ export default function Team() {
 
                 <EditableField
                   icon={<Briefcase className="h-4 w-4 text-muted-foreground" />}
-                  label="Responsibilities"
+                  label={t.team.responsibilities}
                   value={selectedMember.responsibilities || ""}
-                  placeholder="Add responsibilities"
+                  placeholder={t.team.addResponsibilities}
                   isEditing={editingField === "responsibilities"}
                   editValue={editValues.responsibilities}
                   onStartEdit={() => startEditing("responsibilities")}
@@ -386,7 +388,7 @@ export default function Team() {
                     data-testid="button-delete-member"
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-2 inline" />
-                    Remove Team Member
+                    {t.team.removeTeamMember}
                   </button>
                 </div>
               </div>
@@ -398,52 +400,52 @@ export default function Team() {
       <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Team Member</DialogTitle>
-            <DialogDescription>Add a new member to your podcast crew</DialogDescription>
+            <DialogTitle>{t.team.addTeamMember}</DialogTitle>
+            <DialogDescription>{t.team.addNewMember}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t.team.name}</label>
               <Input
                 value={newMember.name}
                 onChange={(e) => setNewMember({ ...newMember, name: e.target.value })}
-                placeholder="Full name"
+                placeholder={t.team.fullName}
                 data-testid="input-member-name"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
+              <label className="text-sm font-medium">{t.team.role}</label>
               <Input
                 value={newMember.role}
                 onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
-                placeholder="e.g. Host, Editor, Producer"
+                placeholder={t.team.rolePlaceholder}
                 data-testid="input-member-role"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phone</label>
+              <label className="text-sm font-medium">{t.team.phone}</label>
               <Input
                 value={newMember.phone}
                 onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })}
-                placeholder="Phone number"
+                placeholder={t.team.phonePlaceholder}
                 data-testid="input-member-phone"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t.team.email}</label>
               <Input
                 value={newMember.email}
                 onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
-                placeholder="Email address"
+                placeholder={t.team.emailPlaceholder}
                 data-testid="input-member-email"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Responsibilities</label>
+              <label className="text-sm font-medium">{t.team.responsibilities}</label>
               <Textarea
                 value={newMember.responsibilities}
                 onChange={(e) => setNewMember({ ...newMember, responsibilities: e.target.value })}
-                placeholder="What they're responsible for"
+                placeholder={t.team.responsibilitiesPlaceholder}
                 rows={2}
                 data-testid="input-member-responsibilities"
               />
@@ -454,7 +456,7 @@ export default function Team() {
               disabled={!newMember.name || !newMember.role || createMember.isPending}
               data-testid="button-submit-member"
             >
-              {createMember.isPending ? "Adding..." : "Add Member"}
+              {createMember.isPending ? t.common.loading : t.team.addMember}
             </Button>
           </div>
         </DialogContent>
