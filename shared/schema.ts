@@ -100,6 +100,28 @@ export const reminders = pgTable("reminders", {
   sentAt: timestamp("sent_at"),
 });
 
+export const episodeFiles = pgTable("episode_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  episodeId: varchar("episode_id").notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("document"),
+  objectPath: text("object_path").notNull(),
+  contentType: text("content_type"),
+  size: integer("size"),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+export const episodeShorts = pgTable("episode_shorts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  episodeId: varchar("episode_id").notNull(),
+  title: text("title").notNull(),
+  objectPath: text("object_path"),
+  status: text("status").notNull().default("pending"),
+  notes: text("notes"),
+  approvedBy: varchar("approved_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true });
 export const insertEpisodeSchema = createInsertSchema(episodes).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
@@ -109,6 +131,8 @@ export const insertInterviewSchema = createInsertSchema(interviews).omit({ id: t
 export const insertInterviewParticipantSchema = createInsertSchema(interviewParticipants).omit({ id: true });
 export const insertPublishingSchema = createInsertSchema(publishing).omit({ id: true });
 export const insertReminderSchema = createInsertSchema(reminders).omit({ id: true, sentAt: true });
+export const insertEpisodeFileSchema = createInsertSchema(episodeFiles).omit({ id: true, uploadedAt: true });
+export const insertEpisodeShortSchema = createInsertSchema(episodeShorts).omit({ id: true, createdAt: true });
 
 export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
 export type TeamMember = typeof teamMembers.$inferSelect;
@@ -128,3 +152,7 @@ export type InsertPublishing = z.infer<typeof insertPublishingSchema>;
 export type Publishing = typeof publishing.$inferSelect;
 export type InsertReminder = z.infer<typeof insertReminderSchema>;
 export type Reminder = typeof reminders.$inferSelect;
+export type InsertEpisodeFile = z.infer<typeof insertEpisodeFileSchema>;
+export type EpisodeFile = typeof episodeFiles.$inferSelect;
+export type InsertEpisodeShort = z.infer<typeof insertEpisodeShortSchema>;
+export type EpisodeShort = typeof episodeShorts.$inferSelect;
