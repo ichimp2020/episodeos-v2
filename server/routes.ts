@@ -264,6 +264,7 @@ export async function registerRoutes(
           scheduledTime: guestInterview?.scheduledTime || null,
           episodeNumber: maxEpNum + 1,
           interviewId: guestInterview?.id || null,
+          guestId: req.params.id,
           recordingLink: null,
           timestampsJson: null,
           aiStatus: null,

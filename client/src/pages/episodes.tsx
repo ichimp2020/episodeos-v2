@@ -23,8 +23,8 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, Interview } from "@shared/schema";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2 } from "lucide-react";
+import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, Interview, Guest } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -94,6 +94,9 @@ export default function Episodes() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
   const [rescheduleSlot, setRescheduleSlot] = useState<{ start: string; end: string; label: string } | null>(null);
+  const [editingGuestEmail, setEditingGuestEmail] = useState(false);
+  const [guestEmailValue, setGuestEmailValue] = useState("");
+  const [showGuestPicker, setShowGuestPicker] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -111,6 +114,9 @@ export default function Episodes() {
   });
   const { data: allInterviews } = useQuery<Interview[]>({
     queryKey: ["/api/interviews"],
+  });
+  const { data: allGuests } = useQuery<Guest[]>({
+    queryKey: ["/api/guests"],
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
@@ -229,6 +235,41 @@ export default function Episodes() {
     onError: () => toast({ title: "Failed to create episode", variant: "destructive" }),
   });
 
+  const getEpisodeGuest = useCallback((episode: Episode): Guest | null => {
+    if (episode.guestId) {
+      return allGuests?.find((g) => g.id === episode.guestId) || null;
+    }
+    if (episode.interviewId) {
+      const interview = allInterviews?.find((i) => i.id === episode.interviewId);
+      if (interview) {
+        return allGuests?.find((g) => g.id === interview.guestId) || null;
+      }
+    }
+    return null;
+  }, [allGuests, allInterviews]);
+
+  const updateGuestEmail = useMutation({
+    mutationFn: async ({ guestId, email }: { guestId: string; email: string }) => {
+      await apiRequest("PATCH", `/api/guests/${guestId}`, { email });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setEditingGuestEmail(false);
+      toast({ title: t.episodes.emailSaved });
+    },
+    onError: () => toast({ title: "Failed to save email", variant: "destructive" }),
+  });
+
+  const linkGuestToEpisode = useMutation({
+    mutationFn: async ({ episodeId, guestId }: { episodeId: string; guestId: string }) => {
+      await apiRequest("PATCH", `/api/episodes/${episodeId}`, { guestId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      setShowGuestPicker(false);
+    },
+  });
+
   const updateEpisode = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       await apiRequest("PATCH", `/api/episodes/${id}`, data);
@@ -293,8 +334,30 @@ export default function Episodes() {
         scheduledDate: rescheduleDate,
         scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
       });
+
+      let calendarResult: "sent" | "no-email" | "failed" | "no-slot" = "no-slot";
+      const guest = getEpisodeGuest(selectedEpisode);
+      if (guest?.email && rescheduleSlot) {
+        try {
+          await apiRequest("POST", "/api/calendar-event", {
+            date: rescheduleDate,
+            startTime: rescheduleSlot.start,
+            endTime: rescheduleSlot.end,
+            summary: `Podcast Recording: ${selectedEpisode.title}`,
+            description: `Recording session for "${selectedEpisode.title}" with ${guest.name}`,
+            attendeeEmails: [guest.email],
+          });
+          calendarResult = "sent";
+        } catch (calErr) {
+          console.error("Calendar invite failed:", calErr);
+          calendarResult = "failed";
+        }
+      } else if (guest && !guest.email && rescheduleSlot) {
+        calendarResult = "no-email";
+      }
+      return calendarResult;
     },
-    onSuccess: () => {
+    onSuccess: (calendarResult) => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
@@ -308,7 +371,8 @@ export default function Episodes() {
       setShowReschedule(false);
       setRescheduleDate(null);
       setRescheduleSlot(null);
-      toast({ title: `Rescheduled to ${rescheduleDate ? format(parseISO(rescheduleDate), "MMM d, yyyy") : ""}${rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}` });
+      const calMsg = calendarResult === "sent" ? ` — ${t.episodes.inviteSent}` : calendarResult === "no-email" ? ` — ${t.episodes.noGuestEmail}` : calendarResult === "failed" ? ` — ${t.episodes.inviteFailed}` : "";
+      toast({ title: `Rescheduled to ${rescheduleDate ? format(parseISO(rescheduleDate), "MMM d, yyyy") : ""}${rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}${calMsg}` });
     },
     onError: () => toast({ title: "Failed to reschedule", variant: "destructive" }),
   });
@@ -721,7 +785,7 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); } }}>
+      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setShowGuestPicker(false); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedEpisode && (
             <>
@@ -943,6 +1007,120 @@ export default function Episodes() {
                     )}
                   </div>
                 )}
+
+                {(() => {
+                  const guest = getEpisodeGuest(selectedEpisode);
+                  return (
+                    <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="section-episode-guest">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium flex items-center gap-1.5">
+                          <UserPlus className="h-4 w-4 text-primary" />
+                          {t.episodes.guest}
+                        </h3>
+                        {guest && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs text-muted-foreground"
+                            onClick={() => {
+                              updateEpisode.mutate({ id: selectedEpisode.id, data: { guestId: null } });
+                              setSelectedEpisode({ ...selectedEpisode, guestId: null } as Episode);
+                            }}
+                            data-testid="button-unlink-guest"
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            {t.episodes.unlinkGuest}
+                          </Button>
+                        )}
+                      </div>
+                      {guest ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" data-testid="text-episode-guest-name">{guest.name}</span>
+                            {guest.shortDescription && (
+                              <span className="text-xs text-muted-foreground">— {guest.shortDescription}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                            {editingGuestEmail ? (
+                              <div className="flex items-center gap-1 flex-1">
+                                <Input
+                                  value={guestEmailValue}
+                                  onChange={(e) => setGuestEmailValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue });
+                                    if (e.key === "Escape") setEditingGuestEmail(false);
+                                  }}
+                                  placeholder={t.episodes.addEmail}
+                                  autoFocus
+                                  className="h-7 text-xs flex-1"
+                                  type="email"
+                                  data-testid="input-guest-email"
+                                />
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue })} data-testid="button-save-guest-email">
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingGuestEmail(false)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer group flex items-center gap-1"
+                                onClick={() => { setEditingGuestEmail(true); setGuestEmailValue(guest.email || ""); }}
+                                data-testid="button-edit-guest-email"
+                              >
+                                {guest.email || t.episodes.addEmail}
+                                <Pencil className="h-2.5 w-2.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </button>
+                            )}
+                          </div>
+                          {guest.phone && (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{guest.phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : showGuestPicker ? (
+                        <div className="space-y-1 max-h-40 overflow-y-auto" data-testid="guest-picker">
+                          {allGuests?.map((g) => (
+                            <button
+                              key={g.id}
+                              className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted/50 transition-colors text-sm"
+                              onClick={() => {
+                                linkGuestToEpisode.mutate({ episodeId: selectedEpisode.id, guestId: g.id });
+                                setSelectedEpisode({ ...selectedEpisode, guestId: g.id } as Episode);
+                              }}
+                              data-testid={`button-link-guest-${g.id}`}
+                            >
+                              <UserPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span>{g.name}</span>
+                              {g.email && <span className="text-xs text-muted-foreground ml-auto">{g.email}</span>}
+                            </button>
+                          ))}
+                          {(!allGuests || allGuests.length === 0) && (
+                            <p className="text-xs text-muted-foreground text-center py-2">{t.episodes.noGuestLinked}</p>
+                          )}
+                          <Button variant="ghost" size="sm" className="w-full text-xs mt-1" onClick={() => setShowGuestPicker(false)}>
+                            <X className="h-3 w-3 mr-1" /> Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs h-7"
+                          onClick={() => setShowGuestPicker(true)}
+                          data-testid="button-link-guest"
+                        >
+                          <Link2 className="h-3 w-3 mr-1" />
+                          {t.episodes.linkGuest}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">

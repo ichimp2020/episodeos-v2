@@ -24,6 +24,7 @@ export const episodes = pgTable("episodes", {
   scheduledTime: text("scheduled_time"),
   episodeNumber: integer("episode_number"),
   interviewId: varchar("interview_id"),
+  guestId: varchar("guest_id"),
   recordingLink: text("recording_link"),
   timestampsJson: text("timestamps_json"),
   aiStatus: text("ai_status"),
