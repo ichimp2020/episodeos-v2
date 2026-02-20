@@ -28,6 +28,7 @@ export const episodes = pgTable("episodes", {
   recordingLink: text("recording_link"),
   timestampsJson: text("timestamps_json"),
   aiStatus: text("ai_status"),
+  calendarEventId: text("calendar_event_id"),
 });
 
 export const tasks = pgTable("tasks", {

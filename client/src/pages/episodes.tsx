@@ -94,6 +94,8 @@ export default function Episodes() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
   const [rescheduleSlot, setRescheduleSlot] = useState<{ start: string; end: string; label: string } | null>(null);
+  const [rescheduleAttendees, setRescheduleAttendees] = useState<Record<string, boolean>>({});
+  const [attendeesInitialized, setAttendeesInitialized] = useState(false);
   const [editingGuestEmail, setEditingGuestEmail] = useState(false);
   const [guestEmailValue, setGuestEmailValue] = useState("");
   const [showGuestPicker, setShowGuestPicker] = useState(false);
@@ -270,6 +272,49 @@ export default function Episodes() {
     },
   });
 
+  const STUDIO_EMAIL = "studio@example.com";
+  const DEFAULT_TEAM_NAMES = ["gal", "zion"];
+
+  const getAttendeesForEpisode = useCallback((episode: Episode | null) => {
+    if (!episode || !members) return {};
+    const attendees: Record<string, boolean> = {};
+    const guest = getEpisodeGuest(episode);
+    if (guest?.email) attendees[guest.email] = true;
+    for (const m of members) {
+      if (m.email) {
+        attendees[m.email] = DEFAULT_TEAM_NAMES.includes(m.name.toLowerCase());
+      }
+    }
+    attendees[STUDIO_EMAIL] = true;
+    return attendees;
+  }, [members, getEpisodeGuest]);
+
+  useEffect(() => {
+    if (showReschedule && !attendeesInitialized && selectedEpisode) {
+      setRescheduleAttendees(getAttendeesForEpisode(selectedEpisode));
+      setAttendeesInitialized(true);
+    }
+    if (!showReschedule) {
+      setAttendeesInitialized(false);
+    }
+  }, [showReschedule, attendeesInitialized, selectedEpisode, getAttendeesForEpisode]);
+
+  const attendeesList = useMemo(() => {
+    if (!selectedEpisode || !members) return [];
+    const guest = getEpisodeGuest(selectedEpisode);
+    const list: { email: string; label: string; type: "guest" | "team" | "studio" }[] = [];
+    if (guest?.email) {
+      list.push({ email: guest.email, label: `${guest.name} (${t.episodes.guest})`, type: "guest" });
+    }
+    for (const m of members) {
+      if (m.email && m.email !== guest?.email) {
+        list.push({ email: m.email, label: `${m.name}`, type: "team" });
+      }
+    }
+    list.push({ email: STUDIO_EMAIL, label: t.episodes.studioEmail, type: "studio" });
+    return list;
+  }, [selectedEpisode, members, getEpisodeGuest, t]);
+
   const updateEpisode = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       await apiRequest("PATCH", `/api/episodes/${id}`, data);
@@ -335,25 +380,36 @@ export default function Episodes() {
         scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
       });
 
-      let calendarResult: "sent" | "no-email" | "failed" | "no-slot" = "no-slot";
-      const guest = getEpisodeGuest(selectedEpisode);
-      if (guest?.email && rescheduleSlot) {
+      let calendarResult: "sent" | "no-attendees" | "failed" | "no-slot" = "no-slot";
+      const selectedEmails = Object.entries(rescheduleAttendees)
+        .filter(([, checked]) => checked)
+        .map(([email]) => email)
+        .filter((e) => e.includes("@"));
+      if (rescheduleSlot && selectedEmails.length > 0) {
         try {
-          await apiRequest("POST", "/api/calendar-event", {
+          const guest = getEpisodeGuest(selectedEpisode);
+          const calResponse = await apiRequest("POST", "/api/calendar-event", {
             date: rescheduleDate,
             startTime: rescheduleSlot.start,
             endTime: rescheduleSlot.end,
             summary: `Podcast Recording: ${selectedEpisode.title}`,
-            description: `Recording session for "${selectedEpisode.title}" with ${guest.name}`,
-            attendeeEmails: [guest.email],
+            description: `Recording session for "${selectedEpisode.title}"${guest ? ` with ${guest.name}` : ""}`,
+            attendeeEmails: selectedEmails,
+            previousEventId: (selectedEpisode as any).calendarEventId || undefined,
           });
+          const eventData = await calResponse.json();
+          if (eventData.id) {
+            await apiRequest("PATCH", `/api/episodes/${selectedEpisode.id}`, {
+              calendarEventId: eventData.id,
+            });
+          }
           calendarResult = "sent";
         } catch (calErr) {
           console.error("Calendar invite failed:", calErr);
           calendarResult = "failed";
         }
-      } else if (guest && !guest.email && rescheduleSlot) {
-        calendarResult = "no-email";
+      } else if (rescheduleSlot && selectedEmails.length === 0) {
+        calendarResult = "no-attendees";
       }
       return calendarResult;
     },
@@ -371,7 +427,9 @@ export default function Episodes() {
       setShowReschedule(false);
       setRescheduleDate(null);
       setRescheduleSlot(null);
-      const calMsg = calendarResult === "sent" ? ` — ${t.episodes.inviteSent}` : calendarResult === "no-email" ? ` — ${t.episodes.noGuestEmail}` : calendarResult === "failed" ? ` — ${t.episodes.inviteFailed}` : "";
+      setRescheduleAttendees({});
+      setAttendeesInitialized(false);
+      const calMsg = calendarResult === "sent" ? ` — ${t.episodes.inviteSent}` : calendarResult === "failed" ? ` — ${t.episodes.inviteFailed}` : "";
       toast({ title: `Rescheduled to ${rescheduleDate ? format(parseISO(rescheduleDate), "MMM d, yyyy") : ""}${rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}${calMsg}` });
     },
     onError: () => toast({ title: "Failed to reschedule", variant: "destructive" }),
@@ -990,19 +1048,55 @@ export default function Episodes() {
                       </div>
                     )}
                     {isRescheduleFullySelected && (
-                      <div className="flex items-center justify-between pt-1 gap-2">
+                      <div className="space-y-2 pt-1">
                         <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                           {t.episodes.selected}: {format(parseISO(rescheduleDate!), "MMM d")}{rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}
                         </Badge>
-                        <Button
-                          size="sm"
-                          className="rounded-full px-4 shadow-md h-7 text-xs"
-                          onClick={() => rescheduleEpisode.mutate()}
-                          disabled={rescheduleEpisode.isPending}
-                          data-testid="button-confirm-reschedule"
-                        >
-                          {rescheduleEpisode.isPending ? t.episodes.saving : t.episodes.reschedule}
-                        </Button>
+
+                        {rescheduleSlot && (
+                          <div className="rounded-lg border bg-background/50 p-2.5 space-y-1.5" data-testid="panel-attendees">
+                            <div className="flex items-center gap-1.5">
+                              <Mail className="h-3.5 w-3.5 text-primary" />
+                              <span className="text-xs font-semibold">{t.episodes.attendees}</span>
+                            </div>
+                            <div className="space-y-0.5">
+                              {attendeesList.map((att) => (
+                                <label
+                                  key={att.email}
+                                  className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 cursor-pointer transition-colors"
+                                  data-testid={`attendee-${att.type}-${att.email}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={!!rescheduleAttendees[att.email]}
+                                    onChange={(e) => setRescheduleAttendees((prev) => ({ ...prev, [att.email]: e.target.checked }))}
+                                    className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
+                                  />
+                                  <span className="text-xs flex-1 truncate">{att.label}</span>
+                                  <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{att.email}</span>
+                                </label>
+                              ))}
+                            </div>
+                            {(selectedEpisode as any)?.calendarEventId && (
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <CalendarIcon className="h-3 w-3" />
+                                {t.episodes.previousEventCanceled}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            className="rounded-full px-4 shadow-md h-7 text-xs"
+                            onClick={() => rescheduleEpisode.mutate()}
+                            disabled={rescheduleEpisode.isPending}
+                            data-testid="button-confirm-reschedule"
+                          >
+                            {rescheduleEpisode.isPending ? t.episodes.saving : t.episodes.reschedule}
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

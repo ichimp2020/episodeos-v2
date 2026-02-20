@@ -88,3 +88,49 @@ export async function createCalendarEvent(params: CalendarEventParams) {
 
   return response.data;
 }
+
+export async function deleteCalendarEvent(eventId: string) {
+  const calendar = await getUncachableGoogleCalendarClient();
+  await calendar.events.delete({
+    calendarId: 'primary',
+    eventId,
+    sendUpdates: 'all',
+  });
+}
+
+export async function updateCalendarEvent(eventId: string, params: CalendarEventParams) {
+  const calendar = await getUncachableGoogleCalendarClient();
+
+  const startDateTime = `${params.date}T${params.startTime}:00`;
+  const endDateTime = `${params.date}T${params.endTime}:00`;
+
+  const event = {
+    summary: params.summary,
+    description: params.description || '',
+    start: {
+      dateTime: startDateTime,
+      timeZone: 'Asia/Jerusalem',
+    },
+    end: {
+      dateTime: endDateTime,
+      timeZone: 'Asia/Jerusalem',
+    },
+    attendees: params.attendeeEmails.map(email => ({ email: email.trim() })),
+    reminders: {
+      useDefault: false,
+      overrides: [
+        { method: 'email', minutes: 60 },
+        { method: 'popup', minutes: 30 },
+      ],
+    },
+  };
+
+  const response = await calendar.events.update({
+    calendarId: 'primary',
+    eventId,
+    requestBody: event,
+    sendUpdates: 'all',
+  });
+
+  return response.data;
+}

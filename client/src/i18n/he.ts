@@ -115,6 +115,10 @@ const he: TranslationKeys = {
     sendingInvite: "שולח הזמנה...",
     unlinkGuest: "בטל קישור אורח",
     selectGuest: "בחר אורח",
+    calendarInvite: "הזמנה ליומן",
+    attendees: "משתתפים",
+    studioEmail: "סטודיו",
+    previousEventCanceled: "הזמנת היומן הקודמת בוטלה",
   },
   team: {
     title: "צוות",

@@ -8,7 +8,7 @@ import {
   insertEpisodeFileSchema, insertEpisodeShortSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { createCalendarEvent } from "./google-calendar";
+import { createCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { registerChatRoutes } from "./replit_integrations/chat";
 
@@ -500,13 +500,22 @@ export async function registerRoutes(
     summary: z.string(),
     description: z.string().optional(),
     attendeeEmails: z.array(z.string().email()),
+    previousEventId: z.string().optional(),
   });
 
   app.post("/api/calendar-event", async (req, res) => {
     const parsed = calendarEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     try {
-      const event = await createCalendarEvent(parsed.data);
+      const { previousEventId, ...eventParams } = parsed.data as any;
+      if (previousEventId) {
+        try {
+          await deleteCalendarEvent(previousEventId);
+        } catch (delErr: any) {
+          console.warn("Failed to delete previous calendar event:", delErr.message);
+        }
+      }
+      const event = await createCalendarEvent(eventParams);
       res.status(201).json({ id: event.id, htmlLink: event.htmlLink, status: event.status });
     } catch (err: any) {
       console.error("Google Calendar event creation failed:", err.message);

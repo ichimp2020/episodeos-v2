@@ -113,6 +113,10 @@ const en = {
     sendingInvite: "Sending invite...",
     unlinkGuest: "Unlink Guest",
     selectGuest: "Select a guest",
+    calendarInvite: "Calendar Invite",
+    attendees: "Attendees",
+    studioEmail: "Studio",
+    previousEventCanceled: "Previous calendar invite was canceled",
   },
   team: {
     title: "Team",
