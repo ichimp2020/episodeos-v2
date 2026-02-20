@@ -181,7 +181,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">{t.dashboard.noActiveEpisodes}</p>
               </div>
             ) : (
-              activeEpisodes.map((episode) => {
+              activeEpisodes.slice(0, 5).map((episode) => {
                 const episodeTasks = tasks?.filter((t) => t.episodeId === episode.id) || [];
                 const doneTasks = episodeTasks.filter((t) => t.status === "done").length;
                 return (
@@ -268,7 +268,7 @@ export default function Dashboard() {
                       const order = ["prospect", "contacted", "confirmed", "declined", "completed"];
                       return order.indexOf(a.status) - order.indexOf(b.status);
                     })
-                    .slice(0, 5)
+                    .slice(0, 4)
                     .map((guest) => {
                       const assignee = guest.addedBy ? getMember(guest.addedBy) : null;
                       return (
