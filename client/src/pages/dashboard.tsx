@@ -409,7 +409,7 @@ export default function Dashboard() {
           <div className="px-4 pb-4">
             <div className="space-y-1.5">
               {members?.slice(0, 6).map((member) => {
-                const memberTasks = pendingTasks.filter((t) => t.assigneeId === member.id);
+                const memberTasks = pendingTasks.filter((t) => (t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])).includes(member.id));
                 return (
                   <div
                     key={member.id}

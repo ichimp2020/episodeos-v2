@@ -33,6 +33,7 @@ export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   episodeId: varchar("episode_id").notNull(),
   assigneeId: varchar("assignee_id"),
+  assigneeIds: text("assignee_ids").array(),
   title: text("title").notNull(),
   status: text("status").notNull().default("todo"),
   dueDate: date("due_date"),

@@ -65,6 +65,28 @@ export async function registerRoutes(
     const parsed = insertEpisodeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
     const episode = await storage.createEpisode(parsed.data);
+
+    const allMembers = await storage.getTeamMembers();
+    const findIds = (names: string[]) =>
+      allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
+
+    const defaultTasks = [
+      { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
+      { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
+      { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
+      { title: "Teasers", assigneeIds: findIds(["Knob"]) },
+      { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
+    ];
+
+    for (const dt of defaultTasks) {
+      await storage.createTask({
+        episodeId: episode.id,
+        title: dt.title,
+        assigneeIds: dt.assigneeIds,
+        status: "todo",
+      });
+    }
+
     res.status(201).json(episode);
   });
 

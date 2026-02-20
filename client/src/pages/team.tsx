@@ -177,7 +177,7 @@ export default function Team() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedMembers.map((member, idx) => {
-            const memberTasks = tasks?.filter((t) => t.assigneeId === member.id) || [];
+            const memberTasks = tasks?.filter((t) => (t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])).includes(member.id)) || [];
             const openTasks = memberTasks.filter((t) => t.status !== "done");
             const doneTasks = memberTasks.filter((t) => t.status === "done");
             return (

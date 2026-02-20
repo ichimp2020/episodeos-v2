@@ -55,11 +55,11 @@ export default function Episodes() {
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
-  const [newTask, setNewTask] = useState({ title: "", assigneeId: "", dueDate: "" });
+  const [newTask, setNewTask] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValues, setEditValues] = useState({ title: "", description: "", episodeNumber: "" });
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeId: "", dueDate: "" });
+  const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -218,7 +218,7 @@ export default function Episodes() {
       await apiRequest("POST", "/api/tasks", {
         episodeId: selectedEpisode!.id,
         title: newTask.title,
-        assigneeId: newTask.assigneeId || null,
+        assigneeIds: newTask.assigneeIds.length > 0 ? newTask.assigneeIds : null,
         dueDate: newTask.dueDate || null,
         status: "todo",
       });
@@ -226,7 +226,7 @@ export default function Episodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       setShowNewTask(false);
-      setNewTask({ title: "", assigneeId: "", dueDate: "" });
+      setNewTask({ title: "", assigneeIds: [], dueDate: "" });
       toast({ title: "Task added" });
     },
     onError: () => toast({ title: "Failed to add task", variant: "destructive" }),
@@ -368,7 +368,7 @@ export default function Episodes() {
                       )}
                       {eTasks.length > 0 && (
                         <div className="flex -space-x-1.5">
-                          {[...new Set(eTasks.map((t) => t.assigneeId).filter((id): id is string => !!id))].slice(0, 4).map((id) => {
+                          {[...new Set(eTasks.flatMap((t) => t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])))].slice(0, 4).map((id) => {
                             const m = getMember(id!);
                             if (!m) return null;
                             return (
@@ -712,7 +712,7 @@ export default function Episodes() {
                   ) : (
                     <div className="space-y-2">
                       {episodeTasks(selectedEpisode.id).map((task) => {
-                        const assignee = getMember(task.assigneeId);
+                        const taskAssignees = (task.assigneeIds || (task.assigneeId ? [task.assigneeId] : [])).map((id) => getMember(id)).filter(Boolean) as TeamMember[];
                         const isEditingThis = editingTaskId === task.id;
                         return isEditingThis ? (
                           <div key={task.id} className="p-3 rounded-md bg-card space-y-3" data-testid={`card-task-edit-${task.id}`}>
@@ -726,20 +726,38 @@ export default function Episodes() {
                                 data-testid={`input-edit-task-title-${task.id}`}
                               />
                               <div className="flex gap-2">
-                                <Select
-                                  value={editTaskValues.assigneeId || "__none__"}
-                                  onValueChange={(val) => setEditTaskValues({ ...editTaskValues, assigneeId: val === "__none__" ? "" : val })}
-                                >
-                                  <SelectTrigger className="text-sm h-8 flex-1" data-testid={`select-edit-task-assignee-${task.id}`}>
-                                    <SelectValue placeholder={t.episodes.assignee} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none__">{t.episodes.unassigned}</SelectItem>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" className="text-sm h-8 flex-1 justify-start font-normal" data-testid={`select-edit-task-assignee-${task.id}`}>
+                                      {editTaskValues.assigneeIds.length > 0
+                                        ? editTaskValues.assigneeIds.map((id) => getMember(id)?.name).filter(Boolean).join(", ")
+                                        : t.episodes.unassigned}
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-48 p-2" align="start">
                                     {members?.map((m) => (
-                                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                      <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={editTaskValues.assigneeIds.includes(m.id)}
+                                          onChange={(e) => {
+                                            setEditTaskValues({
+                                              ...editTaskValues,
+                                              assigneeIds: e.target.checked
+                                                ? [...editTaskValues.assigneeIds, m.id]
+                                                : editTaskValues.assigneeIds.filter((id) => id !== m.id),
+                                            });
+                                          }}
+                                          className="rounded"
+                                        />
+                                        <Avatar className="h-5 w-5">
+                                          <AvatarFallback className="text-[8px] font-semibold text-white" style={{ backgroundColor: m.color }}>{m.initials}</AvatarFallback>
+                                        </Avatar>
+                                        {m.name}
+                                      </label>
                                     ))}
-                                  </SelectContent>
-                                </Select>
+                                  </PopoverContent>
+                                </Popover>
                                 <Input
                                   type="date"
                                   value={editTaskValues.dueDate}
@@ -765,7 +783,7 @@ export default function Episodes() {
                                     id: task.id,
                                     data: {
                                       title: editTaskValues.title,
-                                      assigneeId: editTaskValues.assigneeId || null,
+                                      assigneeIds: editTaskValues.assigneeIds.length > 0 ? editTaskValues.assigneeIds : null,
                                       dueDate: editTaskValues.dueDate || null,
                                     },
                                   });
@@ -797,7 +815,7 @@ export default function Episodes() {
                               onClick={() => {
                                 setEditTaskValues({
                                   title: task.title,
-                                  assigneeId: task.assigneeId || "",
+                                  assigneeIds: task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []),
                                   dueDate: task.dueDate || "",
                                 });
                                 setEditingTaskId(task.id);
@@ -813,19 +831,23 @@ export default function Episodes() {
                                 </p>
                               )}
                             </div>
-                            {assignee && (
-                              <Avatar className="h-7 w-7 ring-2 ring-background shadow-sm">
-                                <AvatarFallback className="text-[10px] font-semibold text-white" style={{ backgroundColor: assignee.color }}>
-                                  {assignee.initials}
-                                </AvatarFallback>
-                              </Avatar>
+                            {taskAssignees.length > 0 && (
+                              <div className="flex -space-x-1.5">
+                                {taskAssignees.map((a) => (
+                                  <Avatar key={a.id} className="h-6 w-6 ring-2 ring-background shadow-sm">
+                                    <AvatarFallback className="text-[9px] font-semibold text-white" style={{ backgroundColor: a.color }}>
+                                      {a.initials}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                ))}
+                              </div>
                             )}
                             <Pencil
                               className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0 cursor-pointer hover:text-muted-foreground transition-colors"
                               onClick={() => {
                                 setEditTaskValues({
                                   title: task.title,
-                                  assigneeId: task.assigneeId || "",
+                                  assigneeIds: task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []),
                                   dueDate: task.dueDate || "",
                                 });
                                 setEditingTaskId(task.id);
@@ -884,19 +906,29 @@ export default function Episodes() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">{t.episodes.assignee}</label>
-                      <Select
-                        value={newTask.assigneeId}
-                        onValueChange={(val) => setNewTask({ ...newTask, assigneeId: val })}
-                      >
-                        <SelectTrigger data-testid="select-task-assignee">
-                          <SelectValue placeholder={t.episodes.selectAssignee} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {members?.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="border rounded-md p-2 space-y-1" data-testid="select-task-assignee">
+                        {members?.map((m) => (
+                          <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newTask.assigneeIds.includes(m.id)}
+                              onChange={(e) => {
+                                setNewTask({
+                                  ...newTask,
+                                  assigneeIds: e.target.checked
+                                    ? [...newTask.assigneeIds, m.id]
+                                    : newTask.assigneeIds.filter((id) => id !== m.id),
+                                });
+                              }}
+                              className="rounded"
+                            />
+                            <Avatar className="h-5 w-5">
+                              <AvatarFallback className="text-[8px] font-semibold text-white" style={{ backgroundColor: m.color }}>{m.initials}</AvatarFallback>
+                            </Avatar>
+                            {m.name}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium">{t.episodes.dueDate}</label>
