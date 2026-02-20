@@ -181,7 +181,7 @@ export default function Dashboard() {
                 <p className="text-sm text-muted-foreground">{t.dashboard.noActiveEpisodes}</p>
               </div>
             ) : (
-              activeEpisodes.slice(0, 4).map((episode) => {
+              activeEpisodes.map((episode) => {
                 const episodeTasks = tasks?.filter((t) => t.episodeId === episode.id) || [];
                 const doneTasks = episodeTasks.filter((t) => t.status === "done").length;
                 return (
