@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp } from "lucide-react";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2 } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter, subDays } from "date-fns";
 import { Link, useLocation } from "wouter";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import EpisodeEditDialog from "@/components/EpisodeEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const statusColors: Record<string, string> = {
   planning: "bg-chart-4/10 text-chart-4",
@@ -41,6 +43,32 @@ export default function Dashboard() {
   const [quickEditOpen, setQuickEditOpen] = useState(false);
   const [quickEditEpisode, setQuickEditEpisode] = useState<Episode | null>(null);
   const [quickEditEpisodeOpen, setQuickEditEpisodeOpen] = useState(false);
+  const { toast } = useToast();
+
+  const deleteEpisode = useMutation({
+    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/episodes/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      toast({ title: "Episode deleted" });
+    },
+  });
+
+  const deleteGuest = useMutation({
+    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/guests/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      toast({ title: "Guest deleted" });
+    },
+  });
+
+  const deleteInterview = useMutation({
+    mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/interviews/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      toast({ title: "Interview deleted" });
+    },
+  });
 
   const { data: settings } = useQuery<{ podcastName: string }>({
     queryKey: ["/api/settings"],
@@ -187,7 +215,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={episode.id}
-                    className="ios-list-item cursor-pointer hover-elevate"
+                    className="group ios-list-item cursor-pointer hover-elevate"
                     onClick={() => { setQuickEditEpisode(episode); setQuickEditEpisodeOpen(true); }}
                     data-testid={`card-episode-${episode.id}`}
                   >
@@ -204,7 +232,7 @@ export default function Dashboard() {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       {episodeTasks.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -221,6 +249,13 @@ export default function Dashboard() {
                       <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
                         {episode.status}
                       </Badge>
+                      <button
+                        className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
+                        onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                        data-testid={`button-delete-episode-dash-${episode.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -274,7 +309,7 @@ export default function Dashboard() {
                       return (
                         <div
                           key={guest.id}
-                          className="ios-list-item cursor-pointer hover-elevate"
+                          className="group ios-list-item cursor-pointer hover-elevate"
                           onClick={() => { setQuickEditGuest(guest); setQuickEditOpen(true); }}
                           data-testid={`card-pipeline-guest-${guest.id}`}
                         >
@@ -298,6 +333,13 @@ export default function Dashboard() {
                           <Badge className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
                             {guest.status}
                           </Badge>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
+                            onClick={(e) => { e.stopPropagation(); deleteGuest.mutate(guest.id); }}
+                            data-testid={`button-delete-guest-dash-${guest.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       );
                     })}
@@ -333,7 +375,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={interview.id}
-                    className="ios-list-item cursor-pointer hover-elevate"
+                    className="group ios-list-item cursor-pointer hover-elevate"
                     onClick={() => {
                       if (guest) { setQuickEditGuest(guest); setQuickEditOpen(true); }
                     }}
@@ -354,6 +396,13 @@ export default function Dashboard() {
                     <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                       {t.dashboard.confirmed}
                     </Badge>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
+                      onClick={(e) => { e.stopPropagation(); deleteInterview.mutate(interview.id); }}
+                      data-testid={`button-delete-interview-dash-${interview.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 );
               })
