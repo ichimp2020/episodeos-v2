@@ -164,6 +164,8 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       onOpenChange(false);
       const msg = selectedDate && editForm.status === "confirmed" && isDateFullySelected
         ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`

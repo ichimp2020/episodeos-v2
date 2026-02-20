@@ -196,8 +196,55 @@ export async function registerRoutes(
   app.patch("/api/guests/:id", async (req, res) => {
     const parsed = updateGuestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    const previousGuest = await storage.getGuest(req.params.id);
+    if (!previousGuest) return res.status(404).json({ message: "Guest not found" });
+
     const updated = await storage.updateGuest(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Guest not found" });
+
+    if (parsed.data.status === "confirmed" && previousGuest.status !== "confirmed") {
+      const allEpisodes = await storage.getEpisodes();
+      const alreadyExists = allEpisodes.some((e) => e.title === updated.name);
+      if (!alreadyExists) {
+      const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
+
+      const episode = await storage.createEpisode({
+        title: updated.name,
+        description: `Interview with ${updated.name}`,
+        status: "planning",
+        scheduledDate: null,
+        scheduledTime: null,
+        episodeNumber: maxEpNum + 1,
+        interviewId: null,
+        recordingLink: null,
+        timestampsJson: null,
+        aiStatus: null,
+      });
+
+      const allMembers = await storage.getTeamMembers();
+      const findIds = (names: string[]) =>
+        allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
+
+      const defaultTasks = [
+        { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
+        { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
+        { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
+        { title: "Teasers", assigneeIds: findIds(["Knob"]) },
+        { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
+      ];
+
+      for (const dt of defaultTasks) {
+        await storage.createTask({
+          episodeId: episode.id,
+          title: dt.title,
+          assigneeIds: dt.assigneeIds,
+          status: "todo",
+        });
+      }
+      }
+    }
+
     res.json(updated);
   });
 
