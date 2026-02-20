@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,22 @@ export default function Team() {
   const { data: tasks } = useQuery<Task[]>({
     queryKey: ["/api/tasks"],
   });
+
+  useEffect(() => {
+    const checkHighlight = () => {
+      if (!members) return;
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get("highlight");
+      if (highlightId) {
+        const member = members.find((m) => String(m.id) === highlightId);
+        if (member) setSelectedMember(member);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+    checkHighlight();
+    window.addEventListener("spotlight-navigate", checkHighlight);
+    return () => window.removeEventListener("spotlight-navigate", checkHighlight);
+  }, [members]);
 
   const createMember = useMutation({
     mutationFn: async () => {

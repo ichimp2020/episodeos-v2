@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -247,6 +247,22 @@ export default function Studio() {
   const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
     queryKey: ["/api/interviewer-unavailability"],
   });
+
+  useEffect(() => {
+    const checkHighlight = () => {
+      if (!studioDates) return;
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get("highlight");
+      if (highlightId) {
+        const sd = studioDates.find((d) => String(d.id) === highlightId);
+        if (sd) setSelectedDate(sd);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+    checkHighlight();
+    window.addEventListener("spotlight-navigate", checkHighlight);
+    return () => window.removeEventListener("spotlight-navigate", checkHighlight);
+  }, [studioDates]);
 
   const interviewers = useMemo(() =>
     teamMembersData?.filter((m) => m.role?.toLowerCase() === "interviewer") || [],

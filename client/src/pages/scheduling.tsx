@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,22 @@ export default function Scheduling() {
   const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
     queryKey: ["/api/interviewer-unavailability"],
   });
+
+  useEffect(() => {
+    const checkHighlight = () => {
+      if (!allInterviews) return;
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get("highlight");
+      if (highlightId) {
+        const interview = allInterviews.find((i) => String(i.id) === highlightId);
+        if (interview) setSelectedInterview(interview);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+    checkHighlight();
+    window.addEventListener("spotlight-navigate", checkHighlight);
+    return () => window.removeEventListener("spotlight-navigate", checkHighlight);
+  }, [allInterviews]);
 
   const availableStudioDates = studioDates?.filter(
     (d) => d.status === "available" && isAfter(parseISO(d.date), new Date())

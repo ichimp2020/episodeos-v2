@@ -602,19 +602,19 @@ export async function registerRoutes(
 
       for (const g of allGuests) {
         if (g.name.toLowerCase().includes(q) || g.shortDescription?.toLowerCase().includes(q) || g.email?.toLowerCase().includes(q)) {
-          results.push({ type: "guest", id: g.id, title: g.name, subtitle: g.shortDescription || undefined, status: g.status, url: "/guests" });
+          results.push({ type: "guest", id: g.id, title: g.name, subtitle: g.shortDescription || undefined, status: g.status, url: `/guests?highlight=${g.id}` });
         }
       }
 
       for (const e of allEpisodes) {
         if (e.title.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q) || (e.episodeNumber && String(e.episodeNumber).includes(q))) {
-          results.push({ type: "episode", id: e.id, title: e.title, subtitle: e.description || undefined, status: e.status, url: "/episodes" });
+          results.push({ type: "episode", id: e.id, title: e.title, subtitle: e.description || undefined, status: e.status, url: `/episodes?highlight=${e.id}` });
         }
       }
 
       for (const m of allTeam) {
         if (m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q)) {
-          results.push({ type: "team", id: m.id, title: m.name, subtitle: m.role, url: "/team" });
+          results.push({ type: "team", id: m.id, title: m.name, subtitle: m.role, url: `/team?highlight=${m.id}` });
         }
       }
 
@@ -622,13 +622,13 @@ export async function registerRoutes(
         const guest = allGuests.find(g => g.id === i.guestId);
         const label = guest?.name || "Interview";
         if (label.toLowerCase().includes(q) || i.notes?.toLowerCase().includes(q) || i.location?.toLowerCase().includes(q)) {
-          results.push({ type: "interview", id: i.id, title: `Interview: ${label}`, subtitle: i.scheduledDate || undefined, status: i.status, url: "/scheduling" });
+          results.push({ type: "interview", id: i.id, title: `Interview: ${label}`, subtitle: i.scheduledDate || undefined, status: i.status, url: `/scheduling?highlight=${i.id}` });
         }
       }
 
       for (const sd of allStudioDates) {
         if (sd.date.includes(q) || sd.notes?.toLowerCase().includes(q)) {
-          results.push({ type: "studio", id: sd.id, title: `Studio: ${sd.date}`, subtitle: sd.notes || undefined, status: sd.status, url: "/studio" });
+          results.push({ type: "studio", id: sd.id, title: `Studio: ${sd.date}`, subtitle: sd.notes || undefined, status: sd.status, url: `/studio?highlight=${sd.id}` });
         }
       }
 

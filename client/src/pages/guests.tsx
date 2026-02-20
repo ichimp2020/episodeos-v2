@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,25 @@ export default function Guests() {
   const { data: members } = useQuery<TeamMember[]>({
     queryKey: ["/api/team-members"],
   });
+
+  useEffect(() => {
+    const checkHighlight = () => {
+      if (!guests) return;
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get("highlight");
+      if (highlightId) {
+        const guest = guests.find((g) => String(g.id) === highlightId);
+        if (guest) {
+          setSelectedGuest(guest);
+          setEditingGuest(true);
+        }
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+    checkHighlight();
+    window.addEventListener("spotlight-navigate", checkHighlight);
+    return () => window.removeEventListener("spotlight-navigate", checkHighlight);
+  }, [guests]);
 
   const createGuest = useMutation({
     mutationFn: async () => {

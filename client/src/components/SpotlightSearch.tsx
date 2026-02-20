@@ -76,8 +76,15 @@ export function SpotlightSearch({ open, onOpenChange }: { open: boolean; onOpenC
   };
 
   const navigateToResult = (result: SearchResult) => {
-    setLocation(result.url);
     onOpenChange(false);
+    const currentPath = window.location.pathname;
+    const [targetPath] = result.url.split("?");
+    if (currentPath === targetPath) {
+      window.history.replaceState({}, "", result.url);
+      setTimeout(() => window.dispatchEvent(new Event("spotlight-navigate")), 50);
+    } else {
+      window.location.href = result.url;
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

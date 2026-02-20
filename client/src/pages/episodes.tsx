@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,6 +115,22 @@ export default function Episodes() {
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  useEffect(() => {
+    const checkHighlight = () => {
+      if (!episodes) return;
+      const params = new URLSearchParams(window.location.search);
+      const highlightId = params.get("highlight");
+      if (highlightId) {
+        const ep = episodes.find((e) => String(e.id) === highlightId);
+        if (ep) setSelectedEpisode(ep);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    };
+    checkHighlight();
+    window.addEventListener("spotlight-navigate", checkHighlight);
+    return () => window.removeEventListener("spotlight-navigate", checkHighlight);
+  }, [episodes]);
 
   const availableStudioDates = useMemo(() => {
     if (!studioDates) return new Set<string>();
