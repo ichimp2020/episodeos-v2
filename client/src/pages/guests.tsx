@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X } from "lucide-react";
+import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste } from "lucide-react";
 import type { Guest, TeamMember } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -31,6 +31,8 @@ export default function Guests() {
   const [showNewGuest, setShowNewGuest] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [editingGuest, setEditingGuest] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
   const [newGuest, setNewGuest] = useState({
     name: "", phone: "", email: "", shortDescription: "", notes: "", links: [""],
   });
@@ -63,6 +65,22 @@ export default function Guests() {
       toast({ title: "Guest added to pipeline" });
     },
     onError: () => toast({ title: "Failed to add guest", variant: "destructive" }),
+  });
+
+  const bulkImportGuests = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/guests/bulk", { text });
+      return res.json();
+    },
+    onSuccess: (data: { created: Guest[]; skipped: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      const parts = [];
+      if (data.created.length > 0) parts.push(`${data.created.length} ${t.dashboard.created}`);
+      if (data.skipped.length > 0) parts.push(`${data.skipped.length} ${t.dashboard.skipped}`);
+      toast({ title: t.dashboard.importSuccess, description: parts.join(", ") });
+      setImportOpen(false);
+      setImportText("");
+    },
   });
 
   const addLinkField = () => {
@@ -114,10 +132,16 @@ export default function Guests() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-guests-title">{t.guests.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">{t.guests.subtitle}</p>
         </div>
-        <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewGuest(true)} data-testid="button-new-guest">
-          <UserPlus className="h-4 w-4" />
-          {t.guests.addGuest}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="rounded-full px-5" onClick={() => setImportOpen(true)} data-testid="button-paste-whatsapp-guests">
+            <ClipboardPaste className="h-4 w-4" />
+            {t.dashboard.importGuests}
+          </Button>
+          <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewGuest(true)} data-testid="button-new-guest">
+            <UserPlus className="h-4 w-4" />
+            {t.guests.addGuest}
+          </Button>
+        </div>
       </div>
 
       {(!guests || guests.length === 0) ? (
@@ -288,6 +312,41 @@ export default function Guests() {
         onOpenChange={(open) => { setEditingGuest(open); if (!open) setSelectedGuest(null); }}
         members={members}
       />
+
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) setImportText(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardPaste className="h-5 w-5 text-purple-500" />
+              {t.dashboard.importGuests}
+            </DialogTitle>
+            <DialogDescription>{t.dashboard.pasteWhatsAppMessage}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <textarea
+              className="w-full min-h-[160px] rounded-xl border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+              placeholder={t.dashboard.pasteHere}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              dir="auto"
+              data-testid="textarea-import-guests-page"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" className="rounded-full" onClick={() => { setImportOpen(false); setImportText(""); }} data-testid="button-cancel-import-guests">
+                {t.scheduling.cancel}
+              </Button>
+              <Button
+                className="rounded-full bg-purple-500 hover:bg-purple-600"
+                onClick={() => bulkImportGuests.mutate(importText)}
+                disabled={!importText.trim() || bulkImportGuests.isPending}
+                data-testid="button-confirm-import-guests"
+              >
+                {bulkImportGuests.isPending ? t.dashboard.importing : t.dashboard.importNames}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
