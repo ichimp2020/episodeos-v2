@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, date, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, date, timestamp, integer, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -143,6 +143,20 @@ export const sharedLinks = pgTable("shared_links", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => conversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 export const insertTeamMemberSchema = createInsertSchema(teamMembers).omit({ id: true });
 export const insertEpisodeSchema = createInsertSchema(episodes).omit({ id: true });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true });
@@ -183,3 +197,5 @@ export type InsertInterviewerUnavailability = z.infer<typeof insertInterviewerUn
 export type InterviewerUnavailability = typeof interviewerUnavailability.$inferSelect;
 export type InsertSharedLink = z.infer<typeof insertSharedLinkSchema>;
 export type SharedLink = typeof sharedLinks.$inferSelect;
+export type Conversation = typeof conversations.$inferSelect;
+export type Message = typeof messages.$inferSelect;

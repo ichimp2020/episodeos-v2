@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -9,6 +10,10 @@ import { LanguageProvider } from "@/i18n/LanguageProvider";
 import { LanguageToggle } from "@/components/language-toggle";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SpotlightSearch } from "@/components/SpotlightSearch";
+import { AIAssistant } from "@/components/AIAssistant";
+import { Search, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Episodes from "@/pages/episodes";
@@ -35,6 +40,67 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  return (
+    <>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="glass-header flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50">
+            <SidebarTrigger className="rounded-xl" data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSearchOpen(true)}
+                className="rounded-xl h-8 gap-2 text-muted-foreground/70 hover:text-foreground px-2.5"
+                data-testid="button-open-search"
+              >
+                <Search className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Search</span>
+                <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border bg-muted/40 px-1 text-[10px] font-medium text-muted-foreground/50">
+                  ⌘K
+                </kbd>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAiOpen(true)}
+                className="rounded-xl h-8 gap-1.5 text-muted-foreground/70 hover:text-foreground px-2.5"
+                data-testid="button-open-ai"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">AI</span>
+              </Button>
+              <LanguageToggle />
+              <ThemeToggle />
+            </div>
+          </header>
+          <main className="flex-1 overflow-auto">
+            <Router />
+          </main>
+        </div>
+      </div>
+      <SpotlightSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      <AIAssistant open={aiOpen} onOpenChange={setAiOpen} />
+    </>
+  );
+}
+
 function App() {
   const style = {
     "--sidebar-width": "16rem",
@@ -47,21 +113,7 @@ function App() {
         <LanguageProvider>
           <TooltipProvider>
             <SidebarProvider style={style as React.CSSProperties}>
-              <div className="flex h-screen w-full">
-                <AppSidebar />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <header className="glass-header flex items-center justify-between gap-2 px-4 py-2.5 sticky top-0 z-50">
-                    <SidebarTrigger className="rounded-xl" data-testid="button-sidebar-toggle" />
-                    <div className="flex items-center gap-1">
-                      <LanguageToggle />
-                      <ThemeToggle />
-                    </div>
-                  </header>
-                <main className="flex-1 overflow-auto">
-                  <Router />
-                </main>
-                </div>
-              </div>
+              <AppContent />
             </SidebarProvider>
             <Toaster />
           </TooltipProvider>

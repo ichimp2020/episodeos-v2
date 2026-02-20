@@ -28,6 +28,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 ## Integrations
 - **Google Calendar** - Connected via Replit connector. Creates calendar events with attendees when studio slots are booked. Client module at `server/google-calendar.ts`.
 - **Object Storage** - Replit's built-in object storage for file uploads. Presigned URL upload flow. Module at `server/replit_integrations/object_storage/`.
+- **AI (OpenAI via Replit)** - Chat conversations with streaming responses. Routes at `server/replit_integrations/chat/routes.ts`. Used for podcast content creation assistance.
 
 ## API Endpoints
 - `GET/POST /api/team-members`, `PATCH/DELETE /api/team-members/:id`
@@ -39,6 +40,10 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `POST /api/uploads/request-url` - Get presigned URL for file upload
 - `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees
+- `GET /api/search?q=query` - Cross-entity search (guests, episodes, team, interviews, studio dates)
+- `GET/POST /api/conversations`, `GET/DELETE /api/conversations/:id` - AI chat conversations
+- `POST /api/conversations/:id/messages` - Send message and stream AI response (SSE)
+- `POST /api/ai/quick` - One-off AI prompt with streaming response (SSE)
 
 ## Running
 - `npm run dev` starts both the Express backend and Vite frontend dev server

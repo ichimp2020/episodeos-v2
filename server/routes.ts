@@ -10,6 +10,7 @@ import {
 import { z } from "zod";
 import { createCalendarEvent } from "./google-calendar";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { registerChatRoutes } from "./replit_integrations/chat";
 
 const updateTeamMemberSchema = insertTeamMemberSchema.partial();
 const updateEpisodeSchema = insertEpisodeSchema.partial();
@@ -513,6 +514,7 @@ export async function registerRoutes(
   });
 
   registerObjectStorageRoutes(app);
+  registerChatRoutes(app);
 
   app.get("/api/episodes/:episodeId/files", async (req, res) => {
     const files = await storage.getEpisodeFiles(req.params.episodeId);
@@ -581,6 +583,60 @@ export async function registerRoutes(
   app.delete("/api/shared-links/:id", async (req, res) => {
     await storage.deleteSharedLink(req.params.id);
     res.status(204).send();
+  });
+
+  app.get("/api/search", async (req, res) => {
+    try {
+      const q = (req.query.q as string || "").toLowerCase().trim();
+      if (!q) return res.json([]);
+
+      const results: Array<{ type: string; id: string; title: string; subtitle?: string; status?: string; url: string }> = [];
+
+      const [allGuests, allEpisodes, allTeam, allInterviews, allStudioDates] = await Promise.all([
+        storage.getGuests(),
+        storage.getEpisodes(),
+        storage.getTeamMembers(),
+        storage.getInterviews(),
+        storage.getStudioDates(),
+      ]);
+
+      for (const g of allGuests) {
+        if (g.name.toLowerCase().includes(q) || g.shortDescription?.toLowerCase().includes(q) || g.email?.toLowerCase().includes(q)) {
+          results.push({ type: "guest", id: g.id, title: g.name, subtitle: g.shortDescription || undefined, status: g.status, url: "/guests" });
+        }
+      }
+
+      for (const e of allEpisodes) {
+        if (e.title.toLowerCase().includes(q) || e.description?.toLowerCase().includes(q) || (e.episodeNumber && String(e.episodeNumber).includes(q))) {
+          results.push({ type: "episode", id: e.id, title: e.title, subtitle: e.description || undefined, status: e.status, url: "/episodes" });
+        }
+      }
+
+      for (const m of allTeam) {
+        if (m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q)) {
+          results.push({ type: "team", id: m.id, title: m.name, subtitle: m.role, url: "/team" });
+        }
+      }
+
+      for (const i of allInterviews) {
+        const guest = allGuests.find(g => g.id === i.guestId);
+        const label = guest?.name || "Interview";
+        if (label.toLowerCase().includes(q) || i.notes?.toLowerCase().includes(q) || i.location?.toLowerCase().includes(q)) {
+          results.push({ type: "interview", id: i.id, title: `Interview: ${label}`, subtitle: i.scheduledDate || undefined, status: i.status, url: "/scheduling" });
+        }
+      }
+
+      for (const sd of allStudioDates) {
+        if (sd.date.includes(q) || sd.notes?.toLowerCase().includes(q)) {
+          results.push({ type: "studio", id: sd.id, title: `Studio: ${sd.date}`, subtitle: sd.notes || undefined, status: sd.status, url: "/studio" });
+        }
+      }
+
+      res.json(results.slice(0, 20));
+    } catch (error) {
+      console.error("Search error:", error);
+      res.status(500).json({ error: "Search failed" });
+    }
   });
 
   return httpServer;

@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
 
@@ -8,8 +8,7 @@ const openai = new OpenAI({
 });
 
 export function registerChatRoutes(app: Express): void {
-  // Get all conversations
-  app.get("/api/conversations", async (req: Request, res: Response) => {
+  app.get("/api/conversations", async (_req, res) => {
     try {
       const conversations = await chatStorage.getAllConversations();
       res.json(conversations);
@@ -19,8 +18,7 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Get single conversation with messages
-  app.get("/api/conversations/:id", async (req: Request, res: Response) => {
+  app.get("/api/conversations/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const conversation = await chatStorage.getConversation(id);
@@ -35,8 +33,7 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Create new conversation
-  app.post("/api/conversations", async (req: Request, res: Response) => {
+  app.post("/api/conversations", async (req, res) => {
     try {
       const { title } = req.body;
       const conversation = await chatStorage.createConversation(title || "New Chat");
@@ -47,8 +44,7 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Delete conversation
-  app.delete("/api/conversations/:id", async (req: Request, res: Response) => {
+  app.delete("/api/conversations/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await chatStorage.deleteConversation(id);
@@ -59,60 +55,115 @@ export function registerChatRoutes(app: Express): void {
     }
   });
 
-  // Send message and get AI response (streaming)
-  app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
+  app.post("/api/conversations/:id/messages", async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { content } = req.body;
+      const { content, systemPrompt } = req.body;
 
-      // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
 
-      // Get conversation history for context
       const messages = await chatStorage.getMessagesByConversation(conversationId);
-      const chatMessages = messages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      }));
+      const chatMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
-      // Set up SSE
+      if (systemPrompt) {
+        chatMessages.push({ role: "system", content: systemPrompt });
+      } else {
+        chatMessages.push({
+          role: "system",
+          content: `You are a helpful podcast content assistant for EpisodeOS. You help with:
+- Writing episode titles and descriptions
+- Generating interview questions for guests
+- Fixing grammar and spelling
+- Creating social media captions and show notes
+- Brainstorming episode ideas
+Keep responses concise, creative, and professional. Format with markdown when appropriate.`,
+        });
+      }
+
+      chatMessages.push(
+        ...messages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        }))
+      );
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
 
-      // Stream response from OpenAI
       const stream = await openai.chat.completions.create({
-        model: "gpt-5.1",
+        model: "gpt-4o-mini",
         messages: chatMessages,
         stream: true,
-        max_completion_tokens: 8192,
+        max_tokens: 2048,
       });
 
       let fullResponse = "";
 
       for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || "";
-        if (content) {
-          fullResponse += content;
-          res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        const delta = chunk.choices[0]?.delta?.content || "";
+        if (delta) {
+          fullResponse += delta;
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
         }
       }
 
-      // Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", fullResponse);
 
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
       console.error("Error sending message:", error);
-      // Check if headers already sent (SSE streaming started)
       if (res.headersSent) {
-        res.write(`data: ${JSON.stringify({ error: "Failed to send message" })}\n\n`);
+        res.write(`data: ${JSON.stringify({ error: "Failed to generate response" })}\n\n`);
         res.end();
       } else {
         res.status(500).json({ error: "Failed to send message" });
       }
     }
   });
-}
 
+  app.post("/api/ai/quick", async (req, res) => {
+    try {
+      const { prompt, systemPrompt } = req.body;
+      if (!prompt) return res.status(400).json({ error: "Prompt required" });
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.flushHeaders();
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt || "You are a helpful podcast content assistant. Keep responses concise and professional.",
+          },
+          { role: "user", content: prompt },
+        ],
+        stream: true,
+        max_tokens: 1024,
+      });
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content || "";
+        if (delta) {
+          res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (error) {
+      console.error("Error in quick AI:", error);
+      if (res.headersSent) {
+        res.write(`data: ${JSON.stringify({ error: "Failed" })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: "Failed" });
+      }
+    }
+  });
+}
