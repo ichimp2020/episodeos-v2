@@ -2,7 +2,7 @@ import type { TranslationKeys } from "./en";
 
 const he: TranslationKeys = {
   app: {
-    title: "PodSync",
+    title: "EpisodeOS",
     subtitle: "מרכז צוות",
     footer: "ניהול צוות פודקאסט",
   },

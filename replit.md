@@ -1,4 +1,4 @@
-# PodSync - Podcast Team Hub
+# EpisodeOS - Podcast Team Hub
 
 ## Overview
 A simple, focused podcast team coordination tool. Designed for small podcast teams (~8-9 people) who need to sync responsibilities, track episodes through their lifecycle, and manage studio availability from a third-party partner.

@@ -1,6 +1,6 @@
 const en = {
   app: {
-    title: "PodSync",
+    title: "EpisodeOS",
     subtitle: "Team Hub",
     footer: "Podcast Team Workflow",
   },
