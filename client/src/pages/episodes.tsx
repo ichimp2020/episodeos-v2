@@ -24,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort } from "@shared/schema";
+import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, Interview } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -38,6 +38,7 @@ import {
   startOfWeek,
   endOfWeek,
   isBefore,
+  isAfter,
 } from "date-fns";
 
 const statuses = ["planning", "scheduled", "recording", "editing", "published"];
@@ -50,6 +51,36 @@ const statusColors: Record<string, string> = {
 };
 
 
+function parseTimeSlotsEpisodes(notes: string): { start: string; end: string; label: string }[] {
+  const slots: { start: string; end: string; label: string }[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
+
 export default function Episodes() {
   const [showNewEpisode, setShowNewEpisode] = useState(false);
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
@@ -60,6 +91,9 @@ export default function Episodes() {
   const [editValues, setEditValues] = useState({ title: "", description: "", episodeNumber: "" });
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
+  const [rescheduleSlot, setRescheduleSlot] = useState<{ start: string; end: string; label: string } | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -74,6 +108,9 @@ export default function Episodes() {
   });
   const { data: studioDates } = useQuery<StudioDate[]>({
     queryKey: ["/api/studio-dates"],
+  });
+  const { data: allInterviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
@@ -183,6 +220,81 @@ export default function Episodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
     },
+  });
+
+  const rescheduleAvailableDates = studioDates
+    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && d.notes && /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(d.notes))
+    .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
+
+  const rescheduleSelectedDateObj = rescheduleDate ? rescheduleAvailableDates.find((d) => d.date === rescheduleDate) : null;
+  const rescheduleAvailableSlots = rescheduleSelectedDateObj?.notes ? parseTimeSlotsEpisodes(rescheduleSelectedDateObj.notes) : [];
+  const isRescheduleFullySelected = rescheduleDate && (rescheduleAvailableSlots.length === 0 || rescheduleSlot !== null);
+
+  const rescheduleEpisode = useMutation({
+    mutationFn: async () => {
+      if (!selectedEpisode || !rescheduleDate) return;
+      const linkedInterview = selectedEpisode.interviewId
+        ? allInterviews?.find((i) => i.id === selectedEpisode.interviewId)
+        : null;
+      const newStudioDate = rescheduleAvailableDates.find((d) => d.date === rescheduleDate);
+
+      if (linkedInterview?.studioDateId) {
+        const oldStudioDate = studioDates?.find((d) => d.id === linkedInterview.studioDateId);
+        if (oldStudioDate) {
+          const oldBookedSlot = oldStudioDate.bookedSlot;
+          if (oldBookedSlot) {
+            const currentNotes = oldStudioDate.notes || "";
+            const slotRange = oldBookedSlot.replace(/\s*-\s*/, "-").replace(/\s+/g, "");
+            const newNotes = currentNotes ? `${currentNotes}, ${slotRange}` : slotRange;
+            await apiRequest("PATCH", `/api/studio-dates/${oldStudioDate.id}`, { notes: newNotes, status: "available", bookedSlot: null });
+          } else {
+            await apiRequest("PATCH", `/api/studio-dates/${oldStudioDate.id}`, { status: "available" });
+          }
+        }
+      }
+
+      if (newStudioDate && rescheduleSlot) {
+        const allSlots = newStudioDate.notes ? parseTimeSlotsEpisodes(newStudioDate.notes) : [];
+        const remainingSlots = allSlots.filter((s) => s.label !== rescheduleSlot.label);
+        const patchData: Record<string, unknown> = { bookedSlot: rescheduleSlot.label };
+        if (remainingSlots.length === 0) {
+          patchData.status = "taken";
+        } else {
+          patchData.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+        }
+        await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, patchData);
+      }
+
+      if (linkedInterview) {
+        await apiRequest("PATCH", `/api/interviews/${linkedInterview.id}`, {
+          scheduledDate: rescheduleDate,
+          scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
+          studioDateId: newStudioDate?.id || null,
+        });
+      }
+
+      await apiRequest("PATCH", `/api/episodes/${selectedEpisode.id}`, {
+        scheduledDate: rescheduleDate,
+        scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      if (selectedEpisode && rescheduleDate) {
+        setSelectedEpisode({
+          ...selectedEpisode,
+          scheduledDate: rescheduleDate,
+          scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
+        } as Episode);
+      }
+      setShowReschedule(false);
+      setRescheduleDate(null);
+      setRescheduleSlot(null);
+      toast({ title: `Rescheduled to ${rescheduleDate ? format(parseISO(rescheduleDate), "MMM d, yyyy") : ""}${rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}` });
+    },
+    onError: () => toast({ title: "Failed to reschedule", variant: "destructive" }),
   });
 
   const startEditing = (field: string) => {
@@ -593,7 +705,7 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEpisode} onOpenChange={(open) => !open && setSelectedEpisode(null)}>
+      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedEpisode && (
             <>
@@ -689,12 +801,132 @@ export default function Episodes() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {selectedEpisode.scheduledDate && (
-                    <span className="text-sm text-muted-foreground">
-                      Scheduled: {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
-                    </span>
-                  )}
+                  {selectedEpisode.scheduledDate && !showReschedule ? (
+                    <button
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 cursor-pointer group"
+                      onClick={() => {
+                        setShowReschedule(true);
+                        setRescheduleDate(null);
+                        setRescheduleSlot(null);
+                      }}
+                      data-testid="button-reschedule-inline"
+                    >
+                      <CalendarIcon className="h-3.5 w-3.5" />
+                      {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
+                      <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ) : !selectedEpisode.scheduledDate && !showReschedule ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-7"
+                      onClick={() => {
+                        setShowReschedule(true);
+                        setRescheduleDate(null);
+                        setRescheduleSlot(null);
+                      }}
+                      data-testid="button-set-schedule"
+                    >
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      {t.episodes.pickNewDate}
+                    </Button>
+                  ) : null}
                 </div>
+
+                {showReschedule && (
+                  <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="panel-reschedule-episode">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <CalendarIcon className="h-4 w-4 text-primary" />
+                        {t.episodes.studioAvailability}
+                      </h3>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); }} data-testid="button-close-reschedule">
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {selectedEpisode.scheduledDate && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-lg px-2.5 py-1.5">
+                        <CalendarIcon className="h-3 w-3" />
+                        {t.episodes.slotWillBeReleased}
+                      </div>
+                    )}
+
+                    {rescheduleAvailableDates.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-3">{t.episodes.noAvailableDates}</p>
+                    ) : (
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {rescheduleAvailableDates.map((d) => {
+                          const slots = d.notes ? parseTimeSlotsEpisodes(d.notes) : [];
+                          const isExpanded = rescheduleDate === d.date && slots.length > 0;
+                          return (
+                            <div key={d.id}>
+                              <button
+                                className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                                  rescheduleDate === d.date ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/50"
+                                }`}
+                                onClick={() => { setRescheduleDate(d.date); setRescheduleSlot(null); }}
+                                data-testid={`button-reschedule-pick-date-${d.id}`}
+                              >
+                                <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                                  <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">{format(parseISO(d.date), "MMM")}</span>
+                                  <span className="text-xs font-bold text-chart-2 leading-tight">{format(parseISO(d.date), "d")}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
+                                  {d.notes && <span className="text-[11px] text-muted-foreground truncate">{d.notes.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)?.[0] || d.notes}</span>}
+                                </div>
+                                {rescheduleDate === d.date && slots.length === 0 && <Check className="h-4 w-4 text-primary shrink-0" />}
+                              </button>
+                              {isExpanded && (
+                                <div className="ml-12 mt-1 mb-2 space-y-1">
+                                  <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mb-1.5">
+                                    <Clock className="h-3 w-3" />
+                                    {t.episodes.selectHourSlot}
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-1">
+                                    {slots.map((slot) => (
+                                      <button
+                                        key={slot.label}
+                                        className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                          rescheduleSlot?.label === slot.label
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "bg-muted/50 hover:bg-muted text-foreground"
+                                        }`}
+                                        onClick={() => setRescheduleSlot(slot)}
+                                        data-testid={`button-reschedule-pick-slot-${slot.start}`}
+                                      >
+                                        <Clock className="h-3 w-3" />
+                                        {slot.label}
+                                        {rescheduleSlot?.label === slot.label && <Check className="h-3 w-3" />}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {isRescheduleFullySelected && (
+                      <div className="flex items-center justify-between pt-1 gap-2">
+                        <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
+                          {t.episodes.selected}: {format(parseISO(rescheduleDate!), "MMM d")}{rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          className="rounded-full px-4 shadow-md h-7 text-xs"
+                          onClick={() => rescheduleEpisode.mutate()}
+                          disabled={rescheduleEpisode.isPending}
+                          data-testid="button-confirm-reschedule"
+                        >
+                          {rescheduleEpisode.isPending ? t.episodes.saving : t.episodes.reschedule}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">

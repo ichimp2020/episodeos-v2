@@ -15,8 +15,9 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Pencil, Trash2, CheckCircle, Circle, Mic } from "lucide-react";
-import type { Episode, Task, TeamMember } from "@shared/schema";
+import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight } from "lucide-react";
+import { format, parseISO, isAfter } from "date-fns";
+import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const statuses = ["planning", "scheduled", "recording", "editing", "published"];
@@ -27,6 +28,42 @@ const statusColors: Record<string, string> = {
   editing: "bg-chart-3/10 text-chart-3",
   published: "bg-chart-2/10 text-chart-2",
 };
+
+interface TimeSlot {
+  start: string;
+  end: string;
+  label: string;
+}
+
+function parseTimeSlots(notes: string): TimeSlot[] {
+  const slots: TimeSlot[] = [];
+  const ranges = notes.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/g);
+  if (!ranges) return slots;
+  for (const range of ranges) {
+    const match = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+    if (!match) continue;
+    const startH = parseInt(match[1]);
+    const startM = parseInt(match[2]);
+    const endH = parseInt(match[3]);
+    const endM = parseInt(match[4]);
+    let curH = startH;
+    let curM = startM;
+    while (curH < endH || (curH === endH && curM < endM)) {
+      let nextH = curH + 1;
+      let nextM = curM;
+      if (nextH > endH || (nextH === endH && nextM > endM)) {
+        nextH = endH;
+        nextM = endM;
+      }
+      const startStr = `${String(curH).padStart(2, "0")}:${String(curM).padStart(2, "0")}`;
+      const endStr = `${String(nextH).padStart(2, "0")}:${String(nextM).padStart(2, "0")}`;
+      slots.push({ start: startStr, end: endStr, label: `${startStr} - ${endStr}` });
+      curH = nextH;
+      curM = nextM;
+    }
+  }
+  return slots;
+}
 
 interface EpisodeEditDialogProps {
   episode: Episode | null;
@@ -43,6 +80,9 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     scheduledDate: "",
     scheduledTime: "",
   });
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -56,6 +96,65 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     enabled: open,
   });
 
+  const { data: studioDates } = useQuery<StudioDate[]>({
+    queryKey: ["/api/studio-dates"],
+    enabled: open,
+  });
+
+  const { data: allInterviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
+    enabled: open,
+  });
+
+  const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
+    queryKey: ["/api/interviewer-unavailability"],
+    enabled: open,
+  });
+
+  const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
+
+  const linkedInterview = episode?.interviewId
+    ? allInterviews?.find((i) => i.id === episode.interviewId)
+    : null;
+
+  const getAvailableInterviewers = (dateStr: string, slotLabel?: string) => {
+    if (!unavailabilityData) return interviewerMembers;
+    return interviewerMembers.filter((m) => {
+      return !unavailabilityData.some((u) =>
+        u.teamMemberId === m.id &&
+        u.unavailableDate === dateStr &&
+        (slotLabel ? (u.slotLabel === slotLabel || u.slotLabel === null) : !u.slotLabel)
+      );
+    });
+  };
+
+  const isSlotFullyAvailable = (dateStr: string, slotLabel: string) => {
+    return interviewerMembers.every((m) => {
+      return !unavailabilityData?.some((u) =>
+        u.teamMemberId === m.id &&
+        u.unavailableDate === dateStr &&
+        (u.slotLabel === slotLabel || u.slotLabel === null)
+      );
+    });
+  };
+
+  const hasAnyInterviewerAvailable = (dateStr: string, notes?: string | null) => {
+    if (interviewerMembers.length === 0) return true;
+    if (interviewerMembers.some((m) => unavailabilityData?.some((u) => u.teamMemberId === m.id && u.unavailableDate === dateStr && !u.slotLabel))) return false;
+    const slots = notes ? parseTimeSlots(notes) : [];
+    if (slots.length === 0) return true;
+    return slots.some((slot) => isSlotFullyAvailable(dateStr, slot.label));
+  };
+
+  const hasTimeSlots = (notes: string | null) => {
+    if (!notes) return false;
+    return /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(notes);
+  };
+
+  const availableDates = studioDates
+    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && hasTimeSlots(d.notes))
+    .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
+
   useEffect(() => {
     if (open && episode) {
       setEditForm({
@@ -66,6 +165,9 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
         scheduledDate: episode.scheduledDate || "",
         scheduledTime: episode.scheduledTime || "",
       });
+      setShowCalendar(false);
+      setSelectedDate(null);
+      setSelectedSlot(null);
     }
   }, [open, episode]);
 
@@ -74,22 +176,99 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
 
   const getMember = (id: string) => members?.find((m) => m.id === id);
 
+  const handleSelectDate = (date: string) => {
+    const studioDate = availableDates.find((d) => d.date === date);
+    const slots = studioDate?.notes ? parseTimeSlots(studioDate.notes) : [];
+    setSelectedDate(date);
+    setSelectedSlot(null);
+    if (slots.length === 0) {
+      setEditForm({ ...editForm, scheduledDate: date, scheduledTime: "" });
+    }
+  };
+
+  const handleSelectSlot = (slot: TimeSlot) => {
+    setSelectedSlot(slot);
+    if (selectedDate) {
+      setEditForm({ ...editForm, scheduledDate: selectedDate, scheduledTime: slot.start });
+    }
+  };
+
+  const selectedDateObj = selectedDate ? availableDates.find((d) => d.date === selectedDate) : null;
+  const availableSlots = selectedDateObj?.notes ? parseTimeSlots(selectedDateObj.notes) : [];
+  const isDateFullySelected = selectedDate && (availableSlots.length === 0 || selectedSlot !== null);
+
+  const hasScheduleChange = selectedDate && isDateFullySelected &&
+    (selectedDate !== episode?.scheduledDate || (selectedSlot && selectedSlot.start !== episode?.scheduledTime));
+
   const updateEpisode = useMutation({
     mutationFn: async () => {
       if (!episode) return;
+
+      if (hasScheduleChange && selectedDate) {
+        const newStudioDate = availableDates.find((d) => d.date === selectedDate);
+
+        if (linkedInterview?.studioDateId) {
+          const oldStudioDate = studioDates?.find((d) => d.id === linkedInterview.studioDateId);
+          if (oldStudioDate) {
+            const oldBookedSlot = oldStudioDate.bookedSlot;
+
+            if (oldBookedSlot) {
+              const currentNotes = oldStudioDate.notes || "";
+              const slotRange = oldBookedSlot.replace(/\s*-\s*/, "-").replace(/\s+/g, "");
+              const newNotes = currentNotes ? `${currentNotes}, ${slotRange}` : slotRange;
+              await apiRequest("PATCH", `/api/studio-dates/${oldStudioDate.id}`, {
+                notes: newNotes,
+                status: "available",
+                bookedSlot: null,
+              });
+            } else {
+              await apiRequest("PATCH", `/api/studio-dates/${oldStudioDate.id}`, {
+                status: "available",
+              });
+            }
+          }
+        }
+
+        if (newStudioDate && selectedSlot) {
+          const patchData: Record<string, unknown> = {};
+          patchData.bookedSlot = selectedSlot.label;
+          const allSlots = newStudioDate.notes ? parseTimeSlots(newStudioDate.notes) : [];
+          const remainingSlots = allSlots.filter((s) => s.label !== selectedSlot.label);
+          if (remainingSlots.length === 0) {
+            patchData.status = "taken";
+          } else {
+            patchData.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+          }
+          await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, patchData);
+        }
+
+        if (linkedInterview) {
+          await apiRequest("PATCH", `/api/interviews/${linkedInterview.id}`, {
+            scheduledDate: selectedDate,
+            scheduledTime: selectedSlot ? selectedSlot.start : null,
+            studioDateId: newStudioDate?.id || null,
+          });
+        }
+      }
+
       await apiRequest("PATCH", `/api/episodes/${episode.id}`, {
         title: editForm.title,
         description: editForm.description || null,
         status: editForm.status,
         episodeNumber: editForm.episodeNumber ? parseInt(editForm.episodeNumber) : null,
-        scheduledDate: editForm.scheduledDate || null,
-        scheduledTime: editForm.scheduledTime || null,
+        scheduledDate: selectedDate && isDateFullySelected ? selectedDate : (editForm.scheduledDate || null),
+        scheduledTime: selectedSlot ? selectedSlot.start : (selectedDate && isDateFullySelected ? "" : editForm.scheduledTime) || null,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       onOpenChange(false);
-      toast({ title: "Episode updated" });
+      const msg = hasScheduleChange && selectedDate
+        ? `Rescheduled to ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`
+        : "Episode updated";
+      toast({ title: msg });
     },
     onError: () => toast({ title: "Failed to update episode", variant: "destructive" }),
   });
@@ -116,9 +295,11 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     },
   });
 
+  const hasExistingSchedule = editForm.scheduledDate && editForm.scheduledDate.length > 0;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto w-[95vw] sm:w-full">
         {episode && (
           <>
             <DialogHeader>
@@ -154,27 +335,184 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{t.episodes.episodeNumber}</label>
-                  <Input
-                    type="number"
-                    value={editForm.episodeNumber}
-                    onChange={(e) => setEditForm({ ...editForm, episodeNumber: e.target.value })}
-                    placeholder="#"
-                    data-testid="input-quick-episode-number"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">{t.episodes.scheduledDate}</label>
-                  <Input
-                    type="date"
-                    value={editForm.scheduledDate}
-                    onChange={(e) => setEditForm({ ...editForm, scheduledDate: e.target.value })}
-                    data-testid="input-quick-episode-date"
-                  />
-                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t.episodes.episodeNumber}</label>
+                <Input
+                  type="number"
+                  value={editForm.episodeNumber}
+                  onChange={(e) => setEditForm({ ...editForm, episodeNumber: e.target.value })}
+                  placeholder="#"
+                  data-testid="input-quick-episode-number"
+                />
               </div>
+
+              {!showCalendar && hasExistingSchedule ? (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-1" data-testid="panel-current-schedule">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-primary">{t.episodes.currentSchedule}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>{format(parseISO(editForm.scheduledDate), "MMM d, yyyy")}</span>
+                    {editForm.scheduledTime && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {editForm.scheduledTime}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 mt-1"
+                    onClick={() => setShowCalendar(true)}
+                    data-testid="button-reschedule-episode"
+                  >
+                    <ArrowRight className="h-3 w-3 mr-1" />
+                    {t.episodes.reschedule}
+                  </Button>
+                </div>
+              ) : !showCalendar ? (
+                <Button
+                  variant="outline"
+                  className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
+                  onClick={() => setShowCalendar(true)}
+                  data-testid="button-pick-studio-date"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  {t.episodes.pickNewDate}
+                </Button>
+              ) : null}
+
+              {showCalendar && (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="panel-studio-availability-episode">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      {t.episodes.studioAvailability}
+                    </h3>
+                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowCalendar(false); setSelectedDate(null); setSelectedSlot(null); }} data-testid="button-close-studio-picker">
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+
+                  {hasExistingSchedule && (
+                    <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-lg px-2.5 py-1.5">
+                      <ArrowRight className="h-3 w-3" />
+                      {t.episodes.slotWillBeReleased}
+                    </div>
+                  )}
+
+                  {availableDates.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">{t.episodes.noAvailableDates}</p>
+                  ) : (
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {availableDates.map((d) => {
+                        const slots = d.notes ? parseTimeSlots(d.notes) : [];
+                        const isExpanded = selectedDate === d.date && slots.length > 0;
+                        const dateAvailInterviewers = getAvailableInterviewers(d.date);
+                        const noOneAvailable = interviewerMembers.length > 0 && !hasAnyInterviewerAvailable(d.date, d.notes);
+                        return (
+                          <div key={d.id} className={noOneAvailable ? "opacity-40" : ""}>
+                            <button
+                              className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                                selectedDate === d.date
+                                  ? "bg-primary/10 ring-1 ring-primary/30"
+                                  : "hover:bg-muted/50"
+                              }`}
+                              onClick={() => handleSelectDate(d.date)}
+                              data-testid={`button-pick-date-${d.id}`}
+                            >
+                              <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                                <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">
+                                  {format(parseISO(d.date), "MMM")}
+                                </span>
+                                <span className="text-xs font-bold text-chart-2 leading-tight">
+                                  {format(parseISO(d.date), "d")}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {d.notes && <span className="text-[11px] text-muted-foreground truncate">{d.notes.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)?.[0] || d.notes}</span>}
+                                  {interviewerMembers.length > 0 && slots.length === 0 && (
+                                    <div className="flex items-center gap-0.5 ml-1">
+                                      {interviewerMembers.map((m) => (
+                                        <div
+                                          key={m.id}
+                                          className={`h-2 w-2 rounded-full ${dateAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                          style={{ backgroundColor: m.color }}
+                                          title={`${m.name}: ${dateAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                        />
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              {selectedDate === d.date && slots.length === 0 && (
+                                <Check className="h-4 w-4 text-primary shrink-0" />
+                              )}
+                            </button>
+                            {isExpanded && (
+                              <div className="ml-12 mt-1 mb-2 space-y-1" data-testid="panel-hour-slots-episode">
+                                <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mb-1.5">
+                                  <Clock className="h-3 w-3" />
+                                  {t.episodes.selectHourSlot}
+                                </p>
+                                <div className="grid grid-cols-2 gap-1">
+                                  {slots.filter((slot) => {
+                                    const slotAvailInterviewers = getAvailableInterviewers(d.date, slot.label);
+                                    return !(interviewerMembers.length > 0 && slotAvailInterviewers.length < interviewerMembers.length);
+                                  }).map((slot) => {
+                                    const slotAvailInterviewers = getAvailableInterviewers(d.date, slot.label);
+                                    return (
+                                      <button
+                                        key={slot.label}
+                                        className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                          selectedSlot?.label === slot.label
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "bg-muted/50 hover:bg-muted text-foreground"
+                                        }`}
+                                        onClick={() => handleSelectSlot(slot)}
+                                        data-testid={`button-pick-slot-${slot.start}`}
+                                      >
+                                        <Clock className="h-3 w-3" />
+                                        {slot.label}
+                                        {interviewerMembers.length > 0 && (
+                                          <div className="flex items-center gap-0.5 ml-0.5">
+                                            {interviewerMembers.map((m) => (
+                                              <div
+                                                key={m.id}
+                                                className={`h-1.5 w-1.5 rounded-full ${slotAvailInterviewers.some((a) => a.id === m.id) ? "" : "opacity-20"}`}
+                                                style={{ backgroundColor: selectedSlot?.label === slot.label ? "white" : m.color }}
+                                                title={`${m.name}: ${slotAvailInterviewers.some((a) => a.id === m.id) ? "Available" : "Unavailable"}`}
+                                              />
+                                            ))}
+                                          </div>
+                                        )}
+                                        {selectedSlot?.label === slot.label && (
+                                          <Check className="h-3 w-3" />
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {isDateFullySelected && (
+                    <div className="pt-1">
+                      <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
+                        {t.episodes.selected}: {format(parseISO(selectedDate!), "MMM d, yyyy")}{selectedSlot ? ` (${selectedSlot.label})` : ""}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t.episodes.description}</label>
