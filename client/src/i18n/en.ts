@@ -81,6 +81,8 @@ const en = {
     deleteEpisode: "Delete Episode",
     adding: "Adding...",
     creating: "Creating...",
+    saveChanges: "Save Changes",
+    saving: "Saving...",
   },
   team: {
     title: "Team",

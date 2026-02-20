@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,8 +185,8 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     },
   });
 
-  const handleOpen = (isOpen: boolean) => {
-    if (isOpen && guest) {
+  useEffect(() => {
+    if (open && guest) {
       setEditForm({
         name: guest.name,
         phone: guest.phone || "",
@@ -200,6 +200,9 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       setSelectedDate(null);
       setSelectedSlot(null);
     }
+  }, [open, guest]);
+
+  const handleOpen = (isOpen: boolean) => {
     onOpenChange(isOpen);
   };
 

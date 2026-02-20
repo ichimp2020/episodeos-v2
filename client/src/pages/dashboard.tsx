@@ -6,8 +6,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter, subDays } from "date-fns";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import GuestEditDialog from "@/components/GuestEditDialog";
+import EpisodeEditDialog from "@/components/EpisodeEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const statusColors: Record<string, string> = {
@@ -35,8 +36,11 @@ const guestStatusColors: Record<string, string> = {
 
 export default function Dashboard() {
   const { t } = useLanguage();
+  const [, setLocation] = useLocation();
   const [quickEditGuest, setQuickEditGuest] = useState<Guest | null>(null);
   const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [quickEditEpisode, setQuickEditEpisode] = useState<Episode | null>(null);
+  const [quickEditEpisodeOpen, setQuickEditEpisodeOpen] = useState(false);
 
   const { data: settings } = useQuery<{ podcastName: string }>({
     queryKey: ["/api/settings"],
@@ -183,7 +187,8 @@ export default function Dashboard() {
                 return (
                   <div
                     key={episode.id}
-                    className="ios-list-item cursor-pointer"
+                    className="ios-list-item cursor-pointer hover-elevate"
+                    onClick={() => { setQuickEditEpisode(episode); setQuickEditEpisodeOpen(true); }}
                     data-testid={`card-episode-${episode.id}`}
                   >
                     <div className="min-w-0 flex-1">
@@ -328,7 +333,10 @@ export default function Dashboard() {
                 return (
                   <div
                     key={interview.id}
-                    className="ios-list-item"
+                    className="ios-list-item cursor-pointer hover-elevate"
+                    onClick={() => {
+                      if (guest) { setQuickEditGuest(guest); setQuickEditOpen(true); }
+                    }}
                     data-testid={`card-confirmed-${interview.id}`}
                   >
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-chart-2/10 shrink-0">
@@ -375,7 +383,8 @@ export default function Dashboard() {
               upcomingDates.slice(0, 3).map((d) => (
                 <div
                   key={d.id}
-                  className="ios-list-item"
+                  className="ios-list-item cursor-pointer hover-elevate"
+                  onClick={() => setLocation("/studio")}
                   data-testid={`card-studio-date-${d.id}`}
                 >
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
@@ -413,7 +422,8 @@ export default function Dashboard() {
                 return (
                   <div
                     key={member.id}
-                    className="ios-list-item"
+                    className="ios-list-item cursor-pointer hover-elevate"
+                    onClick={() => setLocation("/team")}
                     data-testid={`card-member-workload-${member.id}`}
                   >
                     <Avatar className="h-8 w-8 ring-2 ring-background shadow-sm">
@@ -445,6 +455,12 @@ export default function Dashboard() {
         open={quickEditOpen}
         onOpenChange={(open) => { setQuickEditOpen(open); if (!open) setQuickEditGuest(null); }}
         members={members}
+      />
+
+      <EpisodeEditDialog
+        episode={quickEditEpisode}
+        open={quickEditEpisodeOpen}
+        onOpenChange={(open) => { setQuickEditEpisodeOpen(open); if (!open) setQuickEditEpisode(null); }}
       />
     </div>
   );

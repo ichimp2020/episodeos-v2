@@ -83,6 +83,8 @@ const he: TranslationKeys = {
     deleteEpisode: "מחק פרק",
     adding: "מוסיף...",
     creating: "יוצר...",
+    saveChanges: "שמור שינויים",
+    saving: "שומר...",
   },
   team: {
     title: "צוות",
