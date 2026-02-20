@@ -193,6 +193,48 @@ export async function registerRoutes(
     res.status(201).json(guest);
   });
 
+  app.post("/api/guests/bulk", async (req, res) => {
+    const { text } = req.body;
+    if (!text || typeof text !== "string") return res.status(400).json({ message: "text is required" });
+
+    const lines = text.split(/\n/).map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+    const names: string[] = [];
+    for (const line of lines) {
+      const cleaned = line
+        .replace(/[\u200F\u200E\u202A-\u202E\u2066-\u2069]/g, "")
+        .replace(/^[\d.)\-\s]+/, "")
+        .replace(/[^\w\s\u0590-\u05FF\u0600-\u06FF\u0400-\u04FF\-'׳"]/g, "")
+        .trim();
+      if (cleaned.length >= 2 && /[a-zA-Z\u0590-\u05FF\u0600-\u06FF\u0400-\u04FF]/.test(cleaned)) {
+        names.push(cleaned);
+      }
+    }
+
+    if (names.length === 0) return res.status(400).json({ message: "No valid names found in text" });
+
+    const members = await storage.getTeamMembers();
+    const sharon = members.find((m) => m.name.toLowerCase().includes("sharon"));
+    const existingGuests = await storage.getGuests();
+    const existingNames = new Set(existingGuests.map((g) => g.name.toLowerCase().trim()));
+
+    const results = [];
+    const skipped = [];
+    for (const name of names) {
+      if (existingNames.has(name.toLowerCase().trim())) {
+        skipped.push(name);
+        continue;
+      }
+      const guest = await storage.createGuest({
+        name,
+        status: "prospect",
+        addedBy: sharon?.id || null,
+      });
+      results.push(guest);
+      existingNames.add(name.toLowerCase().trim());
+    }
+    res.status(201).json({ created: results, skipped });
+  });
+
   app.patch("/api/guests/:id", async (req, res) => {
     const parsed = updateGuestSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });

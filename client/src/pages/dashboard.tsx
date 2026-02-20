@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2 } from "lucide-react";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter, subDays } from "date-fns";
 import { Link, useLocation } from "wouter";
@@ -43,6 +44,8 @@ export default function Dashboard() {
   const [quickEditOpen, setQuickEditOpen] = useState(false);
   const [quickEditEpisode, setQuickEditEpisode] = useState<Episode | null>(null);
   const [quickEditEpisodeOpen, setQuickEditEpisodeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
   const { toast } = useToast();
 
   const deleteEpisode = useMutation({
@@ -67,6 +70,22 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       toast({ title: "Interview deleted" });
+    },
+  });
+
+  const bulkImportGuests = useMutation({
+    mutationFn: async (text: string) => {
+      const res = await apiRequest("POST", "/api/guests/bulk", { text });
+      return res.json();
+    },
+    onSuccess: (data: { created: Guest[]; skipped: string[] }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      const parts = [];
+      if (data.created.length > 0) parts.push(`${data.created.length} ${t.dashboard.created}`);
+      if (data.skipped.length > 0) parts.push(`${data.skipped.length} ${t.dashboard.skipped}`);
+      toast({ title: t.dashboard.importSuccess, description: parts.join(", ") });
+      setImportOpen(false);
+      setImportText("");
     },
   });
 
@@ -276,12 +295,22 @@ export default function Dashboard() {
         <div className="ios-section">
           <div className="ios-section-header">
             <h2 className="ios-section-title" data-testid="text-guest-pipeline-title">{t.dashboard.guestPipeline}</h2>
-            <Link href="/guests">
-              <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-guests">
-                {t.dashboard.viewAll}
-                <ChevronRight className="h-3 w-3" />
-              </span>
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer"
+                onClick={() => setImportOpen(true)}
+                data-testid="button-import-guests"
+              >
+                <ClipboardPaste className="h-3 w-3" />
+                {t.dashboard.importGuests}
+              </button>
+              <Link href="/guests">
+                <span className="ios-pill-button ios-pill-button-secondary text-xs !px-3 !py-1.5 cursor-pointer" data-testid="link-view-all-guests">
+                  {t.dashboard.viewAll}
+                  <ChevronRight className="h-3 w-3" />
+                </span>
+              </Link>
+            </div>
           </div>
           <div className="px-4 pb-4 space-y-3">
             {pipelineGuests.length === 0 ? (
@@ -315,9 +344,6 @@ export default function Dashboard() {
                     .slice(0, 4)
                     .map((guest) => {
                       const assignee = guest.addedBy ? getMember(guest.addedBy) : null;
-                      const guestInterview = guest.status === "confirmed"
-                        ? allInterviews?.find((i) => i.guestId === guest.id && i.status === "confirmed")
-                        : null;
                       return (
                         <div
                           key={guest.id}
@@ -337,13 +363,7 @@ export default function Dashboard() {
                                   {assignee.name}
                                 </span>
                               )}
-                              {guestInterview?.scheduledDate ? (
-                                <span className="text-[11px] text-chart-4 font-medium flex items-center gap-1 whitespace-nowrap">
-                                  <Calendar className="h-3 w-3 shrink-0" />
-                                  {format(parseISO(guestInterview.scheduledDate), "MMM d")}
-                                  {guestInterview.scheduledTime && `, ${guestInterview.scheduledTime}`}
-                                </span>
-                              ) : guest.shortDescription ? (
+                              {guest.shortDescription ? (
                                 <span className="text-[11px] text-muted-foreground truncate">{guest.shortDescription}</span>
                               ) : null}
                             </div>
@@ -529,6 +549,45 @@ export default function Dashboard() {
         open={quickEditEpisodeOpen}
         onOpenChange={(open) => { setQuickEditEpisodeOpen(open); if (!open) setQuickEditEpisode(null); }}
       />
+
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) setImportText(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardPaste className="h-5 w-5 text-purple-500" />
+              {t.dashboard.importGuests}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground">{t.dashboard.pasteWhatsAppMessage}</p>
+          </DialogHeader>
+          <div className="space-y-4">
+            <textarea
+              className="w-full min-h-[160px] rounded-xl border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+              placeholder={t.dashboard.pasteHere}
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              dir="auto"
+              data-testid="textarea-import-guests"
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                className="ios-pill-button ios-pill-button-secondary text-sm !px-4 !py-2"
+                onClick={() => { setImportOpen(false); setImportText(""); }}
+                data-testid="button-cancel-import"
+              >
+                {t.scheduling.cancel}
+              </button>
+              <button
+                className="ios-pill-button text-sm !px-4 !py-2 bg-purple-500 text-white hover:bg-purple-600 disabled:opacity-50"
+                onClick={() => bulkImportGuests.mutate(importText)}
+                disabled={!importText.trim() || bulkImportGuests.isPending}
+                data-testid="button-confirm-import"
+              >
+                {bulkImportGuests.isPending ? t.dashboard.importing : t.dashboard.importNames}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
