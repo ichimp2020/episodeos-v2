@@ -139,6 +139,8 @@ const en = {
     updateDetails: "Update guest details and status",
     status: "Status",
     checkStudioAvailability: "Check Studio Availability",
+    interviewBooked: "Interview Booked",
+    changeDate: "Change date",
     studioAvailability: "Studio Availability",
     noAvailableDates: "No available studio dates",
     selected: "Selected",

@@ -203,45 +203,49 @@ export async function registerRoutes(
     const updated = await storage.updateGuest(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Guest not found" });
 
-    if (parsed.data.status === "confirmed" && previousGuest.status !== "confirmed") {
+    if (parsed.data.status === "confirmed" || updated.status === "confirmed") {
       const allEpisodes = await storage.getEpisodes();
-      const alreadyExists = allEpisodes.some((e) => e.title === updated.name);
+      const guestNameTrimmed = updated.name.trim();
+      const alreadyExists = allEpisodes.some((e) => e.title.trim() === guestNameTrimmed);
       if (!alreadyExists) {
-      const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
+        const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
 
-      const episode = await storage.createEpisode({
-        title: updated.name,
-        description: `Interview with ${updated.name}`,
-        status: "planning",
-        scheduledDate: null,
-        scheduledTime: null,
-        episodeNumber: maxEpNum + 1,
-        interviewId: null,
-        recordingLink: null,
-        timestampsJson: null,
-        aiStatus: null,
-      });
+        const interviews = await storage.getInterviews();
+        const guestInterview = interviews.find((i) => i.guestId === req.params.id && i.status === "confirmed");
 
-      const allMembers = await storage.getTeamMembers();
-      const findIds = (names: string[]) =>
-        allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
-
-      const defaultTasks = [
-        { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
-        { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
-        { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
-        { title: "Teasers", assigneeIds: findIds(["Knob"]) },
-        { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
-      ];
-
-      for (const dt of defaultTasks) {
-        await storage.createTask({
-          episodeId: episode.id,
-          title: dt.title,
-          assigneeIds: dt.assigneeIds,
-          status: "todo",
+        const episode = await storage.createEpisode({
+          title: guestNameTrimmed,
+          description: `Interview with ${guestNameTrimmed}`,
+          status: "planning",
+          scheduledDate: guestInterview?.scheduledDate || null,
+          scheduledTime: guestInterview?.scheduledTime || null,
+          episodeNumber: maxEpNum + 1,
+          interviewId: guestInterview?.id || null,
+          recordingLink: null,
+          timestampsJson: null,
+          aiStatus: null,
         });
-      }
+
+        const allMembers = await storage.getTeamMembers();
+        const findIds = (names: string[]) =>
+          allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
+
+        const defaultTasks = [
+          { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
+          { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
+          { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
+          { title: "Teasers", assigneeIds: findIds(["Knob"]) },
+          { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
+        ];
+
+        for (const dt of defaultTasks) {
+          await storage.createTask({
+            episodeId: episode.id,
+            title: dt.title,
+            assigneeIds: dt.assigneeIds,
+            status: "todo",
+          });
+        }
       }
     }
 

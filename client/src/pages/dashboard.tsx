@@ -306,6 +306,9 @@ export default function Dashboard() {
                     .slice(0, 4)
                     .map((guest) => {
                       const assignee = guest.addedBy ? getMember(guest.addedBy) : null;
+                      const guestInterview = guest.status === "confirmed"
+                        ? allInterviews?.find((i) => i.guestId === guest.id && i.status === "confirmed")
+                        : null;
                       return (
                         <div
                           key={guest.id}
@@ -325,9 +328,15 @@ export default function Dashboard() {
                                   {assignee.name}
                                 </span>
                               )}
-                              {guest.shortDescription && (
+                              {guestInterview?.scheduledDate ? (
+                                <span className="text-[11px] text-chart-4 font-medium flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(parseISO(guestInterview.scheduledDate), "MMM d, yyyy")}
+                                  {guestInterview.scheduledTime && ` at ${guestInterview.scheduledTime}`}
+                                </span>
+                              ) : guest.shortDescription ? (
                                 <span className="text-[11px] text-muted-foreground truncate">{guest.shortDescription}</span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                           <Badge className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>

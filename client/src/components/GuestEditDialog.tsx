@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
-import type { Guest, TeamMember, StudioDate, InterviewerUnavailability } from "@shared/schema";
+import type { Guest, TeamMember, StudioDate, InterviewerUnavailability, Interview } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
@@ -86,6 +86,13 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     enabled: open,
   });
 
+  const { data: allInterviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
+    enabled: open,
+  });
+
+  const existingInterview = guest ? allInterviews?.find((i) => i.guestId === guest.id && i.status === "confirmed") : null;
+
   const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
 
   const getAvailableInterviewers = (dateStr: string, slotLabel?: string) => {
@@ -139,6 +146,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
           guestId: guest.id,
           studioDateId: selectedStudioDate?.id || null,
           scheduledDate: selectedDate,
+          scheduledTime: selectedSlot ? selectedSlot.start : null,
           status: "confirmed",
         });
         if (selectedStudioDate) {
@@ -276,7 +284,33 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                 </Select>
               </div>
 
-              {!showCalendar && (
+              {!showCalendar && existingInterview?.scheduledDate ? (
+                <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3 space-y-1" data-testid="panel-booked-interview">
+                  <div className="flex items-center gap-2">
+                    <Check className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-semibold text-green-700 dark:text-green-400">{t.guests.interviewBooked}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {format(parseISO(existingInterview.scheduledDate), "MMM d, yyyy")}
+                    {existingInterview.scheduledTime && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        {existingInterview.scheduledTime}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7 mt-1"
+                    onClick={() => setShowCalendar(true)}
+                    data-testid="button-change-date"
+                  >
+                    {t.guests.changeDate}
+                  </Button>
+                </div>
+              ) : !showCalendar ? (
                 <Button
                   variant="outline"
                   className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
@@ -286,7 +320,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   <Calendar className="h-4 w-4 mr-2" />
                   {t.guests.checkStudioAvailability}
                 </Button>
-              )}
+              ) : null}
 
               {showCalendar && (
                 <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="panel-studio-availability">

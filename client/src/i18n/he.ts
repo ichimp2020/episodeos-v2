@@ -141,6 +141,8 @@ const he: TranslationKeys = {
     updateDetails: "עדכן פרטי אורח וסטטוס",
     status: "סטטוס",
     checkStudioAvailability: "בדוק זמינות סטודיו",
+    interviewBooked: "ראיון נקבע",
+    changeDate: "שנה תאריך",
     studioAvailability: "זמינות סטודיו",
     noAvailableDates: "אין תאריכי סטודיו זמינים",
     selected: "נבחר",
