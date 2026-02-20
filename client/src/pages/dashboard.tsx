@@ -429,7 +429,7 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">{t.dashboard.noUpcomingStudioDates}</p>
               </div>
             ) : (
-              upcomingDates.slice(0, 3).map((d) => (
+              upcomingDates.slice(0, 5).map((d) => (
                 <div
                   key={d.id}
                   className="ios-list-item cursor-pointer hover-elevate"
