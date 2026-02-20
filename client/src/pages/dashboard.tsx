@@ -103,8 +103,12 @@ export default function Dashboard() {
       if (!b.scheduledDate) return -1;
       return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
     }) || [];
+  const hasTimeSlots = (notes: string | null) => {
+    if (!notes) return false;
+    return /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(notes);
+  };
   const upcomingDates = studioDates
-    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()))
+    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && hasTimeSlots(d.notes))
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime())
     .slice(0, 5) || [];
   const pendingTasks = tasks?.filter((t) => t.status !== "done") || [];
@@ -167,22 +171,27 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground mt-1">{t.dashboard.subtitle}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: t.dashboard.activeEpisodes, value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10" },
-          { label: t.dashboard.confirmedRecently, value: confirmedRecently.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10" },
-          { label: t.dashboard.openTasks, value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10" },
-          { label: t.dashboard.guestPipeline, value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10" },
+          { label: t.dashboard.activeEpisodes, value: activeEpisodes.length, icon: Mic, color: "from-blue-500/10 to-blue-600/5", iconColor: "text-blue-500", iconBg: "bg-blue-500/10", href: "/episodes" },
+          { label: t.dashboard.confirmedRecently, value: confirmedRecently.length, icon: CalendarClock, color: "from-emerald-500/10 to-emerald-600/5", iconColor: "text-emerald-500", iconBg: "bg-emerald-500/10", href: "/studio" },
+          { label: t.dashboard.openTasks, value: pendingTasks.length, icon: Clock, color: "from-amber-500/10 to-amber-600/5", iconColor: "text-amber-500", iconBg: "bg-amber-500/10", href: "/episodes" },
+          { label: t.dashboard.guestPipeline, value: guests?.length || 0, icon: UserPlus, color: "from-purple-500/10 to-purple-600/5", iconColor: "text-purple-500", iconBg: "bg-purple-500/10", href: "/guests" },
         ].map((stat) => (
-          <div key={stat.label} className="ios-stat-card" data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}>
+          <div
+            key={stat.label}
+            className="ios-stat-card cursor-pointer hover-elevate transition-transform active:scale-[0.97]"
+            onClick={() => setLocation(stat.href)}
+            data-testid={`card-stat-${stat.label.toLowerCase().replace(/\s/g, "-")}`}
+          >
             <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} rounded-2xl pointer-events-none`} />
             <div className="relative flex items-center justify-between gap-2">
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                <p className="text-3xl font-bold mt-2 tracking-tight">{stat.value}</p>
+                <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wider">{stat.label}</p>
+                <p className="text-2xl sm:text-3xl font-bold mt-1.5 tracking-tight">{stat.value}</p>
               </div>
-              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${stat.iconBg}`}>
-                <stat.icon className={`h-5 w-5 ${stat.iconColor}`} />
+              <div className={`flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-2xl ${stat.iconBg}`}>
+                <stat.icon className={`h-4 w-4 sm:h-5 sm:w-5 ${stat.iconColor}`} />
               </div>
             </div>
           </div>
@@ -329,10 +338,10 @@ export default function Dashboard() {
                                 </span>
                               )}
                               {guestInterview?.scheduledDate ? (
-                                <span className="text-[11px] text-chart-4 font-medium flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {format(parseISO(guestInterview.scheduledDate), "MMM d, yyyy")}
-                                  {guestInterview.scheduledTime && ` at ${guestInterview.scheduledTime}`}
+                                <span className="text-[11px] text-chart-4 font-medium flex items-center gap-1 whitespace-nowrap">
+                                  <Calendar className="h-3 w-3 shrink-0" />
+                                  {format(parseISO(guestInterview.scheduledDate), "MMM d")}
+                                  {guestInterview.scheduledTime && `, ${guestInterview.scheduledTime}`}
                                 </span>
                               ) : guest.shortDescription ? (
                                 <span className="text-[11px] text-muted-foreground truncate">{guest.shortDescription}</span>
@@ -455,7 +464,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold">{format(parseISO(d.date), "EEEE")}</p>
-                    {d.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{d.notes}</p>}
+                    {d.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{d.notes.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/)?.[0] || d.notes}</p>}
                   </div>
                 </div>
               ))

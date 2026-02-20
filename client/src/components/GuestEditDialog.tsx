@@ -124,8 +124,12 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     return slots.some((slot) => isSlotFullyAvailable(dateStr, slot.label));
   };
 
+  const hasTimeSlots = (notes: string | null) => {
+    if (!notes) return false;
+    return /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(notes);
+  };
   const availableDates = studioDates
-    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()))
+    ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && hasTimeSlots(d.notes))
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
 
   const updateGuest = useMutation({
@@ -259,7 +263,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto w-[95vw] sm:w-full">
         {guest && (
           <>
             <DialogHeader>
