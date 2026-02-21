@@ -240,6 +240,7 @@ export default function Dashboard() {
               activeEpisodes.slice(0, 5).map((episode) => {
                 const episodeTasks = tasks?.filter((t) => t.episodeId === episode.id) || [];
                 const doneTasks = episodeTasks.filter((t) => t.status === "done").length;
+                const guest = guests?.find(g => g.id === episode.guestId);
                 return (
                   <div
                     key={episode.id}
@@ -252,7 +253,7 @@ export default function Dashboard() {
                         {episode.episodeNumber && (
                           <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                         )}
-                        <p className="text-sm font-semibold truncate">{episode.title}</p>
+                        <p className="text-sm font-semibold truncate">{guest?.name || episode.title}</p>
                       </div>
                       {episode.scheduledDate && (
                         <p className="text-xs text-muted-foreground mt-1">

@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2 } from "lucide-react";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, Interview, Guest } from "@shared/schema";
 import {
   format,
@@ -98,6 +98,9 @@ export default function Episodes() {
   const [attendeesInitialized, setAttendeesInitialized] = useState(false);
   const [editingGuestEmail, setEditingGuestEmail] = useState(false);
   const [guestEmailValue, setGuestEmailValue] = useState("");
+  const [editingGuestPhone, setEditingGuestPhone] = useState(false);
+  const [guestPhoneValue, setGuestPhoneValue] = useState("");
+  const [showGuestDetails, setShowGuestDetails] = useState(false);
   const [showGuestPicker, setShowGuestPicker] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -260,6 +263,18 @@ export default function Episodes() {
       toast({ title: t.episodes.emailSaved });
     },
     onError: () => toast({ title: "Failed to save email", variant: "destructive" }),
+  });
+
+  const updateGuestPhone = useMutation({
+    mutationFn: async ({ guestId, phone }: { guestId: string; phone: string }) => {
+      await apiRequest("PATCH", `/api/guests/${guestId}`, { phone });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setEditingGuestPhone(false);
+      toast({ title: t.episodes.phoneSaved });
+    },
+    onError: () => toast({ title: "Failed to save phone", variant: "destructive" }),
   });
 
   const linkGuestToEpisode = useMutation({
@@ -592,7 +607,7 @@ export default function Episodes() {
                       {episode.episodeNumber && (
                         <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                       )}
-                      <h3 className="text-sm font-semibold">{episode.title}</h3>
+                      <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
                       <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
                         {episode.status}
                       </Badge>
@@ -843,47 +858,58 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setShowGuestPicker(false); } }}>
+      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           {selectedEpisode && (
             <>
               <DialogHeader>
-                <div className="space-y-1">
-                  {editingField === "title" ? (
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1 flex-1">
+                <div className="space-y-2">
+                  {(() => {
+                    const headerGuest = getEpisodeGuest(selectedEpisode);
+                    return (
+                      <DialogTitle className="flex items-center gap-2 flex-wrap" data-testid="text-episode-guest-header">
                         {selectedEpisode.episodeNumber != null && (
-                          <span className="text-muted-foreground font-mono text-sm shrink-0">#{selectedEpisode.episodeNumber}</span>
+                          <span className="text-muted-foreground font-mono text-sm">#{selectedEpisode.episodeNumber}</span>
                         )}
+                        <UserPlus className="h-4 w-4 text-primary" />
+                        <span>{headerGuest?.name || t.episodes.noGuestLinked}</span>
+                        {headerGuest?.shortDescription && (
+                          <span className="text-sm font-normal text-muted-foreground">— {headerGuest.shortDescription}</span>
+                        )}
+                      </DialogTitle>
+                    );
+                  })()}
+
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">{t.episodes.episodeTitle}</label>
+                    {editingField === "title" ? (
+                      <div className="flex items-center gap-2">
                         <Input
                           value={editValues.title}
                           onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
                           onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
                           autoFocus
-                          className="text-lg font-semibold"
+                          className="text-sm"
                           data-testid="input-edit-title"
                         />
+                        <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <DialogTitle
-                      className="flex items-center gap-2 flex-wrap cursor-pointer group"
-                      onClick={() => startEditing("title")}
-                      data-testid="text-episode-title"
-                    >
-                      {selectedEpisode.episodeNumber != null && (
-                        <span className="text-muted-foreground font-mono text-sm">#{selectedEpisode.episodeNumber}</span>
-                      )}
-                      {selectedEpisode.title}
-                      <Pencil className="h-3 w-3 text-muted-foreground/50" />
-                    </DialogTitle>
-                  )}
+                    ) : (
+                      <p
+                        className="text-sm cursor-pointer group flex items-center gap-1 hover:text-foreground transition-colors"
+                        onClick={() => startEditing("title")}
+                        data-testid="text-episode-title"
+                      >
+                        {selectedEpisode.title}
+                        <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </p>
+                    )}
+                  </div>
 
                   {editingField === "description" ? (
                     <div className="flex items-start gap-2">
@@ -1111,21 +1137,35 @@ export default function Episodes() {
                           <UserPlus className="h-4 w-4 text-primary" />
                           {t.episodes.guest}
                         </h3>
-                        {guest && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs text-muted-foreground"
-                            onClick={() => {
-                              updateEpisode.mutate({ id: selectedEpisode.id, data: { guestId: null } });
-                              setSelectedEpisode({ ...selectedEpisode, guestId: null } as Episode);
-                            }}
-                            data-testid="button-unlink-guest"
-                          >
-                            <X className="h-3 w-3 mr-1" />
-                            {t.episodes.unlinkGuest}
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {guest && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-muted-foreground"
+                              onClick={() => { setShowGuestDetails(!showGuestDetails); setEditingGuestEmail(false); setEditingGuestPhone(false); }}
+                              data-testid="button-toggle-guest-details"
+                            >
+                              {showGuestDetails ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+                              {t.episodes.contactDetails}
+                            </Button>
+                          )}
+                          {guest && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs text-muted-foreground"
+                              onClick={() => {
+                                updateEpisode.mutate({ id: selectedEpisode.id, data: { guestId: null } });
+                                setSelectedEpisode({ ...selectedEpisode, guestId: null } as Episode);
+                              }}
+                              data-testid="button-unlink-guest"
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              {t.episodes.unlinkGuest}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       {guest ? (
                         <div className="space-y-2">
@@ -1135,44 +1175,78 @@ export default function Episodes() {
                               <span className="text-xs text-muted-foreground">— {guest.shortDescription}</span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                            {editingGuestEmail ? (
-                              <div className="flex items-center gap-1 flex-1">
-                                <Input
-                                  value={guestEmailValue}
-                                  onChange={(e) => setGuestEmailValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue });
-                                    if (e.key === "Escape") setEditingGuestEmail(false);
-                                  }}
-                                  placeholder={t.episodes.addEmail}
-                                  autoFocus
-                                  className="h-7 text-xs flex-1"
-                                  type="email"
-                                  data-testid="input-guest-email"
-                                />
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue })} data-testid="button-save-guest-email">
-                                  <Check className="h-3 w-3" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingGuestEmail(false)}>
-                                  <X className="h-3 w-3" />
-                                </Button>
+                          {showGuestDetails && (
+                            <div className="space-y-2 pt-1 border-t border-border/50" data-testid="section-guest-contact-details">
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                {editingGuestEmail ? (
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Input
+                                      value={guestEmailValue}
+                                      onChange={(e) => setGuestEmailValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue });
+                                        if (e.key === "Escape") setEditingGuestEmail(false);
+                                      }}
+                                      placeholder={t.episodes.addEmail}
+                                      autoFocus
+                                      className="h-7 text-xs flex-1"
+                                      type="email"
+                                      data-testid="input-guest-email"
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateGuestEmail.mutate({ guestId: guest.id, email: guestEmailValue })} data-testid="button-save-guest-email">
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingGuestEmail(false)}>
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer group flex items-center gap-1"
+                                    onClick={() => { setEditingGuestEmail(true); setGuestEmailValue(guest.email || ""); }}
+                                    data-testid="button-edit-guest-email"
+                                  >
+                                    {guest.email || t.episodes.addEmail}
+                                    <Pencil className="h-2.5 w-2.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </button>
+                                )}
                               </div>
-                            ) : (
-                              <button
-                                className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer group flex items-center gap-1"
-                                onClick={() => { setEditingGuestEmail(true); setGuestEmailValue(guest.email || ""); }}
-                                data-testid="button-edit-guest-email"
-                              >
-                                {guest.email || t.episodes.addEmail}
-                                <Pencil className="h-2.5 w-2.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </button>
-                            )}
-                          </div>
-                          {guest.phone && (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span>{guest.phone}</span>
+                              <div className="flex items-center gap-2">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                {editingGuestPhone ? (
+                                  <div className="flex items-center gap-1 flex-1">
+                                    <Input
+                                      value={guestPhoneValue}
+                                      onChange={(e) => setGuestPhoneValue(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") updateGuestPhone.mutate({ guestId: guest.id, phone: guestPhoneValue });
+                                        if (e.key === "Escape") setEditingGuestPhone(false);
+                                      }}
+                                      placeholder={t.team.addPhoneNumber}
+                                      autoFocus
+                                      className="h-7 text-xs flex-1"
+                                      type="tel"
+                                      data-testid="input-guest-phone"
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => updateGuestPhone.mutate({ guestId: guest.id, phone: guestPhoneValue })} data-testid="button-save-guest-phone">
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingGuestPhone(false)}>
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer group flex items-center gap-1"
+                                    onClick={() => { setEditingGuestPhone(true); setGuestPhoneValue(guest.phone || ""); }}
+                                    data-testid="button-edit-guest-phone"
+                                  >
+                                    {guest.phone || t.team.addPhoneNumber}
+                                    <Pencil className="h-2.5 w-2.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

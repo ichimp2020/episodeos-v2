@@ -65,7 +65,23 @@ export async function registerRoutes(
   app.post("/api/episodes", async (req, res) => {
     const parsed = insertEpisodeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
-    const episode = await storage.createEpisode(parsed.data);
+
+    let episodeData = { ...parsed.data };
+    if (!episodeData.guestId) {
+      const guest = await storage.createGuest({
+        name: episodeData.title,
+        status: "prospect",
+        phone: null,
+        email: null,
+        shortDescription: null,
+        notes: null,
+        links: null,
+        addedBy: null,
+      });
+      episodeData.guestId = guest.id;
+    }
+
+    const episode = await storage.createEpisode(episodeData);
 
     const allMembers = await storage.getTeamMembers();
     const findIds = (names: string[]) =>
