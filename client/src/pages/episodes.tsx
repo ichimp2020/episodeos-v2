@@ -1674,12 +1674,17 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
   }, [episodeId, selectedCategory, toast]);
 
   return (
-    <div>
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">{t.episodes.files}</h3>
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+            <FileText className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <h3 className="text-sm font-semibold">{t.episodes.files}</h3>
+        </div>
         <div className="flex items-center gap-2">
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-[120px]" data-testid="select-file-category">
+            <SelectTrigger className="w-[110px] h-8 text-xs" data-testid="select-file-category">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1689,7 +1694,7 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
               <SelectItem value="auto">Auto-detect</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="ghost" size="sm" disabled={isUploading} asChild data-testid="button-upload-file">
+          <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg" disabled={isUploading} asChild data-testid="button-upload-file">
             <label className="cursor-pointer">
               {isUploading ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Upload className="h-3 w-3 mr-1" />}
               {t.episodes.uploadFile}
@@ -1702,7 +1707,8 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
       {isLoading ? (
         <Skeleton className="h-12" />
       ) : !files || files.length === 0 ? (
-        <div className="text-center py-4">
+        <div className="text-center py-6">
+          <FileText className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{t.episodes.noFiles}</p>
         </div>
       ) : (
@@ -1712,15 +1718,17 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
             return (
               <div
                 key={file.id}
-                className="flex items-center gap-3 p-2.5 rounded-md bg-card group"
+                className="flex items-center gap-3 p-2.5 rounded-lg bg-background/80 border border-border/30 group transition-colors hover:bg-background"
                 data-testid={`card-file-${file.id}`}
               >
-                <FileIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0">
+                  <FileIcon className="h-4 w-4 text-muted-foreground" />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm truncate">{file.name}</p>
+                  <p className="text-sm truncate font-medium">{file.name}</p>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="secondary" className="text-xs">{file.category}</Badge>
-                    {file.size && <span className="text-xs text-muted-foreground">{formatFileSize(file.size)}</span>}
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{file.category}</Badge>
+                    {file.size && <span className="text-[11px] text-muted-foreground">{formatFileSize(file.size)}</span>}
                   </div>
                 </div>
                 <a
@@ -1730,14 +1738,14 @@ function EpisodeFilesSection({ episodeId }: { episodeId: string }) {
                   className="shrink-0"
                   data-testid={`link-download-file-${file.id}`}
                 >
-                  <Button variant="ghost" size="icon">
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
                     <ExternalLink className="h-3 w-3" />
                   </Button>
                 </a>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="opacity-0 group-hover:opacity-100 shrink-0"
+                  className="opacity-0 group-hover:opacity-100 shrink-0 h-7 w-7"
                   onClick={() => deleteFile.mutate(file.id)}
                   data-testid={`button-delete-file-${file.id}`}
                 >
@@ -1841,10 +1849,15 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
   }, [episodeId, toast]);
 
   return (
-    <div>
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">{t.episodes.teasers}</h3>
-        <Button variant="ghost" size="sm" onClick={() => setShowAddShort(true)} data-testid="button-add-teaser">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-chart-4/10">
+            <Film className="h-3.5 w-3.5 text-chart-4" />
+          </div>
+          <h3 className="text-sm font-semibold">{t.episodes.teasers}</h3>
+        </div>
+        <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg" onClick={() => setShowAddShort(true)} data-testid="button-add-teaser">
           <Plus className="h-3 w-3 mr-1" />
           {t.episodes.uploadTeaser}
         </Button>
@@ -1853,18 +1866,21 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
       {isLoading ? (
         <Skeleton className="h-12" />
       ) : !shorts || shorts.length === 0 ? (
-        <div className="text-center py-4">
+        <div className="text-center py-6">
+          <Film className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{t.episodes.noTeasers}</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {shorts.map((short) => (
             <div
               key={short.id}
-              className="flex items-center gap-3 p-3 rounded-md bg-card group"
+              className="flex items-center gap-3 p-2.5 rounded-lg bg-background/80 border border-border/30 group transition-colors hover:bg-background"
               data-testid={`card-short-${short.id}`}
             >
-              <Film className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0">
+                <Film className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm">{short.title}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -2002,10 +2018,15 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
   });
 
   return (
-    <div>
+    <div className="rounded-xl border border-border/50 bg-muted/30 p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">{t.episodes.largeFileLinks}</h3>
-        <Button variant="ghost" size="sm" onClick={() => setShowAddLink(true)} data-testid="button-add-large-link">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-chart-2/10">
+            <Link2 className="h-3.5 w-3.5 text-chart-2" />
+          </div>
+          <h3 className="text-sm font-semibold">{t.episodes.largeFileLinks}</h3>
+        </div>
+        <Button variant="outline" size="sm" className="h-8 text-xs rounded-lg" onClick={() => setShowAddLink(true)} data-testid="button-add-large-link">
           <Plus className="h-3 w-3 mr-1" />
           {t.episodes.addLargeLink}
         </Button>
@@ -2014,7 +2035,8 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
       {isLoading ? (
         <Skeleton className="h-12" />
       ) : !links || links.length === 0 ? (
-        <div className="text-center py-4">
+        <div className="text-center py-6">
+          <Link2 className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">{t.episodes.noLargeLinks}</p>
         </div>
       ) : (
@@ -2022,10 +2044,12 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
           {links.map((link) => (
             <div
               key={link.id}
-              className="flex items-center gap-3 p-2.5 rounded-md bg-card group"
+              className="flex items-center gap-3 p-2.5 rounded-lg bg-background/80 border border-border/30 group transition-colors hover:bg-background"
               data-testid={`card-large-link-${link.id}`}
             >
-              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted shrink-0">
+                <Link2 className="h-4 w-4 text-muted-foreground" />
+              </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm truncate">{link.title}</p>
                 <a
