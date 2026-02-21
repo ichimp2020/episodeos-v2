@@ -24,7 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, Interview, Guest } from "@shared/schema";
+import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, EpisodeLargeLink, Interview, Guest } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -1498,6 +1498,8 @@ export default function Episodes() {
 
                 <EpisodeShortsSection episodeId={selectedEpisode.id} />
 
+                <EpisodeLargeLinksSection episodeId={selectedEpisode.id} />
+
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="ghost"
@@ -1841,10 +1843,10 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="text-sm font-medium">{t.episodes.shorts}</h3>
-        <Button variant="ghost" size="sm" onClick={() => setShowAddShort(true)} data-testid="button-add-short">
+        <h3 className="text-sm font-medium">{t.episodes.teasers}</h3>
+        <Button variant="ghost" size="sm" onClick={() => setShowAddShort(true)} data-testid="button-add-teaser">
           <Plus className="h-3 w-3 mr-1" />
-          {t.episodes.uploadShort}
+          {t.episodes.uploadTeaser}
         </Button>
       </div>
 
@@ -1852,7 +1854,7 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
         <Skeleton className="h-12" />
       ) : !shorts || shorts.length === 0 ? (
         <div className="text-center py-4">
-          <p className="text-sm text-muted-foreground">{t.episodes.noShorts}</p>
+          <p className="text-sm text-muted-foreground">{t.episodes.noTeasers}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -1930,8 +1932,8 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
       <Dialog open={showAddShort} onOpenChange={setShowAddShort}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Short Video</DialogTitle>
-            <DialogDescription>Add a short video clip for CEO approval</DialogDescription>
+            <DialogTitle>Add Teaser</DialogTitle>
+            <DialogDescription>Add a teaser clip for approval</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
@@ -1940,16 +1942,148 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
                 value={newShortTitle}
                 onChange={(e) => setNewShortTitle(e.target.value)}
                 placeholder="e.g. Highlight clip #1"
-                data-testid="input-short-title"
+                data-testid="input-teaser-title"
               />
             </div>
             <Button
               className="w-full"
               onClick={() => createShort.mutate({ title: newShortTitle })}
               disabled={!newShortTitle || createShort.isPending}
-              data-testid="button-submit-short"
+              data-testid="button-submit-teaser"
             >
-              {createShort.isPending ? t.episodes.adding : t.episodes.uploadShort}
+              {createShort.isPending ? t.episodes.adding : t.episodes.uploadTeaser}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
+  const { toast } = useToast();
+  const { t } = useLanguage();
+  const [showAddLink, setShowAddLink] = useState(false);
+  const [newLink, setNewLink] = useState({ title: "", url: "" });
+
+  const { data: links, isLoading } = useQuery<EpisodeLargeLink[]>({
+    queryKey: ["/api/episodes", episodeId, "large-links"],
+    queryFn: async () => {
+      const res = await fetch(`/api/episodes/${episodeId}/large-links`);
+      if (!res.ok) throw new Error("Failed to fetch links");
+      return res.json();
+    },
+  });
+
+  const createLink = useMutation({
+    mutationFn: async () => {
+      await apiRequest("POST", `/api/episodes/${episodeId}/large-links`, {
+        title: newLink.title,
+        url: newLink.url,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "large-links"] });
+      setShowAddLink(false);
+      setNewLink({ title: "", url: "" });
+      toast({ title: "Link added" });
+    },
+    onError: () => toast({ title: "Failed to add link", variant: "destructive" }),
+  });
+
+  const deleteLink = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/episode-large-links/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes", episodeId, "large-links"] });
+      toast({ title: "Link removed" });
+    },
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="text-sm font-medium">{t.episodes.largeFileLinks}</h3>
+        <Button variant="ghost" size="sm" onClick={() => setShowAddLink(true)} data-testid="button-add-large-link">
+          <Plus className="h-3 w-3 mr-1" />
+          {t.episodes.addLargeLink}
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <Skeleton className="h-12" />
+      ) : !links || links.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-muted-foreground">{t.episodes.noLargeLinks}</p>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          {links.map((link) => (
+            <div
+              key={link.id}
+              className="flex items-center gap-3 p-2.5 rounded-md bg-card group"
+              data-testid={`card-large-link-${link.id}`}
+            >
+              <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm truncate">{link.title}</p>
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-primary underline truncate block"
+                  data-testid={`link-open-large-link-${link.id}`}
+                >
+                  {link.url}
+                </a>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="opacity-0 group-hover:opacity-100 shrink-0"
+                onClick={() => deleteLink.mutate(link.id)}
+                data-testid={`button-delete-large-link-${link.id}`}
+              >
+                <Trash2 className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={showAddLink} onOpenChange={setShowAddLink}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.episodes.largeFileLinks}</DialogTitle>
+            <DialogDescription>Google Drive, Dropbox, or other external links</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t.episodes.linkTitle}</label>
+              <Input
+                value={newLink.title}
+                onChange={(e) => setNewLink({ ...newLink, title: e.target.value })}
+                placeholder="e.g. Raw Footage"
+                data-testid="input-large-link-title"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t.episodes.linkUrl}</label>
+              <Input
+                value={newLink.url}
+                onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                placeholder="https://drive.google.com/..."
+                data-testid="input-large-link-url"
+              />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => createLink.mutate()}
+              disabled={!newLink.title || !newLink.url || createLink.isPending}
+              data-testid="button-submit-large-link"
+            >
+              {createLink.isPending ? t.episodes.adding : t.episodes.addLargeLink}
             </Button>
           </div>
         </DialogContent>

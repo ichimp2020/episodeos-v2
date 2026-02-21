@@ -586,6 +586,24 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.get("/api/episodes/:episodeId/large-links", async (req, res) => {
+    const links = await storage.getEpisodeLargeLinks(req.params.episodeId);
+    res.json(links);
+  });
+
+  app.post("/api/episodes/:episodeId/large-links", async (req, res) => {
+    const link = await storage.createEpisodeLargeLink({
+      ...req.body,
+      episodeId: req.params.episodeId,
+    });
+    res.status(201).json(link);
+  });
+
+  app.delete("/api/episode-large-links/:id", async (req, res) => {
+    await storage.deleteEpisodeLargeLink(req.params.id);
+    res.status(204).send();
+  });
+
   app.get("/api/shared-links", async (_req, res) => {
     const links = await storage.getSharedLinks();
     res.json(links);

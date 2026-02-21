@@ -10,11 +10,12 @@ import {
   type Reminder, type InsertReminder,
   type EpisodeFile, type InsertEpisodeFile,
   type EpisodeShort, type InsertEpisodeShort,
+  type EpisodeLargeLink, type InsertEpisodeLargeLink,
   type InterviewerUnavailability, type InsertInterviewerUnavailability,
   type SharedLink, type InsertSharedLink,
   teamMembers, episodes, tasks, studioDates,
   guests, interviews, interviewParticipants, publishing, reminders,
-  episodeFiles, episodeShorts, interviewerUnavailability, sharedLinks,
+  episodeFiles, episodeShorts, episodeLargeLinks, interviewerUnavailability, sharedLinks,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lte, and } from "drizzle-orm";
@@ -80,6 +81,10 @@ export interface IStorage {
   createEpisodeShort(short: InsertEpisodeShort): Promise<EpisodeShort>;
   updateEpisodeShort(id: string, data: Partial<InsertEpisodeShort>): Promise<EpisodeShort | undefined>;
   deleteEpisodeShort(id: string): Promise<void>;
+
+  getEpisodeLargeLinks(episodeId: string): Promise<EpisodeLargeLink[]>;
+  createEpisodeLargeLink(link: InsertEpisodeLargeLink): Promise<EpisodeLargeLink>;
+  deleteEpisodeLargeLink(id: string): Promise<void>;
 
   getInterviewerUnavailability(): Promise<InterviewerUnavailability[]>;
   createInterviewerUnavailability(entry: InsertInterviewerUnavailability): Promise<InterviewerUnavailability>;
@@ -323,6 +328,19 @@ export class DatabaseStorage implements IStorage {
 
   async deleteEpisodeShort(id: string): Promise<void> {
     await db.delete(episodeShorts).where(eq(episodeShorts.id, id));
+  }
+
+  async getEpisodeLargeLinks(episodeId: string): Promise<EpisodeLargeLink[]> {
+    return db.select().from(episodeLargeLinks).where(eq(episodeLargeLinks.episodeId, episodeId));
+  }
+
+  async createEpisodeLargeLink(link: InsertEpisodeLargeLink): Promise<EpisodeLargeLink> {
+    const [created] = await db.insert(episodeLargeLinks).values(link).returning();
+    return created;
+  }
+
+  async deleteEpisodeLargeLink(id: string): Promise<void> {
+    await db.delete(episodeLargeLinks).where(eq(episodeLargeLinks.id, id));
   }
 
   async getInterviewerUnavailability(): Promise<InterviewerUnavailability[]> {

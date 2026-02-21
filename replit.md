@@ -22,7 +22,8 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `tasks` - episodeId, assigneeId, title, status, dueDate
 - `studioDates` - date, status (available/taken), notes, bookedSlot, participantEmails (JSON)
 - `episodeFiles` - episodeId, name, category (graphic/thumbnail/document), objectPath, contentType, size
-- `episodeShorts` - episodeId, title, objectPath, status (pending/approved/rejected), notes, approvedBy
+- `episodeShorts` - episodeId, title, objectPath, status (pending/approved/rejected), notes, approvedBy (UI label: "Teasers")
+- `episodeLargeLinks` - episodeId, title, url, category (general) — external Drive/Dropbox links for large files
 - `sharedLinks` - title, url, description, category (google-drive/general/tools/templates)
 
 ## Integrations
@@ -37,6 +38,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `GET/POST /api/studio-dates`, `PATCH/DELETE /api/studio-dates/:id`
 - `GET/POST /api/episodes/:episodeId/files`, `DELETE /api/episode-files/:id`
 - `GET/POST /api/episodes/:episodeId/shorts`, `PATCH/DELETE /api/episode-shorts/:id`
+- `GET/POST /api/episodes/:episodeId/large-links`, `DELETE /api/episode-large-links/:id`
 - `POST /api/uploads/request-url` - Get presigned URL for file upload
 - `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees; supports `previousEventId` to auto-cancel old events on reschedule
