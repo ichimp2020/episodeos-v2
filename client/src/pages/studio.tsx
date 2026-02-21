@@ -235,6 +235,10 @@ export default function Studio() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [bookingEmails, setBookingEmails] = useState<BookingEmails>({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesValue, setNotesValue] = useState("");
+  const [blockStep, setBlockStep] = useState<"idle" | "confirm" | "note">("idle");
+  const [blockNote, setBlockNote] = useState("");
   const { toast } = useToast();
 
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
@@ -385,8 +389,11 @@ export default function Studio() {
   });
 
   const updateDateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await apiRequest("PATCH", `/api/studio-dates/${id}`, { status });
+    mutationFn: async ({ id, status, notes }: { id: string; status?: string; notes?: string | null }) => {
+      const body: Record<string, unknown> = {};
+      if (status !== undefined) body.status = status;
+      if (notes !== undefined) body.notes = notes;
+      await apiRequest("PATCH", `/api/studio-dates/${id}`, body);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
@@ -966,6 +973,10 @@ export default function Studio() {
           setSelectedDate(null);
           setSelectedSlot(null);
           setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
+          setEditingNotes(false);
+          setNotesValue("");
+          setBlockStep("idle");
+          setBlockNote("");
         }
       }}>
         <DialogContent className="max-w-md">
@@ -1181,45 +1192,166 @@ export default function Studio() {
                   </div>
                 )}
 
-                {selectedDate.notes && (
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Notes</Label>
-                    <p className="text-sm mt-1">{selectedDate.notes}</p>
+                {(() => {
+                  const isTimeSlotData = selectedDate.notes && parseTimeRange(selectedDate.notes).length > 0;
+                  if (isTimeSlotData) return null;
+                  const isSlotLabel = selectedDate.notes && selectedDate.notes === selectedDate.bookedSlot;
+                  const hasUserNotes = selectedDate.notes && !isSlotLabel;
+                  return (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                          Notes
+                        </Label>
+                        {!editingNotes && (
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={() => { setEditingNotes(true); setNotesValue(hasUserNotes ? selectedDate.notes! : ""); }}
+                            data-testid="button-edit-notes"
+                          >
+                            {hasUserNotes ? "Edit" : "Add note"}
+                          </button>
+                        )}
+                      </div>
+                      {editingNotes ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={notesValue}
+                            onChange={(e) => setNotesValue(e.target.value)}
+                            placeholder="Add a note..."
+                            className="text-sm min-h-[60px] resize-none"
+                            data-testid="input-edit-notes"
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="ios-pill-button ios-pill-button-primary text-xs"
+                              onClick={() => {
+                                const noteToSave = notesValue.trim() || "";
+                                updateDateStatus.mutate({ id: selectedDate.id, notes: noteToSave });
+                                setSelectedDate({ ...selectedDate, notes: noteToSave || null });
+                                setEditingNotes(false);
+                                toast({ title: "Notes updated" });
+                              }}
+                              data-testid="button-save-notes"
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Save
+                            </button>
+                            <button
+                              className="ios-pill-button ios-pill-button-secondary text-xs"
+                              onClick={() => { setEditingNotes(false); setNotesValue(""); }}
+                              data-testid="button-cancel-notes"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : hasUserNotes ? (
+                        <p className="text-sm mt-1" data-testid="text-notes">{selectedDate.notes}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/60 italic mt-1">No notes</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {blockStep === "idle" && (
+                  <div className="flex items-center gap-2 pt-2">
+                    {selectedDate.status === "available" ? (
+                      <button
+                        className="ios-pill-button ios-pill-button-secondary flex-1"
+                        onClick={() => setBlockStep("confirm")}
+                        data-testid="button-block-date"
+                      >
+                        Block Date
+                      </button>
+                    ) : (
+                      <button
+                        className="ios-pill-button ios-pill-button-secondary flex-1"
+                        onClick={() => {
+                          updateDateStatus.mutate({ id: selectedDate.id, status: "available", notes: selectedDate.notes || "" });
+                          setSelectedDate({ ...selectedDate, status: "available" });
+                        }}
+                        data-testid="button-mark-available"
+                      >
+                        Mark as Available
+                      </button>
+                    )}
+                    <button
+                      className="ios-pill-button ios-pill-button-secondary"
+                      onClick={() => deleteDate.mutate(selectedDate.id)}
+                      data-testid="button-delete-studio-date"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-2">
-                  {selectedDate.status === "available" ? (
-                    <button
-                      className="ios-pill-button ios-pill-button-secondary flex-1"
-                      onClick={() => {
-                        updateDateStatus.mutate({ id: selectedDate.id, status: "taken" });
-                        setSelectedDate({ ...selectedDate, status: "taken" });
-                      }}
-                      data-testid="button-mark-taken"
-                    >
-                      Mark as Taken
-                    </button>
-                  ) : (
-                    <button
-                      className="ios-pill-button ios-pill-button-secondary flex-1"
-                      onClick={() => {
-                        updateDateStatus.mutate({ id: selectedDate.id, status: "available" });
-                        setSelectedDate({ ...selectedDate, status: "available" });
-                      }}
-                      data-testid="button-mark-available"
-                    >
-                      Mark as Available
-                    </button>
-                  )}
-                  <button
-                    className="ios-pill-button ios-pill-button-secondary"
-                    onClick={() => deleteDate.mutate(selectedDate.id)}
-                    data-testid="button-delete-studio-date"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                {blockStep === "confirm" && (
+                  <div className="rounded-xl border bg-amber-50 dark:bg-amber-950/20 p-4 space-y-3" data-testid="panel-block-confirm">
+                    <p className="text-sm font-medium">Are you sure you want to block this date?</p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="ios-pill-button ios-pill-button-primary text-xs flex-1"
+                        onClick={() => setBlockStep("note")}
+                        data-testid="button-confirm-block"
+                      >
+                        Yes, block it
+                      </button>
+                      <button
+                        className="ios-pill-button ios-pill-button-secondary text-xs flex-1"
+                        onClick={() => setBlockStep("idle")}
+                        data-testid="button-cancel-block"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {blockStep === "note" && (
+                  <div className="rounded-xl border bg-muted/30 p-4 space-y-3" data-testid="panel-block-note">
+                    <p className="text-sm font-medium">Add a reason? (optional)</p>
+                    <Textarea
+                      value={blockNote}
+                      onChange={(e) => setBlockNote(e.target.value)}
+                      placeholder="Reason for blocking this date..."
+                      className="text-sm min-h-[60px] resize-none"
+                      data-testid="input-block-note"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="ios-pill-button ios-pill-button-primary text-xs flex-1"
+                        onClick={() => {
+                          updateDateStatus.mutate({ id: selectedDate.id, status: "taken", notes: blockNote.trim() || "" });
+                          setSelectedDate({ ...selectedDate, status: "taken", notes: blockNote.trim() || null });
+                          setBlockStep("idle");
+                          setBlockNote("");
+                          toast({ title: "Date blocked" });
+                        }}
+                        data-testid="button-block-with-note"
+                      >
+                        Block Date
+                      </button>
+                      <button
+                        className="ios-pill-button ios-pill-button-secondary text-xs"
+                        onClick={() => {
+                          updateDateStatus.mutate({ id: selectedDate.id, status: "taken" });
+                          setSelectedDate({ ...selectedDate, status: "taken", notes: null });
+                          setBlockStep("idle");
+                          setBlockNote("");
+                          toast({ title: "Date blocked" });
+                        }}
+                        data-testid="button-block-skip-note"
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
