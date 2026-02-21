@@ -71,6 +71,8 @@ const he: TranslationKeys = {
     addTask: "הוסף משימה",
     newTask: "משימה חדשה",
     addATaskForThisEpisode: "הוסף משימה לפרק זה",
+    markDone: "סמן כבוצע",
+    markedDone: "בוצע",
     taskTitle: "כותרת משימה",
     assignee: "מוקצה ל",
     selectAssignee: "בחר מוקצה",

@@ -501,7 +501,18 @@ export default function Episodes() {
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       await apiRequest("PATCH", `/api/tasks/${id}`, { status });
     },
-    onSuccess: () => {
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/tasks"] });
+      const prev = queryClient.getQueryData<Task[]>(["/api/tasks"]);
+      queryClient.setQueryData<Task[]>(["/api/tasks"], (old) =>
+        old?.map((t) => (t.id === id ? { ...t, status } : t))
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.prev) queryClient.setQueryData(["/api/tasks"], context.prev);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
     },
   });
@@ -966,19 +977,24 @@ export default function Episodes() {
                     </Select>
                   </div>
                   {selectedEpisode.scheduledDate && !showReschedule ? (
-                    <button
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 cursor-pointer group"
-                      onClick={() => {
-                        setShowReschedule(true);
-                        setRescheduleDate(null);
-                        setRescheduleSlot(null);
-                      }}
-                      data-testid="button-reschedule-inline"
-                    >
-                      <CalendarIcon className="h-3.5 w-3.5" />
-                      {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
-                      <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
+                      </span>
+                      <button
+                        className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                        onClick={() => {
+                          setShowReschedule(true);
+                          setRescheduleDate(null);
+                          setRescheduleSlot(null);
+                        }}
+                        data-testid="button-reschedule-inline"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        {t.episodes.reschedule}
+                      </button>
+                    </div>
                   ) : !selectedEpisode.scheduledDate && !showReschedule ? (
                     <Button
                       variant="ghost"
@@ -1079,7 +1095,7 @@ export default function Episodes() {
                           {t.episodes.selected}: {format(parseISO(rescheduleDate!), "MMM d")}{rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}
                         </Badge>
 
-                        {rescheduleSlot && (
+                        {attendeesList.length > 0 && (
                           <div className="rounded-lg border bg-background/50 p-2.5 space-y-1.5" data-testid="panel-attendees">
                             <div className="flex items-center gap-1.5">
                               <Mail className="h-3.5 w-3.5 text-primary" />
@@ -1089,14 +1105,14 @@ export default function Episodes() {
                               {attendeesList.map((att) => (
                                 <label
                                   key={att.email}
-                                  className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50 cursor-pointer transition-colors"
+                                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer transition-colors"
                                   data-testid={`attendee-${att.type}-${att.email}`}
                                 >
                                   <input
                                     type="checkbox"
                                     checked={!!rescheduleAttendees[att.email]}
                                     onChange={(e) => setRescheduleAttendees((prev) => ({ ...prev, [att.email]: e.target.checked }))}
-                                    className="h-3.5 w-3.5 rounded border-muted-foreground/30 accent-primary"
+                                    className="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
                                   />
                                   <span className="text-xs flex-1 truncate">{att.label}</span>
                                   <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{att.email}</span>
@@ -1361,33 +1377,47 @@ export default function Episodes() {
                                 />
                               </div>
                             </div>
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setEditingTaskId(null)}
-                                data-testid={`button-cancel-edit-task-${task.id}`}
+                            <div className="flex gap-2 justify-between items-center">
+                              <button
+                                onClick={() => { toggleTaskDone(task); setEditingTaskId(null); }}
+                                className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                                  task.status === "done"
+                                    ? "bg-chart-2/15 text-chart-2"
+                                    : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                                }`}
+                                data-testid={`button-toggle-done-edit-${task.id}`}
                               >
-                                Cancel
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  updateTask.mutate({
-                                    id: task.id,
-                                    data: {
-                                      title: editTaskValues.title,
-                                      assigneeIds: editTaskValues.assigneeIds.length > 0 ? editTaskValues.assigneeIds : null,
-                                      dueDate: editTaskValues.dueDate || null,
-                                    },
-                                  });
-                                  setEditingTaskId(null);
-                                }}
-                                disabled={!editTaskValues.title}
-                                data-testid={`button-save-edit-task-${task.id}`}
-                              >
-                                Save
-                              </Button>
+                                <Check className="h-3.5 w-3.5" />
+                                {task.status === "done" ? t.episodes.markedDone || "Done" : t.episodes.markDone || "Mark Done"}
+                              </button>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingTaskId(null)}
+                                  data-testid={`button-cancel-edit-task-${task.id}`}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    updateTask.mutate({
+                                      id: task.id,
+                                      data: {
+                                        title: editTaskValues.title,
+                                        assigneeIds: editTaskValues.assigneeIds.length > 0 ? editTaskValues.assigneeIds : null,
+                                        dueDate: editTaskValues.dueDate || null,
+                                      },
+                                    });
+                                    setEditingTaskId(null);
+                                  }}
+                                  disabled={!editTaskValues.title}
+                                  data-testid={`button-save-edit-task-${task.id}`}
+                                >
+                                  Save
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -1397,7 +1427,7 @@ export default function Episodes() {
                             data-testid={`card-task-${task.id}`}
                           >
                             <button
-                              onClick={() => toggleTaskDone(task)}
+                              onClick={(e) => { e.stopPropagation(); toggleTaskDone(task); }}
                               className={`ios-toggle-done ${task.status === "done" ? "checked" : ""}`}
                               title={task.status === "done" ? "Mark as not done" : "Mark as done"}
                               data-testid={`button-toggle-task-${task.id}`}

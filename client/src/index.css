@@ -292,7 +292,9 @@
   }
 
   .ios-toggle-done {
-    @apply shrink-0 h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 cursor-pointer;
+    @apply shrink-0 h-8 w-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 cursor-pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   .ios-toggle-done.checked {

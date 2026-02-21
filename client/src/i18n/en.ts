@@ -69,6 +69,8 @@ const en = {
     addTask: "Add Task",
     newTask: "New Task",
     addATaskForThisEpisode: "Add a task for this episode",
+    markDone: "Mark Done",
+    markedDone: "Done",
     taskTitle: "Task title",
     assignee: "Assignee",
     selectAssignee: "Select assignee",
