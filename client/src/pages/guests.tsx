@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste } from "lucide-react";
+import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste, Trash2 } from "lucide-react";
 import type { Guest, TeamMember } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -84,6 +84,16 @@ export default function Guests() {
       toast({ title: "Guest added to pipeline" });
     },
     onError: () => toast({ title: "Failed to add guest", variant: "destructive" }),
+  });
+
+  const deleteGuest = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/guests/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      toast({ title: "Guest removed" });
+    },
   });
 
   const bulkImportGuests = useMutation({
@@ -190,7 +200,7 @@ export default function Guests() {
                   {groupGuests.map((guest) => (
                     <div
                       key={guest.id}
-                      className="ios-list-item hover-elevate cursor-pointer"
+                      className="ios-list-item hover-elevate cursor-pointer group"
                       onClick={() => openEditDialog(guest)}
                       data-testid={`card-guest-${guest.id}`}
                     >
@@ -227,6 +237,15 @@ export default function Guests() {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 shrink-0 h-8 w-8"
+                        onClick={(e) => { e.stopPropagation(); deleteGuest.mutate(guest.id); }}
+                        data-testid={`button-delete-guest-${guest.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
                       <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     </div>
                   ))}
