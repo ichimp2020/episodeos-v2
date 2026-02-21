@@ -16,8 +16,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck } from "lucide-react";
-import type { StudioDate, TeamMember, InterviewerUnavailability } from "@shared/schema";
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck, User, ExternalLink } from "lucide-react";
+import type { StudioDate, TeamMember, InterviewerUnavailability, Interview, Guest, Episode } from "@shared/schema";
+import { useLocation } from "wouter";
 import {
   format,
   parseISO,
@@ -248,6 +249,20 @@ export default function Studio() {
     queryKey: ["/api/interviewer-unavailability"],
   });
 
+  const { data: interviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
+  });
+
+  const { data: guests } = useQuery<Guest[]>({
+    queryKey: ["/api/guests"],
+  });
+
+  const { data: episodes } = useQuery<Episode[]>({
+    queryKey: ["/api/episodes"],
+  });
+
+  const [, navigate] = useLocation();
+
   useEffect(() => {
     const checkHighlight = () => {
       if (!studioDates) return;
@@ -430,7 +445,7 @@ export default function Studio() {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       setSelectedDate(null);
       setSelectedSlot(null);
-      setBookingEmails({ studio: "", interviewers: "", interviewee: "" });
+      setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
       if (result?.calendarFailed) {
         toast({ title: "Slot booked", description: "But calendar invite could not be sent. Check Google Calendar connection.", variant: "destructive" });
       } else {
@@ -979,6 +994,66 @@ export default function Studio() {
                     {selectedDate.status}
                   </Badge>
                 </div>
+
+                {selectedDate.status === "taken" && (() => {
+                  const linkedInterview = interviews?.find((i) => i.studioDateId === selectedDate.id);
+                  const linkedGuest = linkedInterview ? guests?.find((g) => g.id === linkedInterview.guestId) : null;
+                  const linkedEpisode = linkedGuest ? episodes?.find((e) => e.guestId === linkedGuest.id) : null;
+                  if (linkedGuest) {
+                    return (
+                      <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="panel-taken-interview-info">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-primary" />
+                          <span className="text-sm font-semibold">{linkedGuest.name}</span>
+                        </div>
+                        {selectedDate.bookedSlot && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{selectedDate.bookedSlot}</span>
+                          </div>
+                        )}
+                        {linkedGuest.phone && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>Phone: {linkedGuest.phone}</span>
+                          </div>
+                        )}
+                        {linkedGuest.email && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="h-3.5 w-3.5" />
+                            <span>{linkedGuest.email}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          {linkedEpisode && (
+                            <button
+                              className="ios-pill-button ios-pill-button-secondary text-xs"
+                              onClick={() => { setSelectedDate(null); navigate(`/episodes?highlight=${linkedEpisode.id}`); }}
+                              data-testid="button-go-to-episode"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Go to Episode
+                            </button>
+                          )}
+                          {linkedInterview && (
+                            <button
+                              className="ios-pill-button ios-pill-button-secondary text-xs"
+                              onClick={() => { setSelectedDate(null); navigate(`/scheduling?highlight=${linkedInterview.id}`); }}
+                              data-testid="button-go-to-interview"
+                            >
+                              <ExternalLink className="h-3 w-3 mr-1" />
+                              Go to Interview
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="rounded-xl border border-dashed bg-muted/20 p-3 text-center" data-testid="panel-taken-no-interview">
+                      <p className="text-sm text-muted-foreground">Manually blocked — no interview linked</p>
+                    </div>
+                  );
+                })()}
 
                 {selectedDate.status === "available" && interviewers.length > 0 && (
                   <div className="space-y-2">
