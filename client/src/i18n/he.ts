@@ -248,6 +248,7 @@ const he: TranslationKeys = {
     reschedule: "שנה מועד",
     rescheduleAndInvite: "שנה מועד ושלח הזמנה",
     sendInvite: "שלח הזמנה ליומן",
+    confirmAndInvite: "אשר ושלח הזמנה",
     cancelPreviousEvent: "הזמנת יומן קודמת תבוטל",
     bookedSlot: "משבצת שהוזמנה",
     goToEpisode: "פרק",

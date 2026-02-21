@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock } from "lucide-react";
+import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock, Send } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
 import type { Guest, TeamMember, StudioDate, InterviewerUnavailability, Interview, Episode } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -74,6 +74,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [confirmAttendees, setConfirmAttendees] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const { t } = useLanguage();
   const [, navigate] = useLocation();
@@ -141,6 +142,15 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && hasTimeSlots(d.notes))
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
 
+  const initConfirmAttendees = () => {
+    const attendeeMap: Record<string, boolean> = {};
+    if (editForm.email) attendeeMap[editForm.email] = true;
+    else if (guest?.email) attendeeMap[guest.email] = true;
+    const teamWithEmails = members?.filter((m) => m.email) || [];
+    teamWithEmails.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+    setConfirmAttendees(attendeeMap);
+  };
+
   const updateGuest = useMutation({
     mutationFn: async () => {
       if (!guest) return;
@@ -155,13 +165,21 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       });
       if (selectedDate && editForm.status === "confirmed" && isDateFullySelected) {
         const selectedStudioDate = availableDates.find((d) => d.date === selectedDate);
-        await apiRequest("POST", "/api/interviews", {
-          guestId: guest.id,
-          studioDateId: selectedStudioDate?.id || null,
-          scheduledDate: selectedDate,
-          scheduledTime: selectedSlot ? selectedSlot.start : null,
-          status: "confirmed",
-        });
+        if (existingInterview) {
+          await apiRequest("PATCH", `/api/interviews/${existingInterview.id}`, {
+            studioDateId: selectedStudioDate?.id || null,
+            scheduledDate: selectedDate,
+            scheduledTime: selectedSlot ? selectedSlot.start : null,
+          });
+        } else {
+          await apiRequest("POST", "/api/interviews", {
+            guestId: guest.id,
+            studioDateId: selectedStudioDate?.id || null,
+            scheduledDate: selectedDate,
+            scheduledTime: selectedSlot ? selectedSlot.start : null,
+            status: "confirmed",
+          });
+        }
         if (selectedStudioDate) {
           const patchData: Record<string, unknown> = {};
           if (selectedSlot) {
@@ -179,6 +197,31 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
           }
           await apiRequest("PATCH", `/api/studio-dates/${selectedStudioDate.id}`, patchData);
         }
+
+        const selectedEmails = Object.entries(confirmAttendees)
+          .filter(([, checked]) => checked)
+          .map(([email]) => email)
+          .filter((e) => e.includes("@"));
+
+        if (selectedEmails.length > 0 && selectedSlot) {
+          try {
+            const linkedEp = episodes?.find((e) => e.guestId === guest.id);
+            const calResponse = await apiRequest("POST", "/api/calendar-event", {
+              date: selectedDate,
+              startTime: selectedSlot.start,
+              endTime: selectedSlot.end,
+              summary: `Podcast Recording: ${editForm.name || guest.name}`,
+              description: `Recording session with ${editForm.name || guest.name}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
+              attendeeEmails: selectedEmails,
+            });
+            const eventData = await calResponse.json();
+            if (eventData.id && linkedEp) {
+              await apiRequest("PATCH", `/api/episodes/${linkedEp.id}`, {
+                calendarEventId: eventData.id,
+              });
+            }
+          } catch {}
+        }
       }
     },
     onSuccess: () => {
@@ -188,8 +231,9 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
       onOpenChange(false);
+      const hasInvitees = Object.values(confirmAttendees).some(Boolean);
       const msg = selectedDate && editForm.status === "confirmed" && isDateFullySelected
-        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`
+        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}${hasInvitees && selectedSlot ? " — invite sent" : ""}`
         : "Guest updated";
       toast({ title: msg });
     },
@@ -222,6 +266,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       setShowCalendar(false);
       setSelectedDate(null);
       setSelectedSlot(null);
+      setConfirmAttendees({});
     }
   }, [open, guest]);
 
@@ -259,6 +304,12 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const handleSelectSlot = (slot: TimeSlot) => {
     setSelectedSlot(slot);
     setEditForm({ ...editForm, status: "confirmed" });
+    const attendeeMap: Record<string, boolean> = {};
+    if (editForm.email) attendeeMap[editForm.email] = true;
+    else if (guest?.email) attendeeMap[guest.email] = true;
+    const teamWithEmails = members?.filter((m) => m.email) || [];
+    teamWithEmails.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+    setConfirmAttendees(attendeeMap);
   };
 
   const selectedDateObj = selectedDate ? availableDates.find((d) => d.date === selectedDate) : null;
@@ -448,10 +499,41 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                     </div>
                   )}
                   {isDateFullySelected && (
-                    <div className="pt-1">
+                    <div className="pt-1 space-y-2">
                       <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                         {t.guests.selected}: {format(parseISO(selectedDate!), "MMM d, yyyy")}{selectedSlot ? ` (${selectedSlot.label})` : ""} — {t.guests.statusSetToConfirmed}
                       </Badge>
+
+                      {Object.keys(confirmAttendees).length === 0 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-lg text-xs border-dashed"
+                          onClick={initConfirmAttendees}
+                          data-testid="button-show-invite-attendees"
+                        >
+                          <Send className="h-3 w-3 mr-1.5" />
+                          {t.scheduling.confirmAndInvite}
+                        </Button>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium">{t.episodes.attendees}:</p>
+                          <div className="space-y-1 max-h-28 overflow-y-auto">
+                            {Object.entries(confirmAttendees).map(([email, checked]) => (
+                              <label key={email} className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => setConfirmAttendees((prev) => ({ ...prev, [email]: !prev[email] }))}
+                                  className="rounded"
+                                  data-testid={`checkbox-attendee-${email}`}
+                                />
+                                <span className="truncate">{email}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -556,7 +638,11 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                   disabled={!editForm.name || updateGuest.isPending}
                   data-testid="button-save-guest"
                 >
-                  {updateGuest.isPending ? t.guests.saving : t.guests.saveChanges}
+                  {updateGuest.isPending ? t.guests.saving : (
+                    isDateFullySelected && Object.values(confirmAttendees).some(Boolean) && selectedSlot ? (
+                      <><Send className="h-3.5 w-3.5 mr-1.5" />{t.scheduling.confirmAndInvite}</>
+                    ) : t.guests.saveChanges
+                  )}
                 </Button>
               </div>
             </div>

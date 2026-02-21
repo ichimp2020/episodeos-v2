@@ -246,6 +246,7 @@ const en = {
     reschedule: "Reschedule",
     rescheduleAndInvite: "Reschedule & Send Invite",
     sendInvite: "Send Calendar Invite",
+    confirmAndInvite: "Confirm & Send Invite",
     cancelPreviousEvent: "Previous calendar event will be cancelled",
     bookedSlot: "Booked Slot",
     goToEpisode: "Episode",

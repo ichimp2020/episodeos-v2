@@ -86,6 +86,9 @@ export default function Scheduling() {
   const [detailRescheduleDate, setDetailRescheduleDate] = useState<string | null>(null);
   const [detailRescheduleSlot, setDetailRescheduleSlot] = useState<TimeSlot | null>(null);
   const [rescheduleAttendees, setRescheduleAttendees] = useState<Record<string, boolean>>({});
+  const [showSendInvite, setShowSendInvite] = useState(false);
+  const [sendInviteAttendees, setSendInviteAttendees] = useState<Record<string, boolean>>({});
+  const [sendingInvite, setSendingInvite] = useState(false);
   const { toast } = useToast();
   const { t } = useLanguage();
   const [, navigate] = useLocation();
@@ -626,7 +629,7 @@ export default function Scheduling() {
       </Dialog>
 
       <Dialog open={!!selectedInterview} onOpenChange={(open) => {
-        if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingContact(false); setShowDetailReschedule(false); setDetailRescheduleDate(null); setDetailRescheduleSlot(null); setRescheduleAttendees({}); }
+        if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingContact(false); setShowDetailReschedule(false); setDetailRescheduleDate(null); setDetailRescheduleSlot(null); setRescheduleAttendees({}); setShowSendInvite(false); setSendInviteAttendees({}); setSendingInvite(false); }
       }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           {selectedInterview && (() => {
@@ -1066,12 +1069,113 @@ export default function Scheduling() {
                         );
                       })()}
 
-                      {!showDetailReschedule ? (
+                      {selectedInterview.scheduledDate && studio?.bookedSlot && !showSendInvite && !showDetailReschedule && (
+                        <Button
+                          variant="outline"
+                          className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
+                          onClick={() => {
+                            setShowSendInvite(true);
+                            const attendeeMap: Record<string, boolean> = {};
+                            if (guest?.email) attendeeMap[guest.email] = true;
+                            const participants = members?.filter((m) => m.email) || [];
+                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+                            setSendInviteAttendees(attendeeMap);
+                          }}
+                          data-testid="button-open-send-invite"
+                        >
+                          <Send className="h-4 w-4 mr-2" />
+                          {t.scheduling.sendInvite}
+                        </Button>
+                      )}
+
+                      {showSendInvite && !showDetailReschedule && (
+                        <div className="rounded-xl border bg-muted/30 p-3 space-y-3" data-testid="panel-send-invite">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                              <Send className="h-4 w-4 text-primary" />
+                              {t.scheduling.sendInvite}
+                            </h3>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowSendInvite(false); setSendInviteAttendees({}); }}>
+                              &times;
+                            </Button>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium">{t.episodes.attendees}:</p>
+                            <div className="space-y-1 max-h-28 overflow-y-auto">
+                              {Object.entries(sendInviteAttendees).map(([email, checked]) => (
+                                <label key={email} className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => setSendInviteAttendees((prev) => ({ ...prev, [email]: !prev[email] }))}
+                                    className="rounded"
+                                  />
+                                  <span className="truncate">{email}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Button
+                            className="w-full rounded-xl"
+                            disabled={sendingInvite}
+                            onClick={async () => {
+                              if (!selectedInterview.scheduledDate || !studio?.bookedSlot) return;
+                              setSendingInvite(true);
+
+                              const slotMatch = studio.bookedSlot.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/);
+                              const startTime = slotMatch ? slotMatch[1] : null;
+                              const endTime = slotMatch ? slotMatch[2] : null;
+
+                              const selectedEmails = Object.entries(sendInviteAttendees)
+                                .filter(([, checked]) => checked)
+                                .map(([email]) => email)
+                                .filter((e) => e.includes("@"));
+
+                              if (selectedEmails.length > 0 && startTime && endTime) {
+                                try {
+                                  const linkedEp = getEpisodeForGuest(selectedInterview.guestId);
+                                  const calResponse = await apiRequest("POST", "/api/calendar-event", {
+                                    date: selectedInterview.scheduledDate,
+                                    startTime,
+                                    endTime,
+                                    summary: `Podcast Recording: ${guest?.name || "Interview"}`,
+                                    description: `Recording session with ${guest?.name || "guest"}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
+                                    attendeeEmails: selectedEmails,
+                                  });
+                                  const eventData = await calResponse.json();
+                                  if (eventData.id && linkedEp) {
+                                    await apiRequest("PATCH", `/api/episodes/${linkedEp.id}`, {
+                                      calendarEventId: eventData.id,
+                                    });
+                                  }
+                                  queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+                                  toast({ title: t.episodes.inviteSent });
+                                } catch {
+                                  toast({ title: t.episodes.inviteFailed, variant: "destructive" });
+                                }
+                              }
+
+                              setSendingInvite(false);
+                              setShowSendInvite(false);
+                              setSendInviteAttendees({});
+                            }}
+                            data-testid="button-confirm-send-invite"
+                          >
+                            <Send className="h-3.5 w-3.5 mr-1.5" />
+                            {sendingInvite ? "..." : t.scheduling.confirmAndInvite}
+                          </Button>
+                        </div>
+                      )}
+
+                      {!showDetailReschedule && !showSendInvite && (
                         <Button
                           variant="outline"
                           className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
                           onClick={() => {
                             setShowDetailReschedule(true);
+                            setShowSendInvite(false);
                             setDetailRescheduleDate(null);
                             setDetailRescheduleSlot(null);
                             const attendeeMap: Record<string, boolean> = {};
@@ -1085,7 +1189,8 @@ export default function Scheduling() {
                           <RefreshCw className="h-4 w-4 mr-2" />
                           {t.scheduling.reschedule}
                         </Button>
-                      ) : (
+                      )}
+                      {showDetailReschedule && (
                         <div className="rounded-xl border bg-muted/30 p-3 space-y-3" data-testid="panel-detail-reschedule">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold flex items-center gap-1.5">
@@ -1286,7 +1391,7 @@ export default function Scheduling() {
                     </>
                   )}
 
-                  {!isEditing && !showDetailReschedule && (
+                  {!isEditing && !showDetailReschedule && !showSendInvite && (
                     <div className="flex justify-end pt-2">
                       <button
                         className="ios-pill-button ios-pill-button-secondary"
