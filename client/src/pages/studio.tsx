@@ -265,7 +265,10 @@ export default function Studio() {
   }, [studioDates]);
 
   const interviewers = useMemo(() =>
-    teamMembersData?.filter((m) => m.role?.toLowerCase() === "interviewer") || [],
+    teamMembersData?.filter((m) => {
+      const role = m.role?.toLowerCase() || "";
+      return role === "interviewer" || role === "host" || role === "co-host";
+    }) || [],
     [teamMembersData]
   );
 

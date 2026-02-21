@@ -136,7 +136,10 @@ export default function Scheduling() {
 
   const confirmedGuests = guests?.filter((g) => g.status === "confirmed" || g.status === "contacted") || [];
 
-  const interviewers = members?.filter((m) => m.role === "Interviewer") || [];
+  const interviewers = members?.filter((m) => {
+    const role = m.role?.toLowerCase() || "";
+    return role === "interviewer" || role === "host" || role === "co-host";
+  }) || [];
 
   const getAvailableInterviewers = (dateStr: string, slotLabel?: string) => {
     if (!unavailabilityData) return interviewers;
