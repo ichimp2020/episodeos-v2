@@ -16,10 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, UserPlus, Phone, Calendar, Check } from "lucide-react";
-import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, InterviewerUnavailability } from "@shared/schema";
+import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, UserPlus, Phone, Calendar, Check, Mail, ExternalLink, Send, RefreshCw } from "lucide-react";
+import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, InterviewerUnavailability, Episode } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { useLocation } from "wouter";
 
 const interviewStatuses = ["proposed", "confirmed", "completed", "cancelled"];
 
@@ -79,8 +80,15 @@ export default function Scheduling() {
   });
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickGuest, setQuickGuest] = useState({ name: "", phone: "", email: "" });
+  const [editingContact, setEditingContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ phone: "", email: "" });
+  const [showDetailReschedule, setShowDetailReschedule] = useState(false);
+  const [detailRescheduleDate, setDetailRescheduleDate] = useState<string | null>(null);
+  const [detailRescheduleSlot, setDetailRescheduleSlot] = useState<TimeSlot | null>(null);
+  const [rescheduleAttendees, setRescheduleAttendees] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [, navigate] = useLocation();
 
   const { data: allInterviews, isLoading } = useQuery<Interview[]>({
     queryKey: ["/api/interviews"],
@@ -97,6 +105,11 @@ export default function Scheduling() {
   const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
     queryKey: ["/api/interviewer-unavailability"],
   });
+  const { data: episodes } = useQuery<Episode[]>({
+    queryKey: ["/api/episodes"],
+  });
+
+  const getEpisodeForGuest = (guestId: string) => episodes?.find((e) => e.guestId === guestId);
 
   useEffect(() => {
     const checkHighlight = () => {
@@ -261,6 +274,18 @@ export default function Scheduling() {
     onError: () => toast({ title: "Failed to add guest", variant: "destructive" }),
   });
 
+  const updateGuestContact = useMutation({
+    mutationFn: async ({ guestId, data }: { guestId: string; data: { phone?: string | null; email?: string | null } }) => {
+      await apiRequest("PATCH", `/api/guests/${guestId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setEditingContact(false);
+      toast({ title: t.scheduling.savingContact.replace("...", "") });
+    },
+    onError: () => toast({ title: "Failed to save contact", variant: "destructive" }),
+  });
+
   const getGuest = (id: string) => guests?.find((g) => g.id === id);
   const getStudioDate = (id: string | null) => id ? studioDates?.find((d) => d.id === id) : null;
   const getMember = (id: string | null) => id ? members?.find((m) => m.id === id) : null;
@@ -354,17 +379,14 @@ export default function Scheduling() {
                                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                                   <CalendarClock className="h-3 w-3" />
                                   {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
-                                  {interview.scheduledTime && ` at ${interview.scheduledTime}`}
+                                  {studio?.bookedSlot
+                                    ? `, ${studio.bookedSlot}`
+                                    : interview.scheduledTime ? ` at ${interview.scheduledTime}` : ""}
                                 </span>
                               )}
                               {interview.location && (
                                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                                   <MapPin className="h-3 w-3" /> {interview.location}
-                                </span>
-                              )}
-                              {studio && (
-                                <span className="text-xs text-muted-foreground">
-                                  Studio: {studio.notes || format(parseISO(studio.date), "MMM d")}
                                 </span>
                               )}
                             </div>
@@ -604,7 +626,7 @@ export default function Scheduling() {
       </Dialog>
 
       <Dialog open={!!selectedInterview} onOpenChange={(open) => {
-        if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); }
+        if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingContact(false); setShowDetailReschedule(false); setDetailRescheduleDate(null); setDetailRescheduleSlot(null); setRescheduleAttendees({}); }
       }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           {selectedInterview && (() => {
@@ -909,7 +931,9 @@ export default function Scheduling() {
                           <div className="flex items-center gap-2 text-sm">
                             <CalendarClock className="h-4 w-4 text-muted-foreground" />
                             <span>{format(parseISO(selectedInterview.scheduledDate), "EEEE, MMM d, yyyy")}</span>
-                            {selectedInterview.scheduledTime && <span>at {selectedInterview.scheduledTime}</span>}
+                            {studio?.bookedSlot
+                              ? <Badge variant="secondary" className="text-xs">{studio.bookedSlot}</Badge>
+                              : selectedInterview.scheduledTime && <span>at {selectedInterview.scheduledTime}</span>}
                           </div>
                         )}
                         {selectedInterview.location && (
@@ -918,31 +942,351 @@ export default function Scheduling() {
                             <span>{selectedInterview.location}</span>
                           </div>
                         )}
-                        {guest?.phone && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <User className="h-4 w-4 text-muted-foreground" />
-                            <span>{guest.phone}</span>
-                            {guest.email && <span className="text-muted-foreground">| {guest.email}</span>}
+
+                        <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">{t.scheduling.editContact}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2"
+                              onClick={() => {
+                                if (editingContact) {
+                                  setEditingContact(false);
+                                } else {
+                                  setContactForm({ phone: guest?.phone || "", email: guest?.email || "" });
+                                  setEditingContact(true);
+                                }
+                              }}
+                              data-testid="button-toggle-contact-edit"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
                           </div>
-                        )}
+                          {editingContact ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <Input
+                                  value={contactForm.phone}
+                                  onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                                  placeholder={t.scheduling.addPhone}
+                                  className="h-8 text-sm"
+                                  data-testid="input-contact-phone"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <Input
+                                  value={contactForm.email}
+                                  onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                                  placeholder={t.scheduling.addEmail}
+                                  className="h-8 text-sm"
+                                  data-testid="input-contact-email"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => setEditingContact(false)}
+                                >
+                                  {t.scheduling.cancel}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  disabled={updateGuestContact.isPending}
+                                  onClick={() => {
+                                    if (guest) {
+                                      updateGuestContact.mutate({
+                                        guestId: guest.id,
+                                        data: {
+                                          phone: contactForm.phone || null,
+                                          email: contactForm.email || null,
+                                        },
+                                      });
+                                    }
+                                  }}
+                                  data-testid="button-save-contact"
+                                >
+                                  {updateGuestContact.isPending ? t.scheduling.savingContact : t.scheduling.saveChanges}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>{guest?.phone || <span className="text-muted-foreground italic text-xs">{t.scheduling.addPhone}</span>}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>{guest?.email || <span className="text-muted-foreground italic text-xs">{t.scheduling.addEmail}</span>}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         {confirmer && (
                           <div className="flex items-center gap-2 text-sm">
                             <CheckCircle className="h-4 w-4 text-chart-2" />
-                            <span className="text-muted-foreground">Confirmed by {confirmer.name}</span>
+                            <span className="text-muted-foreground">{t.scheduling.confirmedBy} {confirmer.name}</span>
                           </div>
                         )}
                       </div>
 
                       {selectedInterview.notes && (
                         <div>
-                          <label className="text-xs text-muted-foreground">Notes</label>
+                          <label className="text-xs text-muted-foreground">{t.scheduling.notes}</label>
                           <p className="text-sm mt-1">{selectedInterview.notes}</p>
+                        </div>
+                      )}
+
+                      {(() => {
+                        const linkedEpisode = getEpisodeForGuest(selectedInterview.guestId);
+                        return (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {linkedEpisode ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg text-xs"
+                                onClick={() => navigate(`/episodes?highlight=${linkedEpisode.id}`)}
+                                data-testid="button-go-to-episode"
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                {t.scheduling.goToEpisode}: {linkedEpisode.title}
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">{t.scheduling.noLinkedEpisode}</span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {!showDetailReschedule ? (
+                        <Button
+                          variant="outline"
+                          className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
+                          onClick={() => {
+                            setShowDetailReschedule(true);
+                            setDetailRescheduleDate(null);
+                            setDetailRescheduleSlot(null);
+                            const attendeeMap: Record<string, boolean> = {};
+                            if (guest?.email) attendeeMap[guest.email] = true;
+                            const participants = members?.filter((m) => m.email) || [];
+                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+                            setRescheduleAttendees(attendeeMap);
+                          }}
+                          data-testid="button-open-reschedule"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          {t.scheduling.reschedule}
+                        </Button>
+                      ) : (
+                        <div className="rounded-xl border bg-muted/30 p-3 space-y-3" data-testid="panel-detail-reschedule">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                              <Calendar className="h-4 w-4 text-primary" />
+                              {t.scheduling.reschedule}
+                            </h3>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { setShowDetailReschedule(false); setDetailRescheduleDate(null); setDetailRescheduleSlot(null); }} data-testid="button-close-detail-reschedule">
+                              &times;
+                            </Button>
+                          </div>
+
+                          {availableStudioDates.length === 0 ? (
+                            <p className="text-xs text-muted-foreground text-center py-3">{t.episodes.noAvailableDates}</p>
+                          ) : (
+                            <div className="space-y-1 max-h-44 overflow-y-auto">
+                              {availableStudioDates.map((d) => {
+                                const slots = d.notes ? parseTimeSlots(d.notes) : [];
+                                const isExpanded = detailRescheduleDate === d.date && slots.length > 0;
+                                return (
+                                  <div key={d.id}>
+                                    <button
+                                      className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                                        detailRescheduleDate === d.date
+                                          ? "bg-primary/10 ring-1 ring-primary/30"
+                                          : "hover:bg-muted/50"
+                                      }`}
+                                      onClick={() => {
+                                        setDetailRescheduleDate(d.date);
+                                        setDetailRescheduleSlot(null);
+                                        if (slots.length === 0) {
+                                          setDetailRescheduleSlot(null);
+                                        }
+                                      }}
+                                      data-testid={`button-detail-reschedule-date-${d.id}`}
+                                    >
+                                      <div className="flex h-9 w-9 flex-col items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-600/5 shrink-0">
+                                        <span className="text-[8px] font-semibold text-chart-2 leading-none uppercase">
+                                          {format(parseISO(d.date), "MMM")}
+                                        </span>
+                                        <span className="text-xs font-bold text-chart-2 leading-tight">
+                                          {format(parseISO(d.date), "d")}
+                                        </span>
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium">{format(parseISO(d.date), "EEEE, MMMM d")}</p>
+                                        {d.notes && <span className="text-[11px] text-muted-foreground truncate block">{d.notes}</span>}
+                                      </div>
+                                      {detailRescheduleDate === d.date && slots.length === 0 && (
+                                        <Check className="h-4 w-4 text-primary shrink-0" />
+                                      )}
+                                    </button>
+                                    {isExpanded && (
+                                      <div className="ml-12 mt-1 mb-2 space-y-1">
+                                        <p className="text-[11px] text-muted-foreground font-medium flex items-center gap-1 mb-1.5">
+                                          <Clock className="h-3 w-3" />
+                                          {t.episodes.selectHourSlot}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-1">
+                                          {slots.map((slot) => (
+                                            <button
+                                              key={slot.label}
+                                              className={`flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+                                                detailRescheduleSlot?.label === slot.label
+                                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                                  : "bg-muted/50 hover:bg-muted text-foreground"
+                                              }`}
+                                              onClick={() => setDetailRescheduleSlot(slot)}
+                                              data-testid={`button-detail-reschedule-slot-${slot.start}`}
+                                            >
+                                              <Clock className="h-3 w-3" />
+                                              {slot.label}
+                                              {detailRescheduleSlot?.label === slot.label && (
+                                                <Check className="h-3 w-3" />
+                                              )}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {(detailRescheduleDate && (detailRescheduleSlot || !(availableStudioDates.find((d) => d.date === detailRescheduleDate)?.notes ? parseTimeSlots(availableStudioDates.find((d) => d.date === detailRescheduleDate)!.notes!).length > 0 : false))) && (
+                            <>
+                              <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
+                                {t.episodes.selected}: {format(parseISO(detailRescheduleDate), "MMM d, yyyy")}{detailRescheduleSlot ? ` (${detailRescheduleSlot.label})` : ""}
+                              </Badge>
+
+                              <div className="space-y-1.5 pt-1">
+                                <p className="text-xs font-medium">{t.episodes.attendees}:</p>
+                                <div className="space-y-1 max-h-28 overflow-y-auto">
+                                  {Object.entries(rescheduleAttendees).map(([email, checked]) => (
+                                    <label key={email} className="flex items-center gap-2 text-xs cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={() => setRescheduleAttendees((prev) => ({ ...prev, [email]: !prev[email] }))}
+                                        className="rounded"
+                                      />
+                                      <span className="truncate">{email}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                                {selectedInterview.studioDateId && (
+                                  <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    {t.scheduling.cancelPreviousEvent}
+                                  </p>
+                                )}
+                              </div>
+
+                              <Button
+                                className="w-full rounded-xl"
+                                onClick={async () => {
+                                  const newStudio = availableStudioDates.find((d) => d.date === detailRescheduleDate);
+                                  if (!newStudio) return;
+
+                                  const finalTime = detailRescheduleSlot ? detailRescheduleSlot.start : null;
+                                  const patchData: Record<string, unknown> = {
+                                    scheduledDate: detailRescheduleDate,
+                                    scheduledTime: finalTime,
+                                    studioDateId: newStudio.id,
+                                  };
+
+                                  await apiRequest("PATCH", `/api/interviews/${selectedInterview.id}`, patchData);
+
+                                  if (selectedInterview.studioDateId && selectedInterview.studioDateId !== newStudio.id) {
+                                    await apiRequest("PATCH", `/api/studio-dates/${selectedInterview.studioDateId}`, {
+                                      status: "available",
+                                      bookedSlot: null,
+                                    });
+                                  }
+
+                                  if (detailRescheduleSlot) {
+                                    const allSlots = newStudio.notes ? parseTimeSlots(newStudio.notes) : [];
+                                    const remainingSlots = allSlots.filter((s) => s.label !== detailRescheduleSlot.label);
+                                    const studioPatch: Record<string, unknown> = { bookedSlot: detailRescheduleSlot.label };
+                                    if (remainingSlots.length === 0) {
+                                      studioPatch.status = "taken";
+                                    } else {
+                                      studioPatch.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+                                    }
+                                    await apiRequest("PATCH", `/api/studio-dates/${newStudio.id}`, studioPatch);
+                                  } else {
+                                    await apiRequest("PATCH", `/api/studio-dates/${newStudio.id}`, { status: "taken" });
+                                  }
+
+                                  const selectedEmails = Object.entries(rescheduleAttendees)
+                                    .filter(([, checked]) => checked)
+                                    .map(([email]) => email)
+                                    .filter((e) => e.includes("@"));
+
+                                  if (selectedEmails.length > 0 && detailRescheduleSlot) {
+                                    try {
+                                      const linkedEp = getEpisodeForGuest(selectedInterview.guestId);
+                                      const calResponse = await apiRequest("POST", "/api/calendar-event", {
+                                        date: detailRescheduleDate,
+                                        startTime: detailRescheduleSlot.start,
+                                        endTime: detailRescheduleSlot.end,
+                                        summary: `Podcast Recording: ${guest?.name || "Interview"}`,
+                                        description: `Recording session with ${guest?.name || "guest"}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
+                                        attendeeEmails: selectedEmails,
+                                        previousEventId: linkedEp?.calendarEventId || undefined,
+                                      });
+                                      const eventData = await calResponse.json();
+                                      if (eventData.id && linkedEp) {
+                                        await apiRequest("PATCH", `/api/episodes/${linkedEp.id}`, {
+                                          calendarEventId: eventData.id,
+                                        });
+                                      }
+                                      toast({ title: t.episodes.inviteSent });
+                                    } catch {
+                                      toast({ title: t.episodes.inviteFailed, variant: "destructive" });
+                                    }
+                                  }
+
+                                  queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+                                  queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+                                  queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+                                  setSelectedInterview({ ...selectedInterview, scheduledDate: detailRescheduleDate, scheduledTime: finalTime, studioDateId: newStudio.id });
+                                  setShowDetailReschedule(false);
+                                  setDetailRescheduleDate(null);
+                                  setDetailRescheduleSlot(null);
+                                  toast({ title: t.scheduling.reschedule + " ✓" });
+                                }}
+                                data-testid="button-confirm-reschedule"
+                              >
+                                <Send className="h-3.5 w-3.5 mr-1.5" />
+                                {t.scheduling.rescheduleAndInvite}
+                              </Button>
+                            </>
+                          )}
                         </div>
                       )}
                     </>
                   )}
 
-                  {!isEditing && (
+                  {!isEditing && !showDetailReschedule && (
                     <div className="flex justify-end pt-2">
                       <button
                         className="ios-pill-button ios-pill-button-secondary"
@@ -950,7 +1294,7 @@ export default function Scheduling() {
                         data-testid="button-delete-interview"
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
-                        Delete Interview
+                        {t.scheduling.deleteInterview}
                       </button>
                     </div>
                   )}

@@ -16,8 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
-import type { Guest, TeamMember, StudioDate, InterviewerUnavailability, Interview } from "@shared/schema";
+import type { Guest, TeamMember, StudioDate, InterviewerUnavailability, Interview, Episode } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { useLocation } from "wouter";
 
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
 
@@ -75,6 +76,14 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const { toast } = useToast();
   const { t } = useLanguage();
+  const [, navigate] = useLocation();
+
+  const { data: episodes } = useQuery<Episode[]>({
+    queryKey: ["/api/episodes"],
+    enabled: open,
+  });
+
+  const linkedEpisode = guest ? episodes?.find((e) => e.guestId === guest.id) : null;
 
   const { data: studioDates } = useQuery<StudioDate[]>({
     queryKey: ["/api/studio-dates"],
@@ -514,6 +523,21 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
               )}
               {guest.addedBy && (
                 <p className="text-xs text-muted-foreground">{t.guests.addedBy} {getMemberName(guest.addedBy)}</p>
+              )}
+              {linkedEpisode && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-lg text-xs"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate(`/episodes?highlight=${linkedEpisode.id}`);
+                  }}
+                  data-testid="button-go-to-episode-guest"
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  {t.scheduling.goToEpisode}: {linkedEpisode.title}
+                </Button>
               )}
               <div className="flex items-center justify-between gap-2 pt-2">
                 <Button
