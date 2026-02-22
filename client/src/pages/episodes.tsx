@@ -42,13 +42,13 @@ import {
   isAfter,
 } from "date-fns";
 
-const statuses = ["planning", "scheduled", "recording", "editing", "published", "archived"];
+const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
 const statusColors: Record<string, string> = {
-  planning: "bg-chart-4/10 text-chart-4 border-transparent",
   scheduled: "bg-primary/10 text-primary border-transparent",
+  planning: "bg-chart-4/10 text-chart-4 border-transparent",
   recording: "bg-chart-5/10 text-chart-5 border-transparent",
   editing: "bg-chart-3/10 text-chart-3 border-transparent",
-  published: "bg-chart-2/10 text-chart-2 border-transparent",
+  publishing: "bg-chart-2/10 text-chart-2 border-transparent",
   archived: "bg-muted text-muted-foreground border-transparent",
 };
 
@@ -133,11 +133,17 @@ export default function Episodes() {
   const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
     queryKey: ["/api/episodes", selectedEpisode?.id, "platform-links"],
     queryFn: () => selectedEpisode ? fetch(`/api/episodes/${selectedEpisode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
-    enabled: !!selectedEpisode && selectedEpisode.status === "published",
+    enabled: !!selectedEpisode && (selectedEpisode.status === "publishing" || selectedEpisode.status === "published"),
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+
+  useEffect(() => {
+    apiRequest("POST", "/api/episodes/auto-status", {}).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const checkHighlight = () => {
@@ -240,7 +246,7 @@ export default function Episodes() {
         episodeNumber: newEpisode.episodeNumber ? parseInt(newEpisode.episodeNumber) : null,
         scheduledDate: newEpisode.scheduledDate || null,
         scheduledTime: newEpisode.scheduledTime || null,
-        status: "planning",
+        status: "scheduled",
       });
     },
     onSuccess: () => {
@@ -990,7 +996,7 @@ export default function Episodes() {
                     <Select
                       value={selectedEpisode.status}
                       onValueChange={(val) => {
-                        if (val === "published" && !selectedEpisode.publishDate) {
+                        if (val === "publishing" && !selectedEpisode.publishDate) {
                           setPublishDateValue(format(new Date(), "yyyy-MM-dd"));
                           setPublishTimeValue("12:00");
                           setShowPublishDate(true);
@@ -1540,7 +1546,7 @@ export default function Episodes() {
 
                 <EpisodeLargeLinksSection episodeId={selectedEpisode.id} />
 
-                {selectedEpisode.status === "published" && (
+                {(selectedEpisode.status === "publishing" || selectedEpisode.status === "published") && (
                   <div className="space-y-3 mt-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold flex items-center gap-2">
@@ -1595,7 +1601,7 @@ export default function Episodes() {
                   </div>
                 )}
 
-                <div className="flex justify-end pt-2">
+                <div className="flex items-center justify-between pt-2">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1605,6 +1611,23 @@ export default function Episodes() {
                   >
                     <Trash2 className="h-3 w-3 mr-1" />
                     {t.episodes.deleteEpisode}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="rounded-full px-5"
+                    onClick={() => {
+                      toast({ title: t.episodes.saveChanges });
+                      setSelectedEpisode(null);
+                      setShowReschedule(false);
+                      setEditingGuestEmail(false);
+                      setEditingGuestPhone(false);
+                      setShowGuestDetails(false);
+                      setShowGuestPicker(false);
+                    }}
+                    data-testid="button-save-changes"
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    {t.episodes.saveChanges}
                   </Button>
                 </div>
               </div>
@@ -1704,13 +1727,27 @@ export default function Episodes() {
             <Button
               className="w-full"
               disabled={!publishDateValue}
-              onClick={() => {
+              onClick={async () => {
                 if (!selectedEpisode) return;
                 updateEpisode.mutate({
                   id: selectedEpisode.id,
-                  data: { status: "published", publishDate: publishDateValue, publishTime: publishTimeValue || null },
+                  data: { status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null },
                 });
-                setSelectedEpisode({ ...selectedEpisode, status: "published", publishDate: publishDateValue, publishTime: publishTimeValue || null });
+                try {
+                  await apiRequest("POST", "/api/publishing", {
+                    episodeId: selectedEpisode.id,
+                    platform: "all",
+                    scheduledDate: publishDateValue,
+                    scheduledTime: publishTimeValue || "12:00",
+                    status: "scheduled",
+                    title: selectedEpisode.title,
+                    description: selectedEpisode.description || null,
+                  });
+                  queryClient.invalidateQueries({ queryKey: ["/api/publishing"] });
+                } catch (e) {
+                  console.error("Failed to create publishing entry:", e);
+                }
+                setSelectedEpisode({ ...selectedEpisode, status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null });
                 setShowPublishDate(false);
               }}
               data-testid="button-confirm-publish-date"

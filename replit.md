@@ -11,7 +11,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 
 ## Core Features
 1. **Dashboard** - Overview of active episodes, guest pipeline (detailed), confirmed recently (2-week shelf), studio dates, team workload
-2. **Episodes** - Episode lifecycle management (planning → scheduled → recording → editing → published) with per-episode task assignment
+2. **Episodes** - Episode lifecycle management (scheduled → planning → recording → editing → publishing → archived) with per-episode task assignment, auto-status transitions based on dates
 3. **Team** - Team member management with role display and task tracking
 4. **Studio Calendar** - Calendar view of studio availability dates that can be added/removed/toggled (available ↔ taken)
 5. **Back Office** - Google Drive links & shared resources page for team-wide access
@@ -42,6 +42,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `POST /api/uploads/request-url` - Get presigned URL for file upload
 - `GET/POST /api/episodes/:episodeId/platform-links`, `GET /api/platform-links`, `PATCH/DELETE /api/platform-links/:id`
 - `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
+- `POST /api/episodes/auto-status` - Auto-transitions episode statuses based on dates (recording on scheduled date, editing day after, archived after publish date)
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees; supports `previousEventId` to auto-cancel old events on reschedule
 - `GET /api/search?q=query` - Cross-entity search (guests, episodes, team, interviews, studio dates)
 - `GET/POST /api/conversations`, `GET/DELETE /api/conversations/:id` - AI chat conversations

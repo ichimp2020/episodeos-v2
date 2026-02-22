@@ -304,7 +304,7 @@ export async function registerRoutes(
         const episode = await storage.createEpisode({
           title: guestNameTrimmed,
           description: `Interview with ${guestNameTrimmed}`,
-          status: "planning",
+          status: "scheduled",
           scheduledDate: guestInterview?.scheduledDate || null,
           scheduledTime: guestInterview?.scheduledTime || null,
           episodeNumber: maxEpNum + 1,
@@ -576,6 +576,37 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Google Calendar event deletion failed:", err.message);
       res.status(500).json({ message: "Failed to cancel calendar event: " + err.message });
+    }
+  });
+
+  app.post("/api/episodes/auto-status", async (_req, res) => {
+    try {
+      const allEpisodes = await storage.getEpisodes();
+      const now = new Date();
+      const today = now.toISOString().split("T")[0];
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      let updated = 0;
+
+      for (const ep of allEpisodes) {
+        if (!ep.scheduledDate) continue;
+
+        if ((ep.status === "scheduled" || ep.status === "planning") && ep.scheduledDate <= today) {
+          await storage.updateEpisode(ep.id, { status: "recording" });
+          updated++;
+        } else if (ep.status === "recording" && ep.scheduledDate < today) {
+          await storage.updateEpisode(ep.id, { status: "editing" });
+          updated++;
+        }
+
+        if (ep.status === "publishing" && ep.publishDate && ep.publishDate < today) {
+          await storage.updateEpisode(ep.id, { status: "archived" });
+          updated++;
+        }
+      }
+
+      res.json({ updated });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

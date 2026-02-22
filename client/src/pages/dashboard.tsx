@@ -15,11 +15,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const statusColors: Record<string, string> = {
-  planning: "bg-chart-4/10 text-chart-4",
   scheduled: "bg-primary/10 text-primary",
+  planning: "bg-chart-4/10 text-chart-4",
   recording: "bg-chart-5/10 text-chart-5",
   editing: "bg-chart-3/10 text-chart-3",
-  published: "bg-chart-2/10 text-chart-2",
+  publishing: "bg-chart-2/10 text-chart-2",
 };
 
 const interviewStatusColors: Record<string, string> = {
@@ -117,7 +117,7 @@ export default function Dashboard() {
 
   const isLoading = loadingEpisodes || loadingTasks || loadingMembers || loadingStudio;
 
-  const activeEpisodes = episodes?.filter((e) => e.status !== "published" && e.status !== "archived")
+  const activeEpisodes = episodes?.filter((e) => e.status !== "publishing" && e.status !== "published" && e.status !== "archived")
     .sort((a, b) => {
       if (!a.scheduledDate) return 1;
       if (!b.scheduledDate) return -1;
@@ -125,7 +125,7 @@ export default function Dashboard() {
     }) || [];
 
   const goingLiveEpisodes = episodes?.filter((e) => {
-    if (e.status !== "published" || !e.publishDate) return false;
+    if ((e.status !== "publishing" && e.status !== "published") || !e.publishDate) return false;
     const datePart = e.publishDate;
     const timePart = e.publishTime || "00:00";
     const publishDateTime = new Date(`${datePart}T${timePart}:00`);

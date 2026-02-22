@@ -19,7 +19,7 @@ export const episodes = pgTable("episodes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
   description: text("description"),
-  status: text("status").notNull().default("planning"),
+  status: text("status").notNull().default("scheduled"),
   scheduledDate: date("scheduled_date"),
   scheduledTime: text("scheduled_time"),
   episodeNumber: integer("episode_number"),
