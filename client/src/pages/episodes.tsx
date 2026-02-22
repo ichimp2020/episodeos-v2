@@ -996,9 +996,9 @@ export default function Episodes() {
                     <Select
                       value={selectedEpisode.status}
                       onValueChange={(val) => {
-                        if (val === "publishing" && !selectedEpisode.publishDate) {
-                          setPublishDateValue(format(new Date(), "yyyy-MM-dd"));
-                          setPublishTimeValue("12:00");
+                        if (val === "publishing") {
+                          setPublishDateValue(selectedEpisode.publishDate || format(new Date(), "yyyy-MM-dd"));
+                          setPublishTimeValue(selectedEpisode.publishTime || "12:00");
                           setShowPublishDate(true);
                           return;
                         }
@@ -1010,9 +1010,14 @@ export default function Episodes() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {statuses.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
+                        {statuses.map((s) => {
+                          const earlyStages = ["scheduled", "planning", "recording"];
+                          const isEarly = earlyStages.includes(selectedEpisode.status);
+                          const blocked = isEarly && (s === "publishing" || s === "archived");
+                          return (
+                            <SelectItem key={s} value={s} disabled={blocked}>{s}</SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {getEpisodeInterview(selectedEpisode)?.status === 'needs-reschedule' && (
@@ -1726,33 +1731,43 @@ export default function Episodes() {
             </div>
             <Button
               className="w-full"
-              disabled={!publishDateValue}
-              onClick={async () => {
+              disabled={!publishDateValue || updateEpisode.isPending}
+              onClick={() => {
                 if (!selectedEpisode) return;
-                updateEpisode.mutate({
-                  id: selectedEpisode.id,
-                  data: { status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null },
-                });
-                try {
-                  await apiRequest("POST", "/api/publishing", {
-                    episodeId: selectedEpisode.id,
-                    platform: "all",
-                    scheduledDate: publishDateValue,
-                    scheduledTime: publishTimeValue || "12:00",
-                    status: "scheduled",
-                    title: selectedEpisode.title,
-                    description: selectedEpisode.description || null,
-                  });
-                  queryClient.invalidateQueries({ queryKey: ["/api/publishing"] });
-                } catch (e) {
-                  console.error("Failed to create publishing entry:", e);
-                }
-                setSelectedEpisode({ ...selectedEpisode, status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null });
-                setShowPublishDate(false);
+                updateEpisode.mutate(
+                  {
+                    id: selectedEpisode.id,
+                    data: { status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null },
+                  },
+                  {
+                    onSuccess: async () => {
+                      setSelectedEpisode({ ...selectedEpisode, status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null });
+                      setShowPublishDate(false);
+                      queryClient.invalidateQueries({ queryKey: ["/api/episodes", selectedEpisode.id, "platform-links"] });
+                      try {
+                        await apiRequest("POST", "/api/publishing", {
+                          episodeId: selectedEpisode.id,
+                          platform: "all",
+                          scheduledDate: publishDateValue,
+                          scheduledTime: publishTimeValue || "12:00",
+                          status: "scheduled",
+                          title: selectedEpisode.title,
+                          description: selectedEpisode.description || null,
+                        });
+                        queryClient.invalidateQueries({ queryKey: ["/api/publishing"] });
+                      } catch (e) {
+                        console.error("Failed to create publishing entry:", e);
+                      }
+                    },
+                    onError: () => {
+                      toast({ title: "Failed to update status", variant: "destructive" });
+                    },
+                  }
+                );
               }}
               data-testid="button-confirm-publish-date"
             >
-              {t.episodes.setPublishDate}
+              {updateEpisode.isPending ? t.episodes.saving : t.episodes.setPublishDate}
             </Button>
           </div>
         </DialogContent>
