@@ -73,9 +73,20 @@ export async function migrateProductionData() {
           const columns = Object.keys(row);
           const colNames = columns.map(c => `"${c}"`).join(", ");
           const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ");
+          const arrayColumns: Record<string, string[]> = {
+            guests: ["links"],
+            tasks: ["assignee_ids"],
+          };
+          const tableArrayCols = arrayColumns[table] || [];
+
           const values = columns.map(c => {
             const v = (row as any)[c];
-            if (v !== null && typeof v === "object") return JSON.stringify(v);
+            if (v === null || v === undefined) return null;
+            if (tableArrayCols.includes(c) && Array.isArray(v)) {
+              if (v.length === 0) return "{}";
+              return `{${v.map((item: string) => `"${item.replace(/"/g, '\\"')}"`).join(",")}}`;
+            }
+            if (typeof v === "object") return JSON.stringify(v);
             return v;
           });
 
