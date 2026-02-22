@@ -15,10 +15,10 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight, Globe, Plus, ExternalLink } from "lucide-react";
+import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight, Globe, Plus, ExternalLink, AlertTriangle, UserPlus } from "lucide-react";
 import { SiYoutube, SiSpotify, SiApplemusic } from "react-icons/si";
 import { format, parseISO, isAfter } from "date-fns";
-import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability, EpisodePlatformLink } from "@shared/schema";
+import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability, EpisodePlatformLink, Guest } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
@@ -108,6 +108,11 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     enabled: open,
   });
 
+  const { data: guests } = useQuery<Guest[]>({
+    queryKey: ["/api/guests"],
+    enabled: open,
+  });
+
   const { data: unavailabilityData } = useQuery<InterviewerUnavailability[]>({
     queryKey: ["/api/interviewer-unavailability"],
     enabled: open,
@@ -116,11 +121,14 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
     queryKey: ["/api/episodes", episode?.id, "platform-links"],
     queryFn: () => episode ? fetch(`/api/episodes/${episode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
-    enabled: open && !!episode && (episode.status === "publishing" || editForm.status === "publishing"),
+    enabled: open && !!episode && (episode.status === "publishing" || episode.status === "archived" || editForm.status === "publishing" || editForm.status === "archived"),
   });
 
   const [showPlatformLink, setShowPlatformLink] = useState<string | null>(null);
   const [platformLinkUrl, setPlatformLinkUrl] = useState("");
+  const [showPublishDate, setShowPublishDate] = useState(false);
+  const [publishDateValue, setPublishDateValue] = useState("");
+  const [publishTimeValue, setPublishTimeValue] = useState("12:00");
 
   const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
 
@@ -179,6 +187,9 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
       setShowCalendar(false);
       setSelectedDate(null);
       setSelectedSlot(null);
+      setShowPublishDate(false);
+      setPublishDateValue("");
+      setPublishTimeValue("12:00");
     }
   }, [open, episode]);
 
@@ -186,6 +197,29 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   const doneTasks = episodeTasks.filter((t) => t.status === "done").length;
 
   const getMember = (id: string) => members?.find((m) => m.id === id);
+
+  const getEpisodeGuest = (ep: Episode) => {
+    if (ep.guestId) return guests?.find((g) => g.id === ep.guestId) || null;
+    if (ep.interviewId) {
+      const interview = allInterviews?.find((i) => i.id === ep.interviewId);
+      if (interview) return guests?.find((g) => g.id === interview.guestId) || null;
+    }
+    return null;
+  };
+
+  const availableStudioDateStrings = new Set(
+    studioDates?.filter((d) => d.status === "available").map((d) => d.date) || []
+  );
+  const takenStudioDateStrings = new Set(
+    studioDates?.filter((d) => d.status === "taken").map((d) => d.date) || []
+  );
+
+  const episodeNeedsReschedule = episode ? (
+    linkedInterview?.status === 'needs-reschedule' ||
+    (episode.scheduledDate && !availableStudioDateStrings.has(episode.scheduledDate) && !takenStudioDateStrings.has(episode.scheduledDate) && !["publishing", "archived"].includes(episode.status))
+  ) : false;
+
+  const episodeGuest = episode ? getEpisodeGuest(episode) : null;
 
   const handleSelectDate = (date: string) => {
     const studioDate = availableDates.find((d) => d.date === date);
@@ -262,19 +296,46 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
         }
       }
 
-      await apiRequest("PATCH", `/api/episodes/${episode.id}`, {
+      const patchData: Record<string, unknown> = {
         title: editForm.title,
         description: editForm.description || null,
         status: editForm.status,
         episodeNumber: editForm.episodeNumber ? parseInt(editForm.episodeNumber) : null,
         scheduledDate: selectedDate && isDateFullySelected ? selectedDate : (editForm.scheduledDate || null),
         scheduledTime: selectedSlot ? selectedSlot.start : (selectedDate && isDateFullySelected ? "" : editForm.scheduledTime) || null,
-      });
+      };
+
+      if (editForm.status === "publishing" && publishDateValue) {
+        patchData.publishDate = publishDateValue;
+        patchData.publishTime = publishTimeValue || null;
+      }
+
+      await apiRequest("PATCH", `/api/episodes/${episode.id}`, patchData);
+
+      if (editForm.status === "publishing" && publishDateValue) {
+        try {
+          await apiRequest("POST", "/api/publishing", {
+            episodeId: episode.id,
+            platform: "all",
+            scheduledDate: publishDateValue,
+            scheduledTime: publishTimeValue || "12:00",
+            status: "scheduled",
+            title: episode.title,
+            description: episode.description || null,
+          });
+        } catch (e) {
+          console.error("Failed to create publishing entry:", e);
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      if (editForm.status === "publishing") {
+        queryClient.invalidateQueries({ queryKey: ["/api/publishing"] });
+        if (episode) queryClient.invalidateQueries({ queryKey: ["/api/episodes", episode.id, "platform-links"] });
+      }
       onOpenChange(false);
       const msg = hasScheduleChange && selectedDate
         ? `Rescheduled to ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`
@@ -314,28 +375,103 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
         {episode && (
           <>
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="flex items-center gap-2 flex-wrap">
                 <Mic className="h-4 w-4" />
-                {t.episodes.title}
+                {episodeGuest ? (
+                  <>
+                    <UserPlus className="h-4 w-4 text-primary" />
+                    <span>{episodeGuest.name}</span>
+                    {episodeGuest.shortDescription && (
+                      <span className="text-sm font-normal text-muted-foreground">— {episodeGuest.shortDescription}</span>
+                    )}
+                  </>
+                ) : (
+                  <span>{t.episodes.title}</span>
+                )}
+                {episodeNeedsReschedule && (
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-quick-edit">
+                    <AlertTriangle className="w-3 h-3" />
+                    {t.common.rescheduleNeeded}
+                  </Badge>
+                )}
               </DialogTitle>
               <DialogDescription>Quick edit episode details</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 mt-2">
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t.episodes.status}</label>
-                <Select value={editForm.status} onValueChange={(val) => setEditForm({ ...editForm, status: val })}>
+                <Select value={editForm.status} onValueChange={(val) => {
+                  if (val === "publishing" && editForm.status !== "publishing") {
+                    setPublishDateValue(episode.publishDate || format(new Date(), "yyyy-MM-dd"));
+                    setPublishTimeValue(episode.publishTime || "12:00");
+                    setShowPublishDate(true);
+                    return;
+                  }
+                  setEditForm({ ...editForm, status: val });
+                }}>
                   <SelectTrigger data-testid="select-episode-status-quick">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {statuses.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        <Badge className={`ios-badge border-0 ${statusColors[s]}`}>{s}</Badge>
-                      </SelectItem>
-                    ))}
+                    {statuses.map((s) => {
+                      const earlyStages = ["scheduled", "planning", "recording"];
+                      const isEarly = earlyStages.includes(editForm.status);
+                      const blocked = isEarly && (s === "publishing" || s === "archived");
+                      return (
+                        <SelectItem key={s} value={s} disabled={blocked}>
+                          <Badge className={`ios-badge border-0 ${statusColors[s]}`}>{s}</Badge>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
+
+              {showPublishDate && (
+                <div className="rounded-xl border border-chart-2/30 bg-chart-2/5 p-3 space-y-3" data-testid="panel-publish-date-quick">
+                  <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                    <Globe className="h-4 w-4 text-chart-2" />
+                    {t.episodes.setPublishDate}
+                  </h4>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">{t.episodes.publishDateLabel}</label>
+                    <Input
+                      type="date"
+                      value={publishDateValue}
+                      onChange={(e) => setPublishDateValue(e.target.value)}
+                      data-testid="input-quick-publish-date"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium">{t.episodes.publishTimeLabel}</label>
+                    <Input
+                      type="time"
+                      value={publishTimeValue}
+                      onChange={(e) => setPublishTimeValue(e.target.value)}
+                      data-testid="input-quick-publish-time"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => setShowPublishDate(false)} data-testid="button-cancel-publish-date-quick">
+                      <X className="h-3 w-3 mr-1" />
+                      {t.scheduling?.cancel || "Cancel"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="text-xs rounded-full px-4"
+                      disabled={!publishDateValue}
+                      onClick={() => {
+                        setEditForm({ ...editForm, status: "publishing" });
+                        setShowPublishDate(false);
+                      }}
+                      data-testid="button-confirm-publish-date-quick"
+                    >
+                      <Check className="h-3 w-3 mr-1" />
+                      {t.episodes.setPublishDate}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">{t.episodes.episodeTitle}</label>
@@ -535,7 +671,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                 />
               </div>
 
-              {episodeTasks.length > 0 && (
+              {episodeTasks.length > 0 && editForm.status !== "archived" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">{t.episodes.tasks}</label>
@@ -578,7 +714,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                 </div>
               )}
 
-              {(episode.status === "publishing" || editForm.status === "publishing") && (
+              {(episode.status === "publishing" || episode.status === "archived" || editForm.status === "publishing" || editForm.status === "archived") && (
                 <div className="space-y-3 mt-2">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4" />

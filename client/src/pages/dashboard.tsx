@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X, Radio } from "lucide-react";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X, Radio, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
-import { format, parseISO, isAfter, subDays } from "date-fns";
+import { format, parseISO, isAfter, isBefore, subDays } from "date-fns";
 import { Link, useLocation } from "wouter";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import EpisodeEditDialog from "@/components/EpisodeEditDialog";
@@ -20,6 +20,7 @@ const statusColors: Record<string, string> = {
   recording: "bg-chart-5/10 text-chart-5",
   editing: "bg-chart-3/10 text-chart-3",
   publishing: "bg-chart-2/10 text-chart-2",
+  archived: "bg-muted text-muted-foreground",
 };
 
 const interviewStatusColors: Record<string, string> = {
@@ -117,7 +118,7 @@ export default function Dashboard() {
 
   const isLoading = loadingEpisodes || loadingTasks || loadingMembers || loadingStudio;
 
-  const activeEpisodes = episodes?.filter((e) => e.status !== "publishing" && e.status !== "published" && e.status !== "archived")
+  const activeEpisodes = episodes?.filter((e) => e.status !== "publishing" && e.status !== "archived")
     .sort((a, b) => {
       if (!a.scheduledDate) return 1;
       if (!b.scheduledDate) return -1;
@@ -125,7 +126,7 @@ export default function Dashboard() {
     }) || [];
 
   const goingLiveEpisodes = episodes?.filter((e) => {
-    if ((e.status !== "publishing" && e.status !== "published") || !e.publishDate) return false;
+    if (e.status !== "publishing" || !e.publishDate) return false;
     const datePart = e.publishDate;
     const timePart = e.publishTime || "00:00";
     const publishDateTime = new Date(`${datePart}T${timePart}:00`);
@@ -174,6 +175,40 @@ export default function Dashboard() {
 
   const getGuest = (id: string) => guests?.find((g) => g.id === id);
   const getMember = (id: string) => members?.find((m) => m.id === id);
+
+  const getEpisodeGuest = (episode: Episode) => {
+    if (episode.guestId) return guests?.find((g) => g.id === episode.guestId) || null;
+    if (episode.interviewId) {
+      const interview = allInterviews?.find((i) => i.id === episode.interviewId);
+      if (interview) return guests?.find((g) => g.id === interview.guestId) || null;
+    }
+    return null;
+  };
+
+  const allStudioDateStrings = useMemo(() => {
+    if (!studioDates) return new Set<string>();
+    return new Set(studioDates.map((d) => d.date));
+  }, [studioDates]);
+
+  const getEpisodeInterview = (episode: Episode) => {
+    if (episode.interviewId) return allInterviews?.find((i) => i.id === episode.interviewId) || null;
+    if (episode.guestId) return allInterviews?.find((i) => i.guestId === episode.guestId) || null;
+    return null;
+  };
+
+  const episodeNeedsReschedule = (episode: Episode) => {
+    if (["publishing", "archived"].includes(episode.status)) return false;
+    const interview = getEpisodeInterview(episode);
+    if (interview?.status === "needs-reschedule") return true;
+    if (episode.scheduledDate && !allStudioDateStrings.has(episode.scheduledDate)) return true;
+    return false;
+  };
+
+  const isEpisodePastDate = (episode: Episode) => {
+    if (!episode.scheduledDate) return false;
+    if (["publishing", "archived"].includes(episode.status)) return false;
+    return isBefore(parseISO(episode.scheduledDate), new Date());
+  };
 
   if (isLoading) {
     return (
@@ -238,7 +273,7 @@ export default function Dashboard() {
           </div>
           <div className="px-4 pb-4 space-y-2">
             {goingLiveEpisodes.map((ep) => {
-              const guest = guests?.find((g) => g.id === ep.guestId);
+              const guest = getEpisodeGuest(ep);
               const publishDate = ep.publishDate ? parseISO(ep.publishDate) : null;
               const hoursUntil = publishDate ? Math.max(0, Math.round((publishDate.getTime() - Date.now()) / (1000 * 60 * 60))) : null;
               return (
@@ -293,7 +328,9 @@ export default function Dashboard() {
               activeEpisodes.slice(0, 5).map((episode) => {
                 const episodeTasks = tasks?.filter((t) => t.episodeId === episode.id) || [];
                 const doneTasks = episodeTasks.filter((t) => t.status === "done").length;
-                const guest = guests?.find(g => g.id === episode.guestId);
+                const guest = getEpisodeGuest(episode);
+                const needsReschedule = episodeNeedsReschedule(episode);
+                const pastDate = isEpisodePastDate(episode);
                 return (
                   <div
                     key={episode.id}
@@ -307,10 +344,17 @@ export default function Dashboard() {
                           <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                         )}
                         <p className="text-sm font-semibold truncate">{guest?.name || episode.title}</p>
+                        {needsReschedule && (
+                          <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-dash-${episode.id}`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            {t.common.rescheduleNeeded}
+                          </Badge>
+                        )}
                       </div>
                       {episode.scheduledDate && (
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className={`text-xs mt-1 ${pastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                           {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
+                          {pastDate && " (past)"}
                         </p>
                       )}
                     </div>

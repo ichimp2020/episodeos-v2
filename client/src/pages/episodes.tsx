@@ -133,7 +133,7 @@ export default function Episodes() {
   const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
     queryKey: ["/api/episodes", selectedEpisode?.id, "platform-links"],
     queryFn: () => selectedEpisode ? fetch(`/api/episodes/${selectedEpisode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
-    enabled: !!selectedEpisode && selectedEpisode.status === "publishing",
+    enabled: !!selectedEpisode && (selectedEpisode.status === "publishing" || selectedEpisode.status === "archived"),
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
@@ -682,7 +682,7 @@ export default function Episodes() {
                       )}
                       {eTasks.length > 0 && (
                         <div className="flex -space-x-1.5">
-                          {[...new Set(eTasks.flatMap((t) => t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])))].slice(0, 4).map((id) => {
+                          {Array.from(new Set(eTasks.flatMap((t) => t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])))).slice(0, 4).map((id) => {
                             const m = getMember(id!);
                             if (!m) return null;
                             return (
@@ -713,6 +713,56 @@ export default function Episodes() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {episodes && episodes.filter((e) => e.status === "archived").length > 0 && (
+        <div className="space-y-3 mt-6">
+          <h2 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+            <Archive className="h-4 w-4" />
+            {t.episodes.archived || "Archived"}
+          </h2>
+          {episodes.filter((e) => e.status === "archived").map((episode) => (
+            <div
+              key={episode.id}
+              className="ios-card cursor-pointer p-4 px-5 group relative opacity-70"
+              onClick={() => setSelectedEpisode(episode)}
+              data-testid={`card-archived-episode-${episode.id}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {episode.episodeNumber && (
+                      <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
+                    )}
+                    <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
+                    <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
+                      {episode.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 mt-2 flex-wrap">
+                    {episode.scheduledDate && (
+                      <span className="text-xs text-muted-foreground">
+                        {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                    data-testid={`button-delete-archived-${episode.id}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -1035,12 +1085,16 @@ export default function Episodes() {
                         })}
                       </SelectContent>
                     </Select>
-                    {getEpisodeInterview(selectedEpisode)?.status === 'needs-reschedule' && (
-                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-detail">
-                        <AlertTriangle className="w-3 h-3" />
-                        {t.common.rescheduleNeeded}
-                      </Badge>
-                    )}
+                    {(() => {
+                      const detailDateNoLongerAvailable = selectedEpisode.scheduledDate && !availableStudioDates.has(selectedEpisode.scheduledDate) && !takenStudioDates.has(selectedEpisode.scheduledDate);
+                      const detailNeedsReschedule = getEpisodeInterview(selectedEpisode)?.status === 'needs-reschedule' || (detailDateNoLongerAvailable && !["publishing", "archived"].includes(selectedEpisode.status));
+                      return detailNeedsReschedule ? (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-detail">
+                          <AlertTriangle className="w-3 h-3" />
+                          {t.common.rescheduleNeeded}
+                        </Badge>
+                      ) : null;
+                    })()}
                   </div>
                   {selectedEpisode.scheduledDate && !showReschedule ? (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -1373,6 +1427,7 @@ export default function Episodes() {
                   );
                 })()}
 
+                {selectedEpisode.status !== "archived" && (
                 <div>
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <h3 className="text-sm font-medium">{t.episodes.tasks}</h3>
@@ -1560,6 +1615,7 @@ export default function Episodes() {
                     </div>
                   )}
                 </div>
+                )}
 
                 <EpisodeFilesSection episodeId={selectedEpisode.id} />
 
@@ -1567,7 +1623,7 @@ export default function Episodes() {
 
                 <EpisodeLargeLinksSection episodeId={selectedEpisode.id} />
 
-                {selectedEpisode.status === "publishing" && (
+                {(selectedEpisode.status === "publishing" || selectedEpisode.status === "archived") && (
                   <div className="space-y-3 mt-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold flex items-center gap-2">
