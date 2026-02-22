@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Upload, Trash2, CheckCircle, Clock, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Upload, Trash2, CheckCircle, Clock, ExternalLink, Pencil, Check, X, Globe } from "lucide-react";
 import { SiSpotify, SiYoutube, SiApplemusic } from "react-icons/si";
-import type { Publishing, Episode } from "@shared/schema";
+import type { Publishing, Episode, EpisodePlatformLink } from "@shared/schema";
 import { format, parseISO } from "date-fns";
 
 const platforms = [
@@ -38,6 +38,8 @@ export default function Publish() {
   const [showNewPublish, setShowNewPublish] = useState(false);
   const [editingPublish, setEditingPublish] = useState<Publishing | null>(null);
   const [editPubValues, setEditPubValues] = useState({ title: "", description: "", scheduledDate: "", scheduledTime: "", externalUrl: "", status: "" });
+  const [addingPlatformLink, setAddingPlatformLink] = useState<{ episodeId: string; platform: string } | null>(null);
+  const [platformLinkUrl, setPlatformLinkUrl] = useState("");
   const [newPublish, setNewPublish] = useState({
     episodeId: "", platform: "", scheduledDate: "", scheduledTime: "12:00", title: "", description: "",
   });
@@ -48,6 +50,9 @@ export default function Publish() {
   });
   const { data: episodes } = useQuery<Episode[]>({
     queryKey: ["/api/episodes"],
+  });
+  const { data: allPlatformLinks } = useQuery<EpisodePlatformLink[]>({
+    queryKey: ["/api/platform-links"],
   });
 
   const createPublishing = useMutation({
@@ -234,6 +239,80 @@ export default function Publish() {
                             </Button>
                           </div>
                         </div>
+                        {pub.episodeId && (() => {
+                          const epLinks = allPlatformLinks?.filter((l) => l.episodeId === pub.episodeId) || [];
+                          return (
+                            <div className="mt-3 pt-3 border-t flex flex-wrap gap-2 items-center">
+                              <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                              {(["youtube", "spotify", "apple-music"] as const).map((plat) => {
+                                const existing = epLinks.find((l) => l.platform === plat);
+                                const Icon = plat === "youtube" ? SiYoutube : plat === "spotify" ? SiSpotify : SiApplemusic;
+                                const label = plat === "youtube" ? "YouTube" : plat === "spotify" ? "Spotify" : "Apple Music";
+                                const colors = plat === "youtube" ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" : plat === "spotify" ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30" : "text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30";
+                                return existing ? (
+                                  <a
+                                    key={plat}
+                                    href={existing.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${colors} transition-colors`}
+                                    data-testid={`link-pub-platform-${plat}-${pub.id}`}
+                                  >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    {label}
+                                    <ExternalLink className="w-3 h-3 opacity-50" />
+                                  </a>
+                                ) : addingPlatformLink?.episodeId === pub.episodeId && addingPlatformLink?.platform === plat ? (
+                                  <div key={plat} className="flex items-center gap-1.5">
+                                    <Input
+                                      placeholder={`${label} URL`}
+                                      value={platformLinkUrl}
+                                      onChange={(e) => setPlatformLinkUrl(e.target.value)}
+                                      className="h-7 text-xs w-48"
+                                      autoFocus
+                                      data-testid={`input-pub-platform-url-${plat}-${pub.id}`}
+                                    />
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-7 w-7"
+                                      disabled={!platformLinkUrl}
+                                      onClick={async () => {
+                                        try {
+                                          await apiRequest("POST", `/api/episodes/${pub.episodeId}/platform-links`, { platform: plat, url: platformLinkUrl });
+                                          queryClient.invalidateQueries({ queryKey: ["/api/platform-links"] });
+                                          queryClient.invalidateQueries({ queryKey: ["/api/episodes", pub.episodeId, "platform-links"] });
+                                          setAddingPlatformLink(null);
+                                          setPlatformLinkUrl("");
+                                          toast({ title: `${label} link added` });
+                                        } catch { toast({ title: "Failed to add link", variant: "destructive" }); }
+                                      }}
+                                      data-testid={`button-save-pub-platform-${plat}-${pub.id}`}
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </Button>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setAddingPlatformLink(null); setPlatformLinkUrl(""); }}>
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    key={plat}
+                                    variant="outline"
+                                    size="sm"
+                                    className={`gap-1.5 rounded-full text-xs ${colors}`}
+                                    onClick={() => { setAddingPlatformLink({ episodeId: pub.episodeId, platform: plat }); setPlatformLinkUrl(""); }}
+                                    data-testid={`button-add-pub-platform-${plat}-${pub.id}`}
+                                  >
+                                    <Icon className="w-3.5 h-3.5" />
+                                    <Plus className="w-3 h-3" />
+                                    {label}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                     </div>
                   );
                 })}
@@ -346,6 +425,85 @@ export default function Publish() {
                     data-testid="input-edit-pub-url"
                   />
                 </div>
+                {editingPublish.episodeId && (() => {
+                  const epLinks = allPlatformLinks?.filter((l) => l.episodeId === editingPublish.episodeId) || [];
+                  return (
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        Platform Links
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {(["youtube", "spotify", "apple-music"] as const).map((plat) => {
+                          const existing = epLinks.find((l) => l.platform === plat);
+                          const Icon = plat === "youtube" ? SiYoutube : plat === "spotify" ? SiSpotify : SiApplemusic;
+                          const label = plat === "youtube" ? "YouTube" : plat === "spotify" ? "Spotify" : "Apple Music";
+                          const colors = plat === "youtube" ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" : plat === "spotify" ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30" : "text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30";
+                          return existing ? (
+                            <a
+                              key={plat}
+                              href={existing.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${colors} transition-colors`}
+                              data-testid={`link-edit-platform-${plat}`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              {label}
+                              <ExternalLink className="w-3 h-3 opacity-50" />
+                            </a>
+                          ) : addingPlatformLink?.episodeId === editingPublish.episodeId && addingPlatformLink?.platform === plat ? (
+                            <div key={plat} className="flex items-center gap-1.5">
+                              <Input
+                                placeholder={`${label} URL`}
+                                value={platformLinkUrl}
+                                onChange={(e) => setPlatformLinkUrl(e.target.value)}
+                                className="h-7 text-xs w-40"
+                                autoFocus
+                                data-testid={`input-edit-platform-url-${plat}`}
+                              />
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                disabled={!platformLinkUrl}
+                                onClick={async () => {
+                                  try {
+                                    await apiRequest("POST", `/api/episodes/${editingPublish.episodeId}/platform-links`, { platform: plat, url: platformLinkUrl });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/platform-links"] });
+                                    queryClient.invalidateQueries({ queryKey: ["/api/episodes", editingPublish.episodeId, "platform-links"] });
+                                    setAddingPlatformLink(null);
+                                    setPlatformLinkUrl("");
+                                    toast({ title: `${label} link added` });
+                                  } catch { toast({ title: "Failed to add link", variant: "destructive" }); }
+                                }}
+                                data-testid={`button-save-edit-platform-${plat}`}
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setAddingPlatformLink(null); setPlatformLinkUrl(""); }}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              key={plat}
+                              variant="outline"
+                              size="sm"
+                              className={`gap-1.5 rounded-full text-xs ${colors}`}
+                              onClick={() => { setAddingPlatformLink({ episodeId: editingPublish.episodeId, platform: plat }); setPlatformLinkUrl(""); }}
+                              data-testid={`button-add-edit-platform-${plat}`}
+                            >
+                              <Icon className="w-3.5 h-3.5" />
+                              <Plus className="w-3 h-3" />
+                              {label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <Button
                   className="w-full rounded-full px-5 shadow-md"
                   onClick={() => {

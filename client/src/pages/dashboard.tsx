@@ -351,12 +351,11 @@ export default function Dashboard() {
                           </Badge>
                         )}
                       </div>
-                      {episode.scheduledDate && (
-                        <p className={`text-xs mt-1 ${pastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                          {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
-                          {pastDate && " (past)"}
-                        </p>
-                      )}
+                      <p className={`text-xs mt-1 ${!episode.scheduledDate ? "text-muted-foreground/50 italic" : pastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        {episode.scheduledDate
+                          ? <>{format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}{pastDate && " (past)"}</>
+                          : t.dashboard.noDateSet}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
                       {episodeTasks.length > 0 && (
