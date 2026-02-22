@@ -60,7 +60,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV === "production") {
+    const { migrateProductionData } = await import("./migrate-prod");
+    await migrateProductionData();
+  } else {
     const { seedDatabase } = await import("./seed");
     await seedDatabase();
   }
