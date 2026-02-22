@@ -15,9 +15,10 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight } from "lucide-react";
+import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight, Globe, Plus, ExternalLink } from "lucide-react";
+import { SiYoutube, SiSpotify, SiApplemusic } from "react-icons/si";
 import { format, parseISO, isAfter } from "date-fns";
-import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability } from "@shared/schema";
+import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability, EpisodePlatformLink } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
@@ -111,6 +112,15 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     queryKey: ["/api/interviewer-unavailability"],
     enabled: open,
   });
+
+  const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
+    queryKey: ["/api/episodes", episode?.id, "platform-links"],
+    queryFn: () => episode ? fetch(`/api/episodes/${episode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
+    enabled: open && !!episode && (episode.status === "publishing" || editForm.status === "publishing"),
+  });
+
+  const [showPlatformLink, setShowPlatformLink] = useState<string | null>(null);
+  const [platformLinkUrl, setPlatformLinkUrl] = useState("");
 
   const interviewerMembers = members?.filter((m) => m.role?.toLowerCase() === "interviewer") || [];
 
@@ -562,6 +572,88 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                             })}
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {(episode.status === "publishing" || editForm.status === "publishing") && (
+                <div className="space-y-3 mt-2">
+                  <div className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    <h4 className="text-sm font-semibold">{t.episodes.platformLinks}</h4>
+                  </div>
+                  {episode.publishDate && (
+                    <div className="text-xs text-muted-foreground">
+                      {t.episodes.publishDateLabel}: {format(parseISO(episode.publishDate), "MMM d, yyyy")}
+                      {episode.publishTime && ` · ${episode.publishTime}`}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {(["youtube", "spotify", "apple-music"] as const).map((platform) => {
+                      const existing = platformLinks?.find((l) => l.platform === platform);
+                      const Icon = platform === "youtube" ? SiYoutube : platform === "spotify" ? SiSpotify : SiApplemusic;
+                      const label = platform === "youtube" ? t.episodes.youtube : platform === "spotify" ? t.episodes.spotify : t.episodes.appleMusic;
+                      const colors = platform === "youtube" ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" : platform === "spotify" ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30" : "text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30";
+                      return existing ? (
+                        <a
+                          key={platform}
+                          href={existing.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${colors} transition-colors`}
+                          data-testid={`link-platform-${platform}-quick`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {label}
+                          <ExternalLink className="w-3 h-3 opacity-50" />
+                        </a>
+                      ) : showPlatformLink === platform ? (
+                        <div key={platform} className="flex items-center gap-1.5">
+                          <Input
+                            placeholder={`${label} URL`}
+                            value={platformLinkUrl}
+                            onChange={(e) => setPlatformLinkUrl(e.target.value)}
+                            className="h-7 text-xs w-48"
+                            autoFocus
+                            data-testid={`input-platform-url-${platform}-quick`}
+                          />
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            disabled={!platformLinkUrl}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await apiRequest("POST", `/api/episodes/${episode.id}/platform-links`, { platform, url: platformLinkUrl });
+                                queryClient.invalidateQueries({ queryKey: ["/api/episodes", episode.id, "platform-links"] });
+                                setShowPlatformLink(null);
+                                setPlatformLinkUrl("");
+                              } catch { toast({ title: "Failed to add link", variant: "destructive" }); }
+                            }}
+                            data-testid={`button-save-platform-${platform}-quick`}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setShowPlatformLink(null); setPlatformLinkUrl(""); }}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          key={platform}
+                          variant="outline"
+                          size="sm"
+                          className={`gap-1.5 rounded-full text-xs ${colors}`}
+                          onClick={() => { setShowPlatformLink(platform); setPlatformLinkUrl(""); }}
+                          data-testid={`button-add-platform-${platform}-quick`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <Plus className="w-3 h-3" />
+                          {label}
+                        </Button>
                       );
                     })}
                   </div>

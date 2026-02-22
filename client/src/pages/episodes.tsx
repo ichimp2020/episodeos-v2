@@ -133,7 +133,7 @@ export default function Episodes() {
   const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
     queryKey: ["/api/episodes", selectedEpisode?.id, "platform-links"],
     queryFn: () => selectedEpisode ? fetch(`/api/episodes/${selectedEpisode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
-    enabled: !!selectedEpisode && (selectedEpisode.status === "publishing" || selectedEpisode.status === "published"),
+    enabled: !!selectedEpisode && selectedEpisode.status === "publishing",
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
@@ -633,10 +633,13 @@ export default function Episodes() {
           }).map((episode) => {
             const eTasks = episodeTasks(episode.id);
             const done = eTasks.filter((t) => t.status === "done").length;
+            const isPastDate = episode.scheduledDate && isBefore(parseISO(episode.scheduledDate), new Date()) && !["publishing", "archived"].includes(episode.status);
+            const dateNoLongerAvailable = episode.scheduledDate && !availableStudioDates.has(episode.scheduledDate) && !takenStudioDates.has(episode.scheduledDate);
+            const needsReschedule = getEpisodeInterview(episode)?.status === 'needs-reschedule' || (isPastDate && dateNoLongerAvailable);
             return (
               <div
                 key={episode.id}
-                className="ios-card cursor-pointer p-4 px-5"
+                className="ios-card cursor-pointer p-4 px-5 group relative"
                 onClick={() => setSelectedEpisode(episode)}
                 data-testid={`card-episode-${episode.id}`}
               >
@@ -650,7 +653,7 @@ export default function Episodes() {
                       <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
                         {episode.status}
                       </Badge>
-                      {getEpisodeInterview(episode)?.status === 'needs-reschedule' && (
+                      {needsReschedule && (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-episode-${episode.id}`}>
                           <AlertTriangle className="w-3 h-3" />
                           {t.common.rescheduleNeeded}
@@ -659,8 +662,9 @@ export default function Episodes() {
                     </div>
                     <div className="flex items-center gap-4 mt-2 flex-wrap">
                       {episode.scheduledDate && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className={`text-xs ${isPastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                           {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
+                          {isPastDate && " (past)"}
                         </span>
                       )}
                       {eTasks.length > 0 && (
@@ -693,7 +697,18 @@ export default function Episodes() {
                       )}
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                      data-testid={`button-delete-episode-${episode.id}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                  </div>
                 </div>
               </div>
             );
@@ -1028,13 +1043,14 @@ export default function Episodes() {
                     )}
                   </div>
                   {selectedEpisode.scheduledDate && !showReschedule ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-sm flex items-center gap-1.5 ${isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                         <CalendarIcon className="h-3.5 w-3.5" />
                         {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
+                        {isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) && " (past)"}
                       </span>
                       <button
-                        className="text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1 cursor-pointer font-medium"
+                        className={`text-xs ${isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) ? "text-amber-600 font-semibold" : "text-primary"} hover:opacity-80 transition-colors flex items-center gap-1 cursor-pointer font-medium`}
                         onClick={() => {
                           setShowReschedule(true);
                           setRescheduleDate(null);
@@ -1042,7 +1058,7 @@ export default function Episodes() {
                         }}
                         data-testid="button-reschedule-inline"
                       >
-                        <Pencil className="h-3 w-3" />
+                        {isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) ? <AlertTriangle className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
                         {t.episodes.reschedule}
                       </button>
                     </div>
@@ -1551,7 +1567,7 @@ export default function Episodes() {
 
                 <EpisodeLargeLinksSection episodeId={selectedEpisode.id} />
 
-                {(selectedEpisode.status === "publishing" || selectedEpisode.status === "published") && (
+                {selectedEpisode.status === "publishing" && (
                   <div className="space-y-3 mt-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold flex items-center gap-2">
