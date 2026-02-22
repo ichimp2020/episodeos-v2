@@ -11,11 +11,12 @@ import {
   type EpisodeFile, type InsertEpisodeFile,
   type EpisodeShort, type InsertEpisodeShort,
   type EpisodeLargeLink, type InsertEpisodeLargeLink,
+  type EpisodePlatformLink, type InsertEpisodePlatformLink,
   type InterviewerUnavailability, type InsertInterviewerUnavailability,
   type SharedLink, type InsertSharedLink,
   teamMembers, episodes, tasks, studioDates,
   guests, interviews, interviewParticipants, publishing, reminders,
-  episodeFiles, episodeShorts, episodeLargeLinks, interviewerUnavailability, sharedLinks,
+  episodeFiles, episodeShorts, episodeLargeLinks, episodePlatformLinks, interviewerUnavailability, sharedLinks,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, lte, and } from "drizzle-orm";
@@ -90,6 +91,12 @@ export interface IStorage {
   createInterviewerUnavailability(entry: InsertInterviewerUnavailability): Promise<InterviewerUnavailability>;
   deleteInterviewerUnavailability(id: string): Promise<void>;
   deleteInterviewerUnavailabilityByMemberAndDate(teamMemberId: string, unavailableDate: string, slotLabel?: string | null): Promise<void>;
+
+  getEpisodePlatformLinks(episodeId: string): Promise<EpisodePlatformLink[]>;
+  getAllEpisodePlatformLinks(): Promise<EpisodePlatformLink[]>;
+  createEpisodePlatformLink(link: InsertEpisodePlatformLink): Promise<EpisodePlatformLink>;
+  updateEpisodePlatformLink(id: string, data: Partial<InsertEpisodePlatformLink>): Promise<EpisodePlatformLink | undefined>;
+  deleteEpisodePlatformLink(id: string): Promise<void>;
 
   getSharedLinks(): Promise<SharedLink[]>;
   createSharedLink(link: InsertSharedLink): Promise<SharedLink>;
@@ -373,6 +380,28 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
+  }
+
+  async getEpisodePlatformLinks(episodeId: string): Promise<EpisodePlatformLink[]> {
+    return db.select().from(episodePlatformLinks).where(eq(episodePlatformLinks.episodeId, episodeId));
+  }
+
+  async getAllEpisodePlatformLinks(): Promise<EpisodePlatformLink[]> {
+    return db.select().from(episodePlatformLinks);
+  }
+
+  async createEpisodePlatformLink(link: InsertEpisodePlatformLink): Promise<EpisodePlatformLink> {
+    const [created] = await db.insert(episodePlatformLinks).values(link).returning();
+    return created;
+  }
+
+  async updateEpisodePlatformLink(id: string, data: Partial<InsertEpisodePlatformLink>): Promise<EpisodePlatformLink | undefined> {
+    const [updated] = await db.update(episodePlatformLinks).set(data).where(eq(episodePlatformLinks.id, id)).returning();
+    return updated;
+  }
+
+  async deleteEpisodePlatformLink(id: string): Promise<void> {
+    await db.delete(episodePlatformLinks).where(eq(episodePlatformLinks.id, id));
   }
 
   async getSharedLinks(): Promise<SharedLink[]> {

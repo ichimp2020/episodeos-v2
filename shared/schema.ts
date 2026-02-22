@@ -29,6 +29,16 @@ export const episodes = pgTable("episodes", {
   timestampsJson: text("timestamps_json"),
   aiStatus: text("ai_status"),
   calendarEventId: text("calendar_event_id"),
+  publishDate: date("publish_date"),
+  publishTime: text("publish_time"),
+});
+
+export const episodePlatformLinks = pgTable("episode_platform_links", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  episodeId: varchar("episode_id").notNull(),
+  platform: text("platform").notNull(),
+  url: text("url").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const tasks = pgTable("tasks", {
@@ -181,6 +191,7 @@ export const insertReminderSchema = createInsertSchema(reminders).omit({ id: tru
 export const insertEpisodeFileSchema = createInsertSchema(episodeFiles).omit({ id: true, uploadedAt: true });
 export const insertEpisodeShortSchema = createInsertSchema(episodeShorts).omit({ id: true, createdAt: true });
 export const insertEpisodeLargeLinkSchema = createInsertSchema(episodeLargeLinks).omit({ id: true, createdAt: true });
+export const insertEpisodePlatformLinkSchema = createInsertSchema(episodePlatformLinks).omit({ id: true, createdAt: true });
 export const insertInterviewerUnavailabilitySchema = createInsertSchema(interviewerUnavailability).omit({ id: true });
 export const insertSharedLinkSchema = createInsertSchema(sharedLinks).omit({ id: true, createdAt: true });
 
@@ -210,6 +221,8 @@ export type InsertEpisodeLargeLink = z.infer<typeof insertEpisodeLargeLinkSchema
 export type EpisodeLargeLink = typeof episodeLargeLinks.$inferSelect;
 export type InsertInterviewerUnavailability = z.infer<typeof insertInterviewerUnavailabilitySchema>;
 export type InterviewerUnavailability = typeof interviewerUnavailability.$inferSelect;
+export type InsertEpisodePlatformLink = z.infer<typeof insertEpisodePlatformLinkSchema>;
+export type EpisodePlatformLink = typeof episodePlatformLinks.$inferSelect;
 export type InsertSharedLink = z.infer<typeof insertSharedLinkSchema>;
 export type SharedLink = typeof sharedLinks.$inferSelect;
 export type Conversation = typeof conversations.$inferSelect;

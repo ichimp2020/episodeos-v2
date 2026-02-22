@@ -5,7 +5,7 @@ import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
-  insertEpisodeFileSchema, insertEpisodeShortSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
+  insertEpisodeFileSchema, insertEpisodeShortSchema, insertEpisodePlatformLinkSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import { createCalendarEvent, deleteCalendarEvent } from "./google-calendar";
@@ -666,6 +666,37 @@ export async function registerRoutes(
 
   app.delete("/api/shared-links/:id", async (req, res) => {
     await storage.deleteSharedLink(req.params.id);
+    res.status(204).send();
+  });
+
+  app.get("/api/episodes/:episodeId/platform-links", async (req, res) => {
+    const links = await storage.getEpisodePlatformLinks(req.params.episodeId);
+    res.json(links);
+  });
+
+  app.get("/api/platform-links", async (_req, res) => {
+    const links = await storage.getAllEpisodePlatformLinks();
+    res.json(links);
+  });
+
+  app.post("/api/episodes/:episodeId/platform-links", async (req, res) => {
+    const parsed = insertEpisodePlatformLinkSchema.safeParse({ ...req.body, episodeId: req.params.episodeId });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const link = await storage.createEpisodePlatformLink(parsed.data);
+    res.status(201).json(link);
+  });
+
+  app.patch("/api/platform-links/:id", async (req, res) => {
+    const data: any = {};
+    if (req.body.url !== undefined) data.url = req.body.url;
+    if (req.body.platform !== undefined) data.platform = req.body.platform;
+    const updated = await storage.updateEpisodePlatformLink(req.params.id, data);
+    if (!updated) return res.status(404).json({ message: "Link not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/platform-links/:id", async (req, res) => {
+    await storage.deleteEpisodePlatformLink(req.params.id);
     res.status(204).send();
   });
 
