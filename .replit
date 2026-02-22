@@ -46,3 +46,4 @@ integrations = ["javascript_openai_ai_integrations:2.0.0", "google-calendar:1.0.
 [userenv.shared]
 PODCAST_NAME = "Voice Of Nova"
 STUDIO_EMAIL = "studio@example.com"
+CALENDAR_EMAILS_ENABLED = "false"

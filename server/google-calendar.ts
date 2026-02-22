@@ -53,7 +53,15 @@ interface CalendarEventParams {
   attendeeEmails: string[];
 }
 
+function isCalendarEnabled() {
+  return process.env.CALENDAR_EMAILS_ENABLED === 'true';
+}
+
 export async function createCalendarEvent(params: CalendarEventParams) {
+  if (!isCalendarEnabled()) {
+    console.log('[Calendar] Emails disabled — skipping event creation:', params.summary);
+    return { id: `dev-mock-${Date.now()}`, status: 'skipped' };
+  }
   const calendar = await getUncachableGoogleCalendarClient();
 
   const startDateTime = `${params.date}T${params.startTime}:00`;
@@ -90,6 +98,10 @@ export async function createCalendarEvent(params: CalendarEventParams) {
 }
 
 export async function deleteCalendarEvent(eventId: string) {
+  if (!isCalendarEnabled()) {
+    console.log('[Calendar] Emails disabled — skipping event deletion:', eventId);
+    return;
+  }
   const calendar = await getUncachableGoogleCalendarClient();
   await calendar.events.delete({
     calendarId: 'primary',
@@ -99,6 +111,10 @@ export async function deleteCalendarEvent(eventId: string) {
 }
 
 export async function updateCalendarEvent(eventId: string, params: CalendarEventParams) {
+  if (!isCalendarEnabled()) {
+    console.log('[Calendar] Emails disabled — skipping event update:', eventId, params.summary);
+    return { id: eventId, status: 'skipped' };
+  }
   const calendar = await getUncachableGoogleCalendarClient();
 
   const startDateTime = `${params.date}T${params.startTime}:00`;
