@@ -101,6 +101,7 @@ const en = {
     saveChanges: "Save Changes",
     saving: "Saving...",
     reschedule: "Reschedule",
+    rescheduleNeeded: "Reschedule Needed",
     currentSchedule: "Current Schedule",
     pickNewDate: "Pick a new studio date",
     selectHourSlot: "Select an hour slot",
@@ -185,6 +186,7 @@ const en = {
     status: "Status",
     checkStudioAvailability: "Check Studio Availability",
     interviewBooked: "Interview Booked",
+    rescheduleNeeded: "Reschedule Needed",
     changeDate: "Change date",
     studioAvailability: "Studio Availability",
     noAvailableDates: "No available studio dates",
@@ -244,6 +246,7 @@ const en = {
     markCancelled: "Cancel Interview",
     locationPlaceholder: "Main Studio",
     reschedule: "Reschedule",
+    rescheduleNeeded: "Reschedule Needed",
     rescheduleAndInvite: "Reschedule & Send Invite",
     sendInvite: "Send Calendar Invite",
     confirmAndInvite: "Confirm & Send Invite",
@@ -398,6 +401,7 @@ const en = {
     noData: "No data",
     viewAll: "View all",
     at: "at",
+    rescheduleNeeded: "Reschedule Needed",
   },
 };
 

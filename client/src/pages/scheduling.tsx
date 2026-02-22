@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, Pencil, UserPlus, Phone, Calendar, Check, Mail, ExternalLink, Send, RefreshCw } from "lucide-react";
+import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, AlertTriangle, Pencil, UserPlus, Phone, Calendar, Check, Mail, ExternalLink, Send, RefreshCw } from "lucide-react";
 import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, InterviewerUnavailability, Episode } from "@shared/schema";
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -64,6 +64,7 @@ const statusColors: Record<string, string> = {
   confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
   completed: "bg-primary/10 text-primary border-transparent",
   cancelled: "bg-destructive/10 text-destructive border-transparent",
+  "needs-reschedule": "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-transparent",
 };
 
 export default function Scheduling() {
@@ -316,8 +317,10 @@ export default function Scheduling() {
     );
   }
 
-  const upcomingInterviews = allInterviews?.filter((i) => i.status === "proposed" || i.status === "confirmed")
+  const upcomingInterviews = allInterviews?.filter((i) => i.status === "proposed" || i.status === "confirmed" || i.status === "needs-reschedule")
     .sort((a, b) => {
+      if (a.status === "needs-reschedule" && b.status !== "needs-reschedule") return -1;
+      if (a.status !== "needs-reschedule" && b.status === "needs-reschedule") return 1;
       if (!a.scheduledDate) return 1;
       if (!b.scheduledDate) return -1;
       return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
@@ -402,6 +405,9 @@ export default function Scheduling() {
                           )}
                           {interview.status === "confirmed" && (
                             <CheckCircle className="h-4 w-4 text-chart-2 shrink-0" />
+                          )}
+                          {interview.status === "needs-reschedule" && (
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                           )}
                         </div>
                       </div>

@@ -27,6 +27,7 @@ const interviewStatusColors: Record<string, string> = {
   confirmed: "bg-chart-2/10 text-chart-2",
   completed: "bg-primary/10 text-primary",
   cancelled: "bg-destructive/10 text-destructive",
+  "needs-reschedule": "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
 };
 
 const guestStatusColors: Record<string, string> = {

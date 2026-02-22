@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock, Send } from "lucide-react";
+import { Plus, Pencil, Phone, Mail, ExternalLink, Trash2, X, Calendar, Check, Clock, Send, AlertTriangle } from "lucide-react";
 import { format, parseISO, isAfter } from "date-fns";
 import type { Guest, TeamMember, StudioDate, InterviewerUnavailability, Interview, Episode } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -348,7 +348,15 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
                 </Select>
               </div>
 
-              {!showCalendar && existingInterview?.scheduledDate ? (
+              {existingInterview?.status === 'needs-reschedule' && (
+                <div className="rounded-xl border border-amber-400/40 bg-amber-50 dark:bg-amber-950/20 p-3 flex items-center gap-2" data-testid="panel-needs-reschedule">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span className="text-sm font-medium text-amber-700 dark:text-amber-400">{t.common.rescheduleNeeded}</span>
+                  <span className="text-xs text-amber-600/80 dark:text-amber-500/80">— {t.scheduling.reschedule}</span>
+                </div>
+              )}
+
+              {!showCalendar && existingInterview?.scheduledDate && existingInterview?.status !== 'needs-reschedule' ? (
                 <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3 space-y-1" data-testid="panel-booked-interview">
                   <div className="flex items-center gap-2">
                     <Check className="h-4 w-4 text-green-600" />

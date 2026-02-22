@@ -187,7 +187,27 @@ export async function registerRoutes(
   app.post("/api/studio-dates/bulk-delete", async (req, res) => {
     const { ids } = req.body;
     if (!Array.isArray(ids)) return res.status(400).json({ message: "ids must be an array" });
+
+    const allInterviews = await storage.getInterviews();
+    const allEpisodes = await storage.getEpisodes();
+
     for (const id of ids) {
+      const linkedInterviews = allInterviews.filter((i) => i.studioDateId === id);
+      for (const interview of linkedInterviews) {
+        await storage.updateInterview(interview.id, {
+          studioDateId: null,
+          scheduledDate: null,
+          scheduledTime: null,
+          status: "needs-reschedule",
+        });
+        const linkedEpisodes = allEpisodes.filter((e) => e.interviewId === interview.id);
+        for (const episode of linkedEpisodes) {
+          await storage.updateEpisode(episode.id, {
+            scheduledDate: null,
+            scheduledTime: null,
+          });
+        }
+      }
       await storage.deleteStudioDate(id);
     }
     res.status(200).json({ deleted: ids.length });

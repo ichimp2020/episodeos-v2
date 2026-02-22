@@ -103,6 +103,7 @@ const he: TranslationKeys = {
     saveChanges: "שמור שינויים",
     saving: "שומר...",
     reschedule: "שנה מועד",
+    rescheduleNeeded: "דרוש תיאום מחדש",
     currentSchedule: "מועד נוכחי",
     pickNewDate: "בחר תאריך סטודיו חדש",
     selectHourSlot: "בחר משבצת שעה",
@@ -187,6 +188,7 @@ const he: TranslationKeys = {
     status: "סטטוס",
     checkStudioAvailability: "בדוק זמינות סטודיו",
     interviewBooked: "ראיון נקבע",
+    rescheduleNeeded: "דרוש תיאום מחדש",
     changeDate: "שנה תאריך",
     studioAvailability: "זמינות סטודיו",
     noAvailableDates: "אין תאריכי סטודיו זמינים",
@@ -246,6 +248,7 @@ const he: TranslationKeys = {
     markCancelled: "בטל ראיון",
     locationPlaceholder: "סטודיו ראשי",
     reschedule: "שנה מועד",
+    rescheduleNeeded: "דרוש תיאום מחדש",
     rescheduleAndInvite: "שנה מועד ושלח הזמנה",
     sendInvite: "שלח הזמנה ליומן",
     confirmAndInvite: "אשר ושלח הזמנה",
@@ -400,6 +403,7 @@ const he: TranslationKeys = {
     noData: "אין נתונים",
     viewAll: "הצג הכל",
     at: "ב",
+    rescheduleNeeded: "דרוש תיאום מחדש",
   },
 };
 

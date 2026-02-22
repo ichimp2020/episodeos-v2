@@ -413,6 +413,9 @@ export default function Studio() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       toast({ title: "Month cleared" });
     },
   });

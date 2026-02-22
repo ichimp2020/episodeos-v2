@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, EpisodeLargeLink, Interview, Guest } from "@shared/schema";
 import {
   format,
@@ -252,6 +252,16 @@ export default function Episodes() {
     }
     return null;
   }, [allGuests, allInterviews]);
+
+  const getEpisodeInterview = useCallback((episode: Episode): Interview | null => {
+    if (episode.interviewId) {
+      return allInterviews?.find((i) => i.id === episode.interviewId) || null;
+    }
+    if (episode.guestId) {
+      return allInterviews?.find((i) => i.guestId === episode.guestId) || null;
+    }
+    return null;
+  }, [allInterviews]);
 
   const updateGuestEmail = useMutation({
     mutationFn: async ({ guestId, email }: { guestId: string; email: string }) => {
@@ -622,6 +632,12 @@ export default function Episodes() {
                       <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
                         {episode.status}
                       </Badge>
+                      {getEpisodeInterview(episode)?.status === 'needs-reschedule' && (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-episode-${episode.id}`}>
+                          <AlertTriangle className="w-3 h-3" />
+                          {t.common.rescheduleNeeded}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex items-center gap-4 mt-2 flex-wrap">
                       {episode.scheduledDate && (
@@ -975,6 +991,12 @@ export default function Episodes() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {getEpisodeInterview(selectedEpisode)?.status === 'needs-reschedule' && (
+                      <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-detail">
+                        <AlertTriangle className="w-3 h-3" />
+                        {t.common.rescheduleNeeded}
+                      </Badge>
+                    )}
                   </div>
                   {selectedEpisode.scheduledDate && !showReschedule ? (
                     <div className="flex items-center gap-2">

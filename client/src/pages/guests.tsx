@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste, Trash2 } from "lucide-react";
-import type { Guest, TeamMember } from "@shared/schema";
+import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste, Trash2, AlertTriangle } from "lucide-react";
+import type { Guest, TeamMember, Interview } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
@@ -44,6 +44,9 @@ export default function Guests() {
   });
   const { data: members } = useQuery<TeamMember[]>({
     queryKey: ["/api/team-members"],
+  });
+  const { data: interviews } = useQuery<Interview[]>({
+    queryKey: ["/api/interviews"],
   });
 
   useEffect(() => {
@@ -210,6 +213,12 @@ export default function Guests() {
                           <span className={`ios-badge border-0 ${statusColors[guest.status]}`}>
                             {guest.status}
                           </span>
+                          {interviews?.find((i) => i.guestId === guest.id && i.status === 'needs-reschedule') && (
+                            <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1 text-[10px] py-0 px-1.5" data-testid={`badge-reschedule-guest-${guest.id}`}>
+                              <AlertTriangle className="w-2.5 h-2.5" />
+                              {t.common.rescheduleNeeded}
+                            </Badge>
+                          )}
                         </div>
                         {guest.shortDescription && (
                           <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{guest.shortDescription}</p>
