@@ -184,6 +184,15 @@ export async function registerRoutes(
     res.status(204).send();
   });
 
+  app.post("/api/studio-dates/bulk-delete", async (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ message: "ids must be an array" });
+    for (const id of ids) {
+      await storage.deleteStudioDate(id);
+    }
+    res.status(200).json({ deleted: ids.length });
+  });
+
   app.get("/api/guests", async (_req, res) => {
     const allGuests = await storage.getGuests();
     res.json(allGuests);

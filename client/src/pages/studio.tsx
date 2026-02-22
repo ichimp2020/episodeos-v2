@@ -16,7 +16,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
-import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck, User, ExternalLink } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck, User, ExternalLink, CalendarPlus, Eraser } from "lucide-react";
 import type { StudioDate, TeamMember, InterviewerUnavailability, Interview, Guest, Episode } from "@shared/schema";
 import { useLocation } from "wouter";
 import {
@@ -239,6 +240,10 @@ export default function Studio() {
   const [notesValue, setNotesValue] = useState("");
   const [blockStep, setBlockStep] = useState<"idle" | "confirm" | "note">("idle");
   const [blockNote, setBlockNote] = useState("");
+  const [showClearMonth, setShowClearMonth] = useState(false);
+  const [clearConfirmedToggles, setClearConfirmedToggles] = useState<Record<string, boolean>>({});
+  const [showManualBooking, setShowManualBooking] = useState(false);
+  const [manualBooking, setManualBooking] = useState({ date: "", startTime: "", endTime: "", guestId: "" });
   const { toast } = useToast();
 
   const { data: studioDates, isLoading } = useQuery<StudioDate[]>({
@@ -400,6 +405,55 @@ export default function Studio() {
     },
   });
 
+  const bulkDeleteDates = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await apiRequest("POST", "/api/studio-dates/bulk-delete", { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      toast({ title: "Month cleared" });
+    },
+  });
+
+  const manualBookMutation = useMutation({
+    mutationFn: async ({ date, startTime, endTime, guestId }: { date: string; startTime: string; endTime: string; guestId: string }) => {
+      const slotLabel = `${startTime} - ${endTime}`;
+      const studioDate = await apiRequest("POST", "/api/studio-dates", {
+        date,
+        notes: slotLabel,
+        status: "taken",
+        bookedSlot: slotLabel,
+      });
+      const studioDateData = await studioDate.json();
+      const existingInterview = interviews?.find((i) => i.guestId === guestId);
+      if (existingInterview) {
+        await apiRequest("PATCH", `/api/interviews/${existingInterview.id}`, {
+          studioDateId: studioDateData.id,
+          scheduledDate: date,
+          scheduledTime: startTime,
+          status: "confirmed",
+        });
+      } else {
+        await apiRequest("POST", "/api/interviews", {
+          guestId,
+          studioDateId: studioDateData.id,
+          scheduledDate: date,
+          scheduledTime: startTime,
+          status: "confirmed",
+        });
+      }
+      return studioDateData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setShowManualBooking(false);
+      setManualBooking({ date: "", startTime: "", endTime: "", guestId: "" });
+      toast({ title: "Manual booking created" });
+    },
+  });
+
   const bookSlot = useMutation({
     mutationFn: async ({ dateRecord, slot, emails }: { dateRecord: StudioDate; slot: TimeSlot; emails: BookingEmails }) => {
       const emailsJson = JSON.stringify(emails);
@@ -536,7 +590,15 @@ export default function Studio() {
           <h1 className="text-2xl font-bold tracking-tight" data-testid="text-studio-title">Studio Calendar</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage studio availability from your partner</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="secondary" className="rounded-full px-4" onClick={() => setShowClearMonth(true)} data-testid="button-clear-month">
+            <Eraser className="h-4 w-4 mr-2" />
+            Clear Month
+          </Button>
+          <Button variant="secondary" className="rounded-full px-4" onClick={() => setShowManualBooking(true)} data-testid="button-manual-booking">
+            <CalendarPlus className="h-4 w-4 mr-2" />
+            Manual Booking
+          </Button>
           <Button variant="secondary" className="rounded-full px-4" onClick={() => setShowWhatsAppPaste(true)} data-testid="button-paste-whatsapp">
             <MessageSquare className="h-4 w-4 mr-2" />
             Paste WhatsApp
@@ -1459,6 +1521,234 @@ export default function Studio() {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showClearMonth} onOpenChange={(open) => {
+        if (!open) { setShowClearMonth(false); setClearConfirmedToggles({}); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eraser className="h-4 w-4" />
+              Clear {format(currentMonth, "MMMM yyyy")}
+            </DialogTitle>
+            <DialogDescription>
+              Delete all studio dates for this month
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const monthStart = startOfMonth(currentMonth);
+            const monthEnd = endOfMonth(currentMonth);
+            const monthDates = studioDates?.filter((d) => {
+              const dt = parseISO(d.date);
+              return dt >= monthStart && dt <= monthEnd;
+            }) || [];
+
+            if (monthDates.length === 0) {
+              return (
+                <div className="py-4 text-center">
+                  <p className="text-sm text-muted-foreground">No studio dates in {format(currentMonth, "MMMM yyyy")}</p>
+                </div>
+              );
+            }
+
+            const confirmedBookings = monthDates.filter((d) => {
+              if (d.status !== "taken") return false;
+              const interview = interviews?.find((i) => i.studioDateId === d.id);
+              return !!interview;
+            }).map((d) => {
+              const interview = interviews?.find((i) => i.studioDateId === d.id)!;
+              const guest = guests?.find((g) => g.id === interview.guestId);
+              return { studioDate: d, interview, guest };
+            });
+
+            const unlinkedDates = monthDates.filter((d) => {
+              if (d.status !== "taken") return true;
+              const interview = interviews?.find((i) => i.studioDateId === d.id);
+              return !interview;
+            });
+
+            const handleClearMonth = () => {
+              const idsToDelete: string[] = [];
+              unlinkedDates.forEach((d) => idsToDelete.push(d.id));
+              confirmedBookings.forEach((cb) => {
+                if (clearConfirmedToggles[cb.studioDate.id]) {
+                  idsToDelete.push(cb.studioDate.id);
+                }
+              });
+              if (idsToDelete.length > 0) {
+                bulkDeleteDates.mutate(idsToDelete);
+              }
+              setShowClearMonth(false);
+              setClearConfirmedToggles({});
+            };
+
+            return (
+              <div className="space-y-4 mt-2">
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-1">
+                  <p className="text-sm">
+                    <span className="font-medium">{unlinkedDates.length}</span> unlinked date{unlinkedDates.length !== 1 ? "s" : ""} will be deleted automatically
+                  </p>
+                  {confirmedBookings.length > 0 && (
+                    <p className="text-sm text-amber-600">
+                      <span className="font-medium">{confirmedBookings.length}</span> date{confirmedBookings.length !== 1 ? "s" : ""} with confirmed guests found
+                    </p>
+                  )}
+                </div>
+
+                {confirmedBookings.length > 0 && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Confirmed guests — delete these too?</Label>
+                    {confirmedBookings.map((cb) => (
+                      <div
+                        key={cb.studioDate.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border p-3"
+                        data-testid={`clear-confirmed-${cb.studioDate.id}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{cb.guest?.name || "Unknown guest"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(cb.studioDate.date), "MMM d")}
+                            {cb.studioDate.bookedSlot ? ` at ${cb.studioDate.bookedSlot}` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                              clearConfirmedToggles[cb.studioDate.id]
+                                ? "bg-destructive/10 text-destructive"
+                                : "bg-chart-2/10 text-chart-2"
+                            }`}
+                            onClick={() => setClearConfirmedToggles((prev) => ({
+                              ...prev,
+                              [cb.studioDate.id]: !prev[cb.studioDate.id],
+                            }))}
+                            data-testid={`toggle-delete-${cb.studioDate.id}`}
+                          >
+                            {clearConfirmedToggles[cb.studioDate.id] ? "Delete" : "Keep"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    className="ios-pill-button ios-pill-button-primary flex-1"
+                    onClick={handleClearMonth}
+                    disabled={bulkDeleteDates.isPending}
+                    data-testid="button-confirm-clear-month"
+                  >
+                    {bulkDeleteDates.isPending ? "Clearing..." : "Clear Month"}
+                  </button>
+                  <button
+                    className="ios-pill-button ios-pill-button-secondary flex-1"
+                    onClick={() => { setShowClearMonth(false); setClearConfirmedToggles({}); }}
+                    data-testid="button-cancel-clear-month"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showManualBooking} onOpenChange={(open) => {
+        if (!open) { setShowManualBooking(false); setManualBooking({ date: "", startTime: "", endTime: "", guestId: "" }); }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarPlus className="h-4 w-4" />
+              Manual Booking
+            </DialogTitle>
+            <DialogDescription>
+              Create a studio booking with a custom date, time, and guest
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label className="text-sm">Date</Label>
+              <Input
+                type="date"
+                value={manualBooking.date}
+                onChange={(e) => setManualBooking({ ...manualBooking, date: e.target.value })}
+                data-testid="input-manual-date"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-sm">Start Time</Label>
+                <Input
+                  type="time"
+                  value={manualBooking.startTime}
+                  onChange={(e) => setManualBooking({ ...manualBooking, startTime: e.target.value })}
+                  data-testid="input-manual-start-time"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">End Time</Label>
+                <Input
+                  type="time"
+                  value={manualBooking.endTime}
+                  onChange={(e) => setManualBooking({ ...manualBooking, endTime: e.target.value })}
+                  data-testid="input-manual-end-time"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm">Guest</Label>
+              <Select
+                value={manualBooking.guestId}
+                onValueChange={(val) => setManualBooking({ ...manualBooking, guestId: val })}
+              >
+                <SelectTrigger data-testid="select-manual-guest">
+                  <SelectValue placeholder="Select a guest" />
+                </SelectTrigger>
+                <SelectContent>
+                  {guests?.filter((g) => g.status !== "published" && g.status !== "declined")
+                    .map((g) => (
+                      <SelectItem key={g.id} value={g.id} data-testid={`guest-option-${g.id}`}>
+                        {g.name} {g.status === "confirmed" ? "(confirmed)" : ""}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {manualBooking.date && manualBooking.guestId && (
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <p className="text-sm">
+                  <span className="font-medium">{guests?.find((g) => g.id === manualBooking.guestId)?.name}</span>
+                  {" → "}
+                  {manualBooking.date ? format(parseISO(manualBooking.date), "EEE, MMM d") : ""}
+                  {manualBooking.startTime && manualBooking.endTime ? ` at ${manualBooking.startTime} - ${manualBooking.endTime}` : ""}
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                className="ios-pill-button ios-pill-button-primary flex-1"
+                disabled={!manualBooking.date || !manualBooking.startTime || !manualBooking.endTime || !manualBooking.guestId || manualBookMutation.isPending}
+                onClick={() => manualBookMutation.mutate(manualBooking)}
+                data-testid="button-confirm-manual-booking"
+              >
+                {manualBookMutation.isPending ? "Creating..." : "Create Booking"}
+              </button>
+              <button
+                className="ios-pill-button ios-pill-button-secondary flex-1"
+                onClick={() => { setShowManualBooking(false); setManualBooking({ date: "", startTime: "", endTime: "", guestId: "" }); }}
+                data-testid="button-cancel-manual-booking"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
