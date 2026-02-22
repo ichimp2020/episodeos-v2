@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck, User, ExternalLink, CalendarPlus, Eraser } from "lucide-react";
 import type { StudioDate, TeamMember, InterviewerUnavailability, Interview, Guest, Episode } from "@shared/schema";
@@ -242,6 +243,7 @@ export default function Studio() {
   const [blockNote, setBlockNote] = useState("");
   const [showClearMonth, setShowClearMonth] = useState(false);
   const [clearConfirmedToggles, setClearConfirmedToggles] = useState<Record<string, boolean>>({});
+  const [clearEmailToggles, setClearEmailToggles] = useState<Record<string, Record<string, boolean>>>({});
   const [showManualBooking, setShowManualBooking] = useState(false);
   const [manualBooking, setManualBooking] = useState({ date: "", startTime: "", endTime: "", guestId: "" });
   const { toast } = useToast();
@@ -488,7 +490,7 @@ export default function Studio() {
       if (emailSet.size > 0) {
         const dateStr = format(parseISO(dateRecord.date), "MMMM d, yyyy");
         try {
-          await apiRequest("POST", "/api/calendar-event", {
+          const calRes = await apiRequest("POST", "/api/calendar-event", {
             date: dateRecord.date,
             startTime: slot.start,
             endTime: slot.end,
@@ -496,6 +498,10 @@ export default function Studio() {
             description: `Studio recording session on ${dateStr} from ${slot.label}.\n\nParticipants:\n- Studio: ${emails.studio || "N/A"}\n- Interviewers: ${emails.interviewers || "N/A"}\n- Interviewee: ${emails.intervieweeName || "N/A"}${emails.intervieweePhone ? ` (${emails.intervieweePhone})` : ""}\n- Interviewee Email: ${emails.interviewee || "N/A"}`,
             attendeeEmails: Array.from(emailSet),
           });
+          const calData = await calRes.json();
+          if (calData.id) {
+            await apiRequest("PATCH", `/api/studio-dates/${dateRecord.id}`, { calendarEventId: calData.id });
+          }
         } catch {
           calendarFailed = true;
         }
@@ -1525,7 +1531,7 @@ export default function Studio() {
       </Dialog>
 
       <Dialog open={showClearMonth} onOpenChange={(open) => {
-        if (!open) { setShowClearMonth(false); setClearConfirmedToggles({}); }
+        if (!open) { setShowClearMonth(false); setClearConfirmedToggles({}); setClearEmailToggles({}); }
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -1569,19 +1575,31 @@ export default function Studio() {
               return !interview;
             });
 
-            const handleClearMonth = () => {
+            const handleClearMonth = async () => {
               const idsToDelete: string[] = [];
               unlinkedDates.forEach((d) => idsToDelete.push(d.id));
-              confirmedBookings.forEach((cb) => {
+
+              for (const cb of confirmedBookings) {
                 if (clearConfirmedToggles[cb.studioDate.id]) {
                   idsToDelete.push(cb.studioDate.id);
+                  if (cb.studioDate.calendarEventId) {
+                    const emailToggles = clearEmailToggles[cb.studioDate.id] || {};
+                    const anyChecked = Object.values(emailToggles).some((v) => v);
+                    try {
+                      await apiRequest("DELETE", `/api/calendar-event/${cb.studioDate.calendarEventId}?notify=${anyChecked}`);
+                    } catch {
+                      // Calendar cancellation failed but continue with deletion
+                    }
+                  }
                 }
-              });
+              }
+
               if (idsToDelete.length > 0) {
                 bulkDeleteDates.mutate(idsToDelete);
               }
               setShowClearMonth(false);
               setClearConfirmedToggles({});
+              setClearEmailToggles({});
             };
 
             return (
@@ -1600,37 +1618,107 @@ export default function Studio() {
                 {confirmedBookings.length > 0 && (
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Confirmed guests — delete these too?</Label>
-                    {confirmedBookings.map((cb) => (
-                      <div
-                        key={cb.studioDate.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border p-3"
-                        data-testid={`clear-confirmed-${cb.studioDate.id}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{cb.guest?.name || "Unknown guest"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {format(parseISO(cb.studioDate.date), "MMM d")}
-                            {cb.studioDate.bookedSlot ? ` at ${cb.studioDate.bookedSlot}` : ""}
-                          </p>
+                    {confirmedBookings.map((cb) => {
+                      const isDeleting = clearConfirmedToggles[cb.studioDate.id];
+                      let parsedEmails: BookingEmails | null = null;
+                      try {
+                        if (cb.studioDate.participantEmails) {
+                          parsedEmails = JSON.parse(cb.studioDate.participantEmails) as BookingEmails;
+                        }
+                      } catch { /* ignore */ }
+
+                      const emailList: { label: string; email: string }[] = [];
+                      if (parsedEmails?.studio) emailList.push({ label: "Studio", email: parsedEmails.studio });
+                      if (parsedEmails?.interviewers) {
+                        parsedEmails.interviewers.split(",").forEach((e) => {
+                          const trimmed = e.trim();
+                          if (trimmed) emailList.push({ label: "Interviewer", email: trimmed });
+                        });
+                      }
+                      if (parsedEmails?.interviewee) emailList.push({ label: parsedEmails.intervieweeName || "Guest", email: parsedEmails.interviewee });
+
+                      return (
+                        <div
+                          key={cb.studioDate.id}
+                          className={`rounded-xl border p-3 transition-colors ${isDeleting ? "border-destructive/30 bg-destructive/5" : ""}`}
+                          data-testid={`clear-confirmed-${cb.studioDate.id}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{cb.guest?.name || "Unknown guest"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(cb.studioDate.date), "MMM d")}
+                                {cb.studioDate.bookedSlot ? ` at ${cb.studioDate.bookedSlot}` : ""}
+                              </p>
+                            </div>
+                            <button
+                              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                isDeleting
+                                  ? "bg-destructive/10 text-destructive"
+                                  : "bg-chart-2/10 text-chart-2"
+                              }`}
+                              onClick={() => {
+                                const newVal = !clearConfirmedToggles[cb.studioDate.id];
+                                setClearConfirmedToggles((prev) => ({ ...prev, [cb.studioDate.id]: newVal }));
+                                if (newVal && emailList.length > 0) {
+                                  const defaults: Record<string, boolean> = {};
+                                  emailList.forEach((e) => { defaults[e.email] = true; });
+                                  setClearEmailToggles((prev) => ({ ...prev, [cb.studioDate.id]: defaults }));
+                                } else if (!newVal) {
+                                  setClearEmailToggles((prev) => {
+                                    const next = { ...prev };
+                                    delete next[cb.studioDate.id];
+                                    return next;
+                                  });
+                                }
+                              }}
+                              data-testid={`toggle-delete-${cb.studioDate.id}`}
+                            >
+                              {isDeleting ? "Delete" : "Keep"}
+                            </button>
+                          </div>
+
+                          {isDeleting && emailList.length > 0 && cb.studioDate.calendarEventId && (
+                            <div className="mt-3 pt-3 border-t space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                                <Mail className="h-3 w-3" />
+                                Send cancellation to:
+                              </p>
+                              {emailList.map((item) => (
+                                <label
+                                  key={item.email}
+                                  className="flex items-center gap-2 cursor-pointer"
+                                  data-testid={`cancel-email-${cb.studioDate.id}-${item.email}`}
+                                >
+                                  <Checkbox
+                                    checked={clearEmailToggles[cb.studioDate.id]?.[item.email] ?? false}
+                                    onCheckedChange={(checked: boolean) => {
+                                      setClearEmailToggles((prev) => ({
+                                        ...prev,
+                                        [cb.studioDate.id]: {
+                                          ...(prev[cb.studioDate.id] || {}),
+                                          [item.email]: !!checked,
+                                        },
+                                      }));
+                                    }}
+                                  />
+                                  <span className="text-xs">
+                                    <span className="text-muted-foreground">{item.label}:</span>{" "}
+                                    {item.email}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+
+                          {isDeleting && !cb.studioDate.calendarEventId && (
+                            <p className="mt-2 text-xs text-muted-foreground italic">
+                              No calendar event linked — no cancellation will be sent
+                            </p>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                              clearConfirmedToggles[cb.studioDate.id]
-                                ? "bg-destructive/10 text-destructive"
-                                : "bg-chart-2/10 text-chart-2"
-                            }`}
-                            onClick={() => setClearConfirmedToggles((prev) => ({
-                              ...prev,
-                              [cb.studioDate.id]: !prev[cb.studioDate.id],
-                            }))}
-                            data-testid={`toggle-delete-${cb.studioDate.id}`}
-                          >
-                            {clearConfirmedToggles[cb.studioDate.id] ? "Delete" : "Keep"}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1645,7 +1733,7 @@ export default function Studio() {
                   </button>
                   <button
                     className="ios-pill-button ios-pill-button-secondary flex-1"
-                    onClick={() => { setShowClearMonth(false); setClearConfirmedToggles({}); }}
+                    onClick={() => { setShowClearMonth(false); setClearConfirmedToggles({}); setClearEmailToggles({}); }}
                     data-testid="button-cancel-clear-month"
                   >
                     Cancel

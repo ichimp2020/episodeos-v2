@@ -48,6 +48,7 @@ export const studioDates = pgTable("studio_dates", {
   notes: text("notes"),
   bookedSlot: text("booked_slot"),
   participantEmails: text("participant_emails"),
+  calendarEventId: text("calendar_event_id"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

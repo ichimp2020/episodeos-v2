@@ -548,6 +548,17 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/calendar-event/:eventId", async (req, res) => {
+    try {
+      const notify = req.query.notify !== "false";
+      await deleteCalendarEvent(req.params.eventId, notify);
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Google Calendar event deletion failed:", err.message);
+      res.status(500).json({ message: "Failed to cancel calendar event: " + err.message });
+    }
+  });
+
   registerObjectStorageRoutes(app);
   registerChatRoutes(app);
 

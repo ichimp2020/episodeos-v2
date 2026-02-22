@@ -97,7 +97,7 @@ export async function createCalendarEvent(params: CalendarEventParams) {
   return response.data;
 }
 
-export async function deleteCalendarEvent(eventId: string) {
+export async function deleteCalendarEvent(eventId: string, notify: boolean = true) {
   if (!isCalendarEnabled()) {
     console.log('[Calendar] Emails disabled — skipping event deletion:', eventId);
     return;
@@ -106,7 +106,7 @@ export async function deleteCalendarEvent(eventId: string) {
   await calendar.events.delete({
     calendarId: 'primary',
     eventId,
-    sendUpdates: 'all',
+    sendUpdates: notify ? 'all' : 'none',
   });
 }
 
