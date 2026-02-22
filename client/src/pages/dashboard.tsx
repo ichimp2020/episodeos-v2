@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X } from "lucide-react";
+import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X, Radio } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
 import { format, parseISO, isAfter, subDays } from "date-fns";
@@ -117,12 +117,22 @@ export default function Dashboard() {
 
   const isLoading = loadingEpisodes || loadingTasks || loadingMembers || loadingStudio;
 
-  const activeEpisodes = episodes?.filter((e) => e.status !== "published")
+  const activeEpisodes = episodes?.filter((e) => e.status !== "published" && e.status !== "archived")
     .sort((a, b) => {
       if (!a.scheduledDate) return 1;
       if (!b.scheduledDate) return -1;
       return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
     }) || [];
+
+  const goingLiveEpisodes = episodes?.filter((e) => {
+    if (e.status !== "published" || !e.publishDate) return false;
+    const datePart = e.publishDate;
+    const timePart = e.publishTime || "00:00";
+    const publishDateTime = new Date(`${datePart}T${timePart}:00`);
+    const now = new Date();
+    const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    return publishDateTime >= now && publishDateTime <= in24h;
+  }) || [];
   const hasTimeSlots = (notes: string | null) => {
     if (!notes) return false;
     return /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(notes);
@@ -217,6 +227,48 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {goingLiveEpisodes.length > 0 && (
+        <div className="ios-section border-2 border-chart-2/30 bg-gradient-to-r from-chart-2/5 to-transparent">
+          <div className="ios-section-header">
+            <h2 className="ios-section-title flex items-center gap-2" data-testid="text-going-live-title">
+              <Radio className="h-4 w-4 text-chart-2 animate-pulse" />
+              <span className="text-chart-2">{t.dashboard.goingLive}</span>
+            </h2>
+          </div>
+          <div className="px-4 pb-4 space-y-2">
+            {goingLiveEpisodes.map((ep) => {
+              const guest = guests?.find((g) => g.id === ep.guestId);
+              const publishDate = ep.publishDate ? parseISO(ep.publishDate) : null;
+              const hoursUntil = publishDate ? Math.max(0, Math.round((publishDate.getTime() - Date.now()) / (1000 * 60 * 60))) : null;
+              return (
+                <div
+                  key={ep.id}
+                  className="flex items-center justify-between rounded-xl bg-background/80 p-3 cursor-pointer hover-elevate transition-transform active:scale-[0.98]"
+                  onClick={() => setLocation(`/episodes?highlight=${ep.id}`)}
+                  data-testid={`card-going-live-${ep.id}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-chart-2/10">
+                      <Radio className="h-4 w-4 text-chart-2" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{guest?.name || ep.title}</p>
+                      {ep.title && guest?.name && <p className="text-xs text-muted-foreground truncate">{ep.title}</p>}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <Badge className="bg-chart-2/10 text-chart-2 border-0">
+                      {hoursUntil !== null && hoursUntil <= 0 ? t.dashboard.today : hoursUntil !== null && hoursUntil <= 1 ? `< 1 ${t.dashboard.hours}` : `${t.dashboard.goingLiveIn} ${hoursUntil} ${t.dashboard.hours}`}
+                    </Badge>
+                    {ep.publishTime && <p className="text-[10px] text-muted-foreground mt-0.5">{ep.publishTime}</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="ios-section">

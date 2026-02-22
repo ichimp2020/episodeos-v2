@@ -40,6 +40,7 @@ A simple, focused podcast team coordination tool. Designed for small podcast tea
 - `GET/POST /api/episodes/:episodeId/shorts`, `PATCH/DELETE /api/episode-shorts/:id`
 - `GET/POST /api/episodes/:episodeId/large-links`, `DELETE /api/episode-large-links/:id`
 - `POST /api/uploads/request-url` - Get presigned URL for file upload
+- `GET/POST /api/episodes/:episodeId/platform-links`, `GET /api/platform-links`, `PATCH/DELETE /api/platform-links/:id`
 - `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees; supports `previousEventId` to auto-cancel old events on reschedule
 - `GET /api/search?q=query` - Cross-entity search (guests, episodes, team, interviews, studio dates)

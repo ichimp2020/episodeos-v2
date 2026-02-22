@@ -1,4 +1,4 @@
-import { LayoutDashboard, Mic, Users, Calendar, UserPlus, CalendarClock, Upload, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Mic, Users, Calendar, UserPlus, CalendarClock, Upload, FolderOpen, Archive } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import {
@@ -32,6 +32,7 @@ export function AppSidebar() {
   ];
 
   const backOfficeNav = [
+    { title: t.nav.archivedEpisodes, url: "/archived", icon: Archive },
     { title: t.nav.googleDriveLinks, url: "/backoffice", icon: FolderOpen },
   ];
 

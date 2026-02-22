@@ -23,8 +23,9 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
-import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, EpisodeLargeLink, Interview, Guest } from "@shared/schema";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp, AlertTriangle, Globe, Archive } from "lucide-react";
+import { SiYoutube, SiSpotify, SiApplemusic } from "react-icons/si";
+import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, EpisodeLargeLink, EpisodePlatformLink, Interview, Guest } from "@shared/schema";
 import {
   format,
   parseISO,
@@ -41,13 +42,14 @@ import {
   isAfter,
 } from "date-fns";
 
-const statuses = ["planning", "scheduled", "recording", "editing", "published"];
+const statuses = ["planning", "scheduled", "recording", "editing", "published", "archived"];
 const statusColors: Record<string, string> = {
   planning: "bg-chart-4/10 text-chart-4 border-transparent",
   scheduled: "bg-primary/10 text-primary border-transparent",
   recording: "bg-chart-5/10 text-chart-5 border-transparent",
   editing: "bg-chart-3/10 text-chart-3 border-transparent",
   published: "bg-chart-2/10 text-chart-2 border-transparent",
+  archived: "bg-muted text-muted-foreground border-transparent",
 };
 
 
@@ -102,6 +104,11 @@ export default function Episodes() {
   const [guestPhoneValue, setGuestPhoneValue] = useState("");
   const [showGuestDetails, setShowGuestDetails] = useState(false);
   const [showGuestPicker, setShowGuestPicker] = useState(false);
+  const [showPublishDate, setShowPublishDate] = useState(false);
+  const [publishDateValue, setPublishDateValue] = useState("");
+  const [publishTimeValue, setPublishTimeValue] = useState("12:00");
+  const [showPlatformLink, setShowPlatformLink] = useState<string | null>(null);
+  const [platformLinkUrl, setPlatformLinkUrl] = useState("");
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -122,6 +129,11 @@ export default function Episodes() {
   });
   const { data: allGuests } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
+  });
+  const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
+    queryKey: ["/api/episodes", selectedEpisode?.id, "platform-links"],
+    queryFn: () => selectedEpisode ? fetch(`/api/episodes/${selectedEpisode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
+    enabled: !!selectedEpisode && selectedEpisode.status === "published",
   });
 
   const [datePickerMonth, setDatePickerMonth] = useState(new Date());
@@ -608,7 +620,7 @@ export default function Episodes() {
         </div>
       ) : (
         <div className="space-y-3">
-          {[...episodes].sort((a, b) => {
+          {[...episodes].filter((e) => e.status !== "archived").sort((a, b) => {
             if (!a.scheduledDate) return 1;
             if (!b.scheduledDate) return -1;
             return parseISO(a.scheduledDate).getTime() - parseISO(b.scheduledDate).getTime();
@@ -978,6 +990,12 @@ export default function Episodes() {
                     <Select
                       value={selectedEpisode.status}
                       onValueChange={(val) => {
+                        if (val === "published" && !selectedEpisode.publishDate) {
+                          setPublishDateValue(format(new Date(), "yyyy-MM-dd"));
+                          setPublishTimeValue("12:00");
+                          setShowPublishDate(true);
+                          return;
+                        }
                         updateEpisode.mutate({ id: selectedEpisode.id, data: { status: val } });
                         setSelectedEpisode({ ...selectedEpisode, status: val });
                       }}
@@ -1522,6 +1540,61 @@ export default function Episodes() {
 
                 <EpisodeLargeLinksSection episodeId={selectedEpisode.id} />
 
+                {selectedEpisode.status === "published" && (
+                  <div className="space-y-3 mt-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <Globe className="w-4 h-4" />
+                        {t.episodes.platformLinks}
+                      </h4>
+                    </div>
+
+                    {selectedEpisode.publishDate && (
+                      <div className="text-xs text-muted-foreground">
+                        {t.episodes.publishDateLabel}: {format(parseISO(selectedEpisode.publishDate), "MMM d, yyyy")}
+                        {selectedEpisode.publishTime && ` · ${selectedEpisode.publishTime}`}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      {(["youtube", "spotify", "apple-music"] as const).map((platform) => {
+                        const existing = platformLinks?.find((l) => l.platform === platform);
+                        const Icon = platform === "youtube" ? SiYoutube : platform === "spotify" ? SiSpotify : SiApplemusic;
+                        const label = platform === "youtube" ? t.episodes.youtube : platform === "spotify" ? t.episodes.spotify : t.episodes.appleMusic;
+                        const colors = platform === "youtube" ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" : platform === "spotify" ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30" : "text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30";
+
+                        return existing ? (
+                          <a
+                            key={platform}
+                            href={existing.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${colors} transition-colors`}
+                            data-testid={`link-platform-${platform}`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            {label}
+                            <ExternalLink className="w-3 h-3 opacity-50" />
+                          </a>
+                        ) : (
+                          <Button
+                            key={platform}
+                            variant="outline"
+                            size="sm"
+                            className={`gap-1.5 rounded-full text-xs ${colors}`}
+                            onClick={() => { setShowPlatformLink(platform); setPlatformLinkUrl(""); }}
+                            data-testid={`button-add-platform-${platform}`}
+                          >
+                            <Icon className="w-3.5 h-3.5" />
+                            <Plus className="w-3 h-3" />
+                            {label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-2">
                   <Button
                     variant="ghost"
@@ -1600,6 +1673,88 @@ export default function Episodes() {
               </Dialog>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showPublishDate} onOpenChange={setShowPublishDate}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.episodes.setPublishDate}</DialogTitle>
+            <DialogDescription>{t.episodes.setPublishDateDescription}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t.episodes.publishDateLabel}</label>
+              <Input
+                type="date"
+                value={publishDateValue}
+                onChange={(e) => setPublishDateValue(e.target.value)}
+                data-testid="input-publish-date"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{t.episodes.publishTimeLabel}</label>
+              <Input
+                type="time"
+                value={publishTimeValue}
+                onChange={(e) => setPublishTimeValue(e.target.value)}
+                data-testid="input-publish-time"
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={!publishDateValue}
+              onClick={() => {
+                if (!selectedEpisode) return;
+                updateEpisode.mutate({
+                  id: selectedEpisode.id,
+                  data: { status: "published", publishDate: publishDateValue, publishTime: publishTimeValue || null },
+                });
+                setSelectedEpisode({ ...selectedEpisode, status: "published", publishDate: publishDateValue, publishTime: publishTimeValue || null });
+                setShowPublishDate(false);
+              }}
+              data-testid="button-confirm-publish-date"
+            >
+              {t.episodes.setPublishDate}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!showPlatformLink} onOpenChange={(open) => { if (!open) setShowPlatformLink(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {showPlatformLink === "youtube" ? t.episodes.youtube : showPlatformLink === "spotify" ? t.episodes.spotify : t.episodes.appleMusic}
+            </DialogTitle>
+            <DialogDescription>{t.episodes.pastePlatformUrl}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <Input
+              value={platformLinkUrl}
+              onChange={(e) => setPlatformLinkUrl(e.target.value)}
+              placeholder="https://..."
+              data-testid="input-platform-link-url"
+            />
+            <Button
+              className="w-full"
+              disabled={!platformLinkUrl}
+              onClick={async () => {
+                if (!selectedEpisode || !showPlatformLink) return;
+                await apiRequest("POST", `/api/episodes/${selectedEpisode.id}/platform-links`, {
+                  platform: showPlatformLink,
+                  url: platformLinkUrl,
+                });
+                queryClient.invalidateQueries({ queryKey: ["/api/episodes", selectedEpisode.id, "platform-links"] });
+                toast({ title: t.episodes.platformLinkSaved });
+                setShowPlatformLink(null);
+                setPlatformLinkUrl("");
+              }}
+              data-testid="button-submit-platform-link"
+            >
+              {t.episodes.addPlatformLink}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
