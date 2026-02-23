@@ -1,0 +1,65 @@
+We have inconsistency across episode dialogs and data shown. Stop making partial changes. I need a single pass that enforces visual + data consistency across the episode detail dialog and related cards.
+
+GOAL: One consistent Episode Detail Dialog (episodes.tsx) with:
+	•	consistent header layout
+	•	guest name never duplicated
+	•	consistent status/date/title/guest shown across: list card + dialog header + fields
+	•	calendar + invites clearly separated: what is auto-synced vs what requires manual confirmation
+
+SCOPE:
+	•	Primary dialog users click: client/src/pages/episodes.tsx (episode detail dialog around line ~974+)
+	•	Preserve existing booking/reschedule logic, but make UI reflect true state consistently.
+	•	Do NOT introduce placeholder “looks right” changes. Everything must be driven by selectedEpisode + related guest + scheduling objects.
+
+TASK A — Visual Consistency (dialog structure)
+	1.	DialogContent must follow the scroll contract:
+max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0
+Header: shrink-0 px-6 pt-6 pb-3 border-b
+Body: overflow-y-auto flex-1 px-6 py-4 space-y-5
+	2.	Header structure (NO guest name in header):
+Line 1: Ep #{episodeNumber} (if exists) + status badge (read-only)
+Line 2: Title (inline editable, keep existing editingField logic)
+Line 3: Description (inline editable, keep existing logic)
+DialogDescription should be sr-only or removed.
+	3.	Remove any leftover test markers (TEST HEADER CHANGE, DEV vNEXT) and any debug console logs.
+
+TASK B — Guest Dedup Consistency (single source of truth)
+In guest section (guest card):
+	•	Compute:
+const isGuestNameRedundant =
+selectedEpisode.title?.trim().toLowerCase().includes(guest.name.trim().toLowerCase())
+	•	If redundant: DO NOT render guest.name in the guest card header line (keep “Guest” label + descriptor)
+	•	If not redundant: render guest.name as before
+ACCEPTANCE: guest name appears at most once on screen.
+
+TASK C — Card vs Dialog Data Sync (consistency)
+Ensure these values match everywhere (episode list card and detail dialog):
+	•	Episode number
+	•	Status
+	•	Scheduled date/time
+	•	Title
+	•	Guest display (either guest name or “Guest” when redundant, but consistent rules)
+If the list card uses derived fields (scheduledAt vs scheduledDate/time), normalize to the same derivation used in the dialog (or vice versa). No “card says X, dialog says Y”.
+
+TASK D — Calendar + Invites: make state explicit and manually checkable
+We need a clear UI block that separates:
+	1.	Calendar Sync State:
+	•	show whether a calendarEventId exists
+	•	show last sync timestamp if available
+	•	show a button: “Sync to Calendar” / “Re-sync” (reuse existing handler if exists; don’t invent fake logic)
+	2.	Invite Checklist (manual confirmation):
+	•	render a list of invite recipients (from whichever source currently exists: participantEmails, guest email, studio email, etc.)
+	•	each recipient has a checkbox (default unchecked)
+	•	add “Mark all” toggle
+	•	add “Send Invites” button that is disabled until at least one checkbox is checked
+IMPORTANT: If sending isn’t implemented yet, implement UI + state only and label the button “Send Invites (manual step)” and log which recipients were selected. Do NOT auto-send silently.
+ACCEPTANCE: I can manually check recipients before any invite action.
+
+TASK E — Proof before you say “done”
+After implementation, provide:
+	1.	The exact files changed
+	2.	A short bullet list mapping each Task A–D to the code location
+	3.	3 screenshots in dev preview (or describe exact steps) demonstrating:
+	•	an episode where title != guest name (guest name shows once)
+	•	an episode where title == guest name (guest name hidden, “Guest” only)
+	•	invite checklist shows unchecked recipients and requires manual checking

@@ -1,0 +1,102 @@
+Objective
+Stability pass for EpisodeOS: fix stale state bug, extract shared reschedule helpers, redesign invite UX, standardize dialog sizing, add missing-info warnings. Minimal scope, no refactors beyond what's required.
+
+Tasks
+
+T001: Fix stale selectedEpisode state (SEV-1)
+- File: client/src/pages/episodes.tsx
+- Add a sync effect that rehydrates selectedEpisode from the episodes query list whenever episodes changes.
+  - Use selectedEpisode?.id in deps
+  - Find fresh = episodes.find(e => e.id === selectedEpisode.id)
+  - If fresh exists and fresh !== selectedEpisode, setSelectedEpisode(fresh)
+- Remove ALL post-mutation patches like: setSelectedEpisode({ ...selectedEpisode, ...data })
+  - Let query invalidation + sync effect handle updates.
+- Keep ONLY:
+  - setSelectedEpisode(episode) on open
+  - setSelectedEpisode(null) on close
+- Guard:
+  - If dialog is open and selectedEpisode is not found in episodes list, close dialog (setSelectedEpisode(null))
+- Acceptance:
+  - No setSelectedEpisode({...spread}) patches remain.
+  - Open 5 episodes consecutively — correct data each time, no cross-contamination.
+
+T002: Shared reschedule helpers
+- File: client/src/lib/rescheduleHelpers.ts (already exists — verify/update)
+- Exports:
+  - needsReschedule(...)
+  - canReschedule(episode)
+- Use in:
+  - client/src/pages/episodes.tsx
+  - client/src/components/EpisodeEditDialog.tsx
+- Delete duplicated inline computations in both files.
+- Acceptance:
+  - Both dialogs import from shared helpers.
+  - No duplicated reschedule logic remains.
+
+T003: Redesign invite recipients UX
+- File: client/src/pages/studio.tsx
+- Add sendInvites boolean state (default false)
+- When OFF:
+  - Hide recipients UI
+  - Booking proceeds without calendar invites
+- When ON:
+  - Show role-based checkbox list, ALL unchecked by default:
+    - Host (Zion) — email from team members query
+    - Co-Host (Gal) — email from team members query
+    - Studio/Production (Nob / Studio) — email from team members query
+    - Guest — email from guest record
+      - If guest has no email: show disabled row with “No email on file”
+- Remove raw email text inputs entirely
+- Only include checked recipients in the calendar invite payload
+- Acceptance:
+  - Default OFF
+  - Toggle ON → all unchecked
+  - Select only Gal → payload includes only Gal
+
+T004: Standardize dialog sizing
+- Define standards:
+  - Standard (forms/inputs):
+    className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden"
+  - Large (detail views):
+    keep existing 560px + fixed header + scroll body contract already used in main detail dialog
+- Apply Standard to dialogs missing className:
+  - episodes.tsx: new episode dialog
+  - episodes.tsx: new task dialog
+  - episodes.tsx: platform link dialog
+  - episodes.tsx: add teaser dialog
+  - episodes.tsx: add link dialog
+  - studio.tsx: dialogs missing className
+  - team.tsx: dialogs missing className
+  - backoffice.tsx: dialogs missing className
+- Add w-[95vw] where missing:
+  - guests.tsx
+  - scheduling.tsx
+  - studio.tsx
+- Acceptance:
+  - All <DialogContent> have correct className
+  - No horizontal scroll on mobile, buttons reachable
+
+T005: Missing-info warnings
+- Blocked by: T001
+- File: client/src/pages/episodes.tsx (detail dialog body)
+- Add subtle amber warning rows for:
+  - No scheduled date
+  - Guest has no email
+  - Episode has no title
+- File: client/src/pages/studio.tsx
+  - Guest recipient row shows “No email on file” when applicable
+- Acceptance:
+  - Warnings visible but not intrusive
+  - Prevents silent invite failures / confusion
+
+T006: Smoke test
+- Blocked by: T001, T002, T003, T004, T005
+- Steps:
+  - Restart app, verify no build/console errors
+  - Test: open/close episodes, edit title/status, reschedule, tasks, links
+  - Test mobile viewport (dialog sizing/scroll)
+  - Verify no regressions: episode cards, guest cards, archived view, publishing flow
+  - Deliver: short checklist of what was tested and what passed
+  - Verify QA checklist items 1–8 (from user doc, if present in repo)
+- Acceptance:
+  - All tests pass, no regressions, QA items pass

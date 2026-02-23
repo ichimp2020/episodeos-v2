@@ -1,0 +1,75 @@
+Remove ALL post-mutation patches like:
+setSelectedEpisode({ ...selectedEpisode, ...data })
+Let query invalidation + this sync effect handle it.
+	•	Keep only:
+	•	setSelectedEpisode(episode) on open
+	•	setSelectedEpisode(null) on close
+	•	Acceptance: Open 5 different episodes consecutively after edits/mutations/refetch — each dialog shows correct title/guest/status, no cross contamination.
+
+⸻
+
+T002: Shared reschedule helpers (remove duplicated logic)
+Create: client/src/lib/rescheduleHelpers.ts
+Export:
+	•	needsReschedule(...)
+	•	canReschedule(episode)
+Then use in BOTH:
+	•	client/src/pages/episodes.tsx (detail dialog)
+	•	client/src/components/EpisodeEditDialog.tsx
+Delete the duplicated local computations.
+Acceptance: “Reschedule needed” / Reschedule CTA shows consistently in both dialogs.
+
+⸻
+
+T003: Redesign invite recipients UX (master toggle OFF default)
+File: client/src/pages/studio.tsx (around current recipient inputs)
+	•	Add sendInvites boolean state (default false)
+	•	When OFF: hide recipients UI, booking proceeds without invites
+	•	When ON: show role-based recipients list with checkboxes, ALL unchecked by default:
+	•	Zion (Host) email from team members query
+	•	Gal (Co-Host) email from team members query
+	•	Nob/Studio (Production) email from team members query
+	•	Guest email from guest record (only show if email exists; otherwise show disabled row “No email on file”)
+	•	Remove raw email inputs
+	•	Only checked recipients go into calendar invite payload
+Acceptance: Default OFF. Turn ON → all unchecked. Select only Gal → payload includes only Gal.
+
+⸻
+
+T004: Standardize dialog sizing + scroll across app
+Define 2 standards:
+	•	Standard dialogs (forms):
+className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden"
+	•	Large detail dialog: keep the existing “560px + fixed header + scroll body” contract
+
+Apply Standard to dialogs currently missing className or inconsistent:
+	•	episodes.tsx: new episode, new task, platform link, add teaser, add link dialogs
+	•	studio.tsx: dialog without className
+	•	team.tsx: dialog without className
+	•	backoffice.tsx: dialog without className
+Also add w-[95vw] where missing in:
+	•	guests.tsx, scheduling.tsx, studio.tsx dialogs that already have max-w/max-h
+
+Acceptance: No horizontal scroll on mobile, consistent width, Save buttons reachable.
+
+⸻
+
+T005: Missing-info warnings (subtle)
+Blocked by T001.
+File: client/src/pages/episodes.tsx (detail dialog body)
+Show subtle amber warning row(s) when:
+	•	No scheduled date (and status implies it should be scheduled or beyond — use your existing status rules)
+	•	Guest has no email (affects invites)
+	•	No title (edge case)
+Also in booking flow (studio.tsx): if guest email missing, show note next to Guest recipient row (“No email on file”).
+Acceptance: Warnings visible, not intrusive, and prevents silent invite failures.
+
+⸻
+
+T006: Smoke test
+After implementation:
+	•	Test: open/close many episodes fast; edit title/status; reschedule; tasks; links; ensure dialog shows correct data every time
+	•	Test mobile viewport
+	•	Ensure no regressions on: episode cards, guest cards, archived view, publishing flow
+
+Deliver final response: a checklist of what you tested and what passed.

@@ -281,7 +281,7 @@ export default function Team() {
       )}
 
       <Dialog open={!!selectedMember} onOpenChange={(open) => { if (!open) { setSelectedMember(null); setEditingField(null); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedMember && (
             <>
               <DialogHeader>

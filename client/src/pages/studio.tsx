@@ -1057,7 +1057,7 @@ export default function Studio() {
           setBlockNote("");
         }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedDate && !selectedSlot && (
             <>
               <DialogHeader>
@@ -1564,7 +1564,7 @@ export default function Studio() {
       <Dialog open={showClearMonth} onOpenChange={(open) => {
         if (!open) { setShowClearMonth(false); setClearConfirmedToggles({}); setClearEmailToggles({}); }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eraser className="h-4 w-4" />
@@ -1782,7 +1782,7 @@ export default function Studio() {
       <Dialog open={showManualBooking} onOpenChange={(open) => {
         if (!open) { setShowManualBooking(false); setManualBooking({ date: "", startTime: "", endTime: "", guestId: "" }); }
       }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarPlus className="h-4 w-4" />

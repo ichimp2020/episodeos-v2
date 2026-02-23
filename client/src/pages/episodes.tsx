@@ -80,7 +80,7 @@ function parseTimeSlotsEpisodes(notes: string): { start: string; end: string; la
 
 export default function Episodes() {
   const [showNewEpisode, setShowNewEpisode] = useState(false);
-  const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
+  const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
   const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
   const [newTask, setNewTask] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
@@ -125,9 +125,11 @@ export default function Episodes() {
   const { data: allGuests } = useQuery<Guest[]>({
     queryKey: ["/api/guests"],
   });
+  const selectedEpisode = episodes?.find(e => e.id === selectedEpisodeId) ?? null;
+
   const { data: platformLinks } = useQuery<EpisodePlatformLink[]>({
-    queryKey: ["/api/episodes", selectedEpisode?.id, "platform-links"],
-    queryFn: () => selectedEpisode ? fetch(`/api/episodes/${selectedEpisode.id}/platform-links`).then(r => r.json()) : Promise.resolve([]),
+    queryKey: ["/api/episodes", selectedEpisodeId, "platform-links"],
+    queryFn: () => selectedEpisodeId ? fetch(`/api/episodes/${selectedEpisodeId}/platform-links`).then(r => r.json()) : Promise.resolve([]),
     enabled: !!selectedEpisode && (selectedEpisode.status === "publishing" || selectedEpisode.status === "archived"),
   });
 
@@ -141,23 +143,13 @@ export default function Episodes() {
   }, []);
 
   useEffect(() => {
-    if (selectedEpisode && episodes) {
-      const fresh = episodes.find((e) => e.id === selectedEpisode.id);
-      if (!fresh) return;
-      if (JSON.stringify(fresh) !== JSON.stringify(selectedEpisode)) {
-        setSelectedEpisode(fresh);
-      }
-    }
-  }, [episodes]);
-
-  useEffect(() => {
     const checkHighlight = () => {
       if (!episodes) return;
       const params = new URLSearchParams(window.location.search);
       const highlightId = params.get("highlight");
       if (highlightId) {
         const ep = episodes.find((e) => String(e.id) === highlightId);
-        if (ep) setSelectedEpisode(ep);
+        if (ep) setSelectedEpisodeId(ep.id);
         window.history.replaceState({}, "", window.location.pathname);
       }
     };
@@ -569,7 +561,7 @@ export default function Episodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      setSelectedEpisode(null);
+      setSelectedEpisodeId(null);
       toast({ title: "Episode deleted" });
     },
   });
@@ -637,7 +629,7 @@ export default function Episodes() {
               <div
                 key={episode.id}
                 className="ios-card cursor-pointer p-4 px-5 group relative"
-                onClick={() => setSelectedEpisode(episode)}
+                onClick={() => setSelectedEpisodeId(episode.id)}
                 data-testid={`card-episode-${episode.id}`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -734,7 +726,7 @@ export default function Episodes() {
             <div
               key={episode.id}
               className="ios-card cursor-pointer p-4 px-5 group relative opacity-70"
-              onClick={() => setSelectedEpisode(episode)}
+              onClick={() => setSelectedEpisodeId(episode.id)}
               data-testid={`card-archived-episode-${episode.id}`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -974,12 +966,76 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
+      <Dialog open={!!selectedEpisodeId} onOpenChange={(open) => { if (!open) { setSelectedEpisodeId(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
         <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0">
-          {selectedEpisode && (
+          {selectedEpisode ? (
             <>
               <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border/40">
-                <DialogTitle>TEST HEADER CHANGE</DialogTitle>
+                <DialogTitle className="space-y-1.5" data-testid="text-episode-detail-header">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedEpisode.episodeNumber != null && (
+                      <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-detail">Ep #{selectedEpisode.episodeNumber}</span>
+                    )}
+                    <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[selectedEpisode.status]}`}>{getEpisodeStatusLabel(t, selectedEpisode.status)}</Badge>
+                  </div>
+                  {editingField === "title" ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editValues.title}
+                        onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
+                        autoFocus
+                        className="text-sm"
+                        data-testid="input-edit-title"
+                      />
+                      <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p
+                      className="text-base font-semibold cursor-pointer group flex items-center gap-1 hover:text-foreground transition-colors truncate"
+                      onClick={() => startEditing("title")}
+                      data-testid="text-episode-title"
+                    >
+                      {selectedEpisode.title}
+                      <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </p>
+                  )}
+                  {editingField === "description" ? (
+                    <div className="flex items-start gap-2">
+                      <Textarea
+                        value={editValues.description}
+                        onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
+                        autoFocus
+                        rows={2}
+                        className="text-sm"
+                        data-testid="input-edit-description"
+                      />
+                      <div className="flex flex-col gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => saveField("description")} data-testid="button-save-description">
+                          <Check className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-description">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p
+                      className="text-sm text-muted-foreground cursor-pointer group flex items-center gap-1"
+                      onClick={() => startEditing("description")}
+                      data-testid="text-episode-description"
+                    >
+                      {selectedEpisode.description || "No description — click to add"}
+                      <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                    </p>
+                  )}
+                </DialogTitle>
                 <DialogDescription className="sr-only">Episode details</DialogDescription>
               </DialogHeader>
 
@@ -1646,7 +1702,7 @@ export default function Episodes() {
                     className="rounded-full px-5"
                     onClick={() => {
                       toast({ title: t.episodes.saveChanges });
-                      setSelectedEpisode(null);
+                      setSelectedEpisodeId(null);
                       setShowReschedule(false);
                       setEditingGuestEmail(false);
                       setEditingGuestPhone(false);
@@ -1724,7 +1780,11 @@ export default function Episodes() {
                 </DialogContent>
               </Dialog>
             </>
-          )}
+          ) : selectedEpisodeId ? (
+            <div className="flex items-center justify-center py-12 px-6">
+              <p className="text-sm text-muted-foreground">Loading episode…</p>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

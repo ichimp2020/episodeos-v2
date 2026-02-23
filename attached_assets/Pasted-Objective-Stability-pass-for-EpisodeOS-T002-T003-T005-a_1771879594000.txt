@@ -1,0 +1,77 @@
+Objective
+Stability pass for EpisodeOS. T002, T003, T005 are already implemented from previous sessions. T001 (SEV-1) needs major rework per user's edge-case feedback. T004 has 5 remaining dialogs. T006 is verification.
+
+Status of each task
+Task | Status | Remaining Work
+T001 | NOT DONE | Major refactor: selectedEpisode object → selectedEpisodeId + derived from query
+T002 | DONE | rescheduleHelpers.ts exists, both files import from it. Verify only.
+T003 | DONE | sendInvites toggle, inviteRecipients checkboxes, payload mapping all exist in studio.tsx. Verify only.
+T004 | PARTIAL | 5 dialogs still have max-w-md without full standard classes
+T005 | DONE | Amber warnings for no-date, no-email, no-title already in episodes.tsx. Verify only.
+T006 | NOT DONE | Smoke test after all changes
+
+Tasks
+
+T001: Refactor selectedEpisode to ID-based derivation (SEV-1)
+- Blocked By: []
+- Details:
+  - File: client/src/pages/episodes.tsx
+  - Step 1: Change state from useState<Episode | null>(null) to useState<string | null>(null) storing only the episode ID (selectedEpisodeId).
+  - Step 2: Derive the displayed episode:
+    const selectedEpisode = episodes?.find(e => e.id === selectedEpisodeId) ?? null;
+  - Step 3: Replace all setSelectedEpisode(episode) calls with setSelectedEpisodeId(episode.id) and all setSelectedEpisode(null) with setSelectedEpisodeId(null).
+  - Step 4: Remove the existing sync effect (line ~148) — no longer needed since episode is always derived from fresh query data.
+  - Step 5: Remove ALL setSelectedEpisode({...spread}) post-mutation patches — none should remain.
+  - Step 6: Hard guard in dialog: if selectedEpisodeId is set but selectedEpisode is null (episode not in current list), show a brief loading/empty state instead of rendering stale data. Do NOT auto-close (episode might be filtered).
+  - Step 7: Update the spotlight navigation effect (line ~160) to use setSelectedEpisodeId(ep.id).
+  - Step 8: Update the delete mutation onSuccess (line ~572) to use setSelectedEpisodeId(null).
+  - Risks: ~50+ reads of selectedEpisode in JSX — those remain valid since selectedEpisode is now a derived const. Only the setters change.
+  - Acceptance: No setSelectedEpisode calls remain (only setSelectedEpisodeId). Dialog always derives from query cache. No stale data.
+
+T002: Verify shared reschedule helpers (DONE — verify only)
+- Blocked By: []
+- Details:
+  - client/src/lib/rescheduleHelpers.ts exports needsReschedule + canReschedule ✓
+  - episodes.tsx line 46 imports both ✓
+  - EpisodeEditDialog.tsx line 25 imports needsReschedule ✓
+  - No duplicated inline logic found ✓
+  - Acceptance: Already passing.
+
+T003: Verify invite recipients UX (DONE — verify only)
+- Blocked By: []
+- Details:
+  - sendInvites state default false (line 241) ✓
+  - inviteRecipients checkboxes (lines 1487-1503) ✓
+  - Guest without email shows disabled row ✓
+  - Only checked recipients in payload (lines 1531-1550) ✓
+  - Acceptance: Already passing. May add "Recipients (0 selected)" summary and reset-on-dialog-open if not present.
+
+T004: Fix remaining dialog sizing (5 dialogs)
+- Blocked By: []
+- Details:
+  - These 5 dialogs have max-w-md without the full standard classes:
+    - studio.tsx line 1060: <DialogContent className="max-w-md">
+    - studio.tsx line 1567: <DialogContent className="max-w-md">
+    - studio.tsx line 1785: <DialogContent className="max-w-md">
+    - team.tsx line 284: <DialogContent className="max-w-md">
+    - guests.tsx line 365: <DialogContent className="max-w-md">
+  - Change each to:
+    className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden"
+  - Acceptance: All DialogContent across app have standard or large sizing.
+
+T005: Verify missing-info warnings (DONE — verify only)
+- Blocked By: []
+- Details:
+  - Episodes.tsx lines 1259-1282: warnings for no-date, no-email, no-title ✓
+  - Studio.tsx: guest recipient shows "No email" when disabled ✓
+  - Acceptance: Already passing.
+
+T006: Smoke test
+- Blocked By: [T001, T004]
+- Details:
+  - Restart app, verify no build/console errors.
+  - Test: open/close 5 episodes fast, edit title/status, reschedule, tasks, links — dialog always shows correct data.
+  - Test mobile viewport (dialog sizing).
+  - Verify no regressions: episode cards, guest cards, archived view, publishing flow.
+  - Deliver checklist of what was tested and what passed.
+  - Acceptance: All QA checklist items pass.

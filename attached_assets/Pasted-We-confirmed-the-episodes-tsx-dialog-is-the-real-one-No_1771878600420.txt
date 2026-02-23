@@ -1,0 +1,71 @@
+We confirmed the episodes.tsx dialog is the real one. Now do the full fix set cleanly + consistently.
+
+Rules (must be true everywhere in episodes UI)
+
+Primary label = Episode Title.
+Guest name is secondary and must never appear more than once on screen.
+
+Truth table:
+	1.	title == guest.name → show title once, and in Guest card show only “Guest” (no name)
+	2.	title != guest.name → show title + show guest name once inside Guest card
+	3.	no guest → show title + “No guest linked” (or keep current empty state)
+
+A) Episode Detail Dialog (client/src/pages/episodes.tsx) — FINAL
+	1.	Header rebuild (no guest name in header at all)
+
+	•	Line 1: Ep #{episodeNumber} + status badge (read-only)
+	•	Line 2: title (keep existing inline edit logic)
+	•	Line 3: description (keep existing inline edit logic)
+	•	Remove any header guest rendering (no IIFE that prints guest)
+	•	DialogDescription: hide or sr-only
+
+	2.	Scroll contract
+DialogContent:
+
+	•	max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0
+Header:
+	•	shrink-0 px-6 pt-6 pb-3 border-b
+Body:
+	•	overflow-y-auto flex-1 px-6 py-4 space-y-5
+Acceptance: fixed header, scrollable body, no horizontal scroll on mobile.
+
+	3.	Guest dedup inside Guest card
+Compute:
+const isGuestNameRedundant = selectedEpisode.title?.trim().toLowerCase().includes(guest.name.trim().toLowerCase())
+If redundant: do NOT render guest.name in Guest card header (keep “Guest” label + descriptor).
+If not redundant: render guest.name as before.
+Acceptance: guest name appears at most once on screen.
+
+B) Episode Cards vs Dialog — MUST MATCH
+
+Right now card shows guest.name || episode.title, but dialog shows episode.title. That’s the inconsistency.
+
+Fix: Card primary text must also be episode.title (same rule as dialog).
+	•	If title is empty, then fallback to guest name (only then).
+Acceptance: Opening an episode, the card’s main label and dialog title line are the same.
+
+C) Calendar Sync + Invite List (do not auto-send)
+
+Goal: make calendar state obvious and prevent silent invites.
+	1.	Add a simple “Calendar” row in dialog near schedule/reschedule:
+
+	•	Shows one of: Not linked / Linked / Needs update (based on calendarEventId + date/time changes)
+	•	If linked and date/time changed since last sync → show Needs update
+
+	2.	Invite list must be manually checked:
+
+	•	Show the invitees list with unchecked by default when preparing an invite/update
+	•	Add a “Select all” + “Send invites” button
+	•	No automatic sending on status change / reschedule click
+Acceptance: nothing is sent unless user explicitly checks invitees and presses Send.
+
+Dev marker policy
+
+Do NOT leave “DEV vNEXT” or test headers in production code.
+If you need a marker for verification, add it temporarily behind a dev flag and remove before finishing.
+
+Deliverable
+
+Before you say “done”, send me:
+	1.	Which files changed + what lines/sections
+	2.	A checklist confirming A/B/C acceptances above

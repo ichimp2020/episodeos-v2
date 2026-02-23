@@ -362,7 +362,7 @@ export default function Guests() {
       />
 
       <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) setImportText(""); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardPaste className="h-5 w-5 text-purple-500" />

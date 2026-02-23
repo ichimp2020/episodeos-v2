@@ -1,0 +1,36 @@
+Before you build, adjust the plan for edge-cases:
+
+1) T001 (SEV-1) — selectedEpisode drift:
+- Do NOT rely on a mutable selectedEpisode object as source of truth.
+- Store selectedEpisodeId on open.
+- Derive displayed episode from query data by id (episodes.find by selectedEpisodeId).
+- Add a hard guard: if dialog is open but derived episode is missing, show loading/empty state (do not render stale previous episode).
+- IMPORTANT: don’t auto-close just because episode isn’t in the current list (it might be filtered). Only close if truly deleted or user closes.
+
+Optional but preferred:
+- If episode is missing from list, fetch it by id with a dedicated query (episodeById) so dialog always shows correct data.
+
+2) Post-mutation updates:
+- Remove setSelectedEpisode({...spread}) patches.
+- If you need instant UI updates, do optimistic updates in the query cache (queryClient.setQueryData), not via local selectedEpisode mutation.
+
+3) T002 reschedule helpers:
+- Centralize status rules in one place (arrays/constants) so episodes.tsx and EpisodeEditDialog.tsx can’t drift.
+- Both dialogs must import helpers; no duplicate inline logic.
+
+4) T003 invites:
+- Master toggle OFF by default AND resets OFF when opening booking dialog.
+- When ON: role checkboxes all unchecked by default.
+- Show a clear “Recipients (0 selected)” and preview: “Invites will go to: …” / “No invites will be sent”.
+- Guest email missing: disabled row + “No email on file”, and ensure payload excludes it.
+
+5) T004 dialogs:
+- Create constants for dialog classNames (STANDARD + LARGE) and reuse, not copy/paste.
+- Confirm no horizontal scroll in mobile viewport.
+
+6) Acceptance tests (must provide screenshots or short recording):
+A) Open 5 different episodes in a row: dialog always matches clicked card (title + guest + ep #).
+B) After editing title/status, close and reopen: card and dialog match.
+C) Reschedule badge/button consistent in both dialogs.
+D) Booking: invites OFF by default; turning ON has 0 selected; selecting only Gal sends only Gal; guest w/o email never included.
+E) Mobile: all dialogs scroll correctly; Save buttons reachable.
