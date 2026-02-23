@@ -63,21 +63,72 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+const isProd = process.env.NODE_ENV === "production";
+
+if (isProd && !process.env.PORT) {
+  console.error("FATAL: PORT env var is missing in production. Exiting.");
+  process.exit(1);
+}
+
 const port = parseInt(process.env.PORT || "5000", 10);
+
+function logMemory(label: string) {
+  const mem = process.memoryUsage();
+  const rss = (mem.rss / 1024 / 1024).toFixed(1);
+  const heap = (mem.heapUsed / 1024 / 1024).toFixed(1);
+  const uptime = process.uptime().toFixed(1);
+  console.log(`[diag] ${label} | RSS=${rss}MB heap=${heap}MB uptime=${uptime}s pid=${process.pid}`);
+}
+
+process.on("SIGTERM", () => {
+  console.log("[diag] SIGTERM received");
+  logMemory("SIGTERM");
+  httpServer.close(() => {
+    console.log("[diag] server closed gracefully");
+    process.exit(0);
+  });
+  setTimeout(() => {
+    console.log("[diag] forced exit after SIGTERM timeout");
+    process.exit(1);
+  }, 5000);
+});
+
+process.on("SIGINT", () => {
+  console.log("[diag] SIGINT received");
+  logMemory("SIGINT");
+  process.exit(0);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[diag] uncaughtException:", err.stack || err.message);
+  logMemory("uncaughtException");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[diag] unhandledRejection:", reason);
+  logMemory("unhandledRejection");
+});
+
+if (isProd) {
+  setInterval(() => {
+    logMemory("heartbeat");
+  }, 5000);
+}
 
 (async () => {
   httpServer.listen(
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
     },
     () => {
       log(`serving on port ${port}`);
+      logMemory("listen");
     },
   );
 
-  if (process.env.NODE_ENV === "production") {
+  if (isProd) {
     const { migrateProductionData } = await import("./migrate-prod");
     await migrateProductionData();
   } else {
@@ -100,10 +151,12 @@ const port = parseInt(process.env.PORT || "5000", 10);
     return res.status(status).json({ message });
   });
 
-  if (process.env.NODE_ENV === "production") {
+  if (isProd) {
     serveStatic(app);
   } else {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  logMemory("ready");
 })();
