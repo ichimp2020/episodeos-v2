@@ -237,14 +237,17 @@ export default function Episodes() {
 
   const createEpisode = useMutation({
     mutationFn: async () => {
-      await apiRequest("POST", "/api/episodes", {
+      const requestId = crypto.randomUUID();
+      const res = await apiRequest("POST", "/api/episodes", {
         title: newEpisode.title,
         description: newEpisode.description || null,
         episodeNumber: newEpisode.episodeNumber ? parseInt(newEpisode.episodeNumber) : null,
         scheduledDate: newEpisode.scheduledDate || null,
         scheduledTime: newEpisode.scheduledTime || null,
         status: "scheduled",
+        requestId,
       });
+      return res;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
@@ -252,7 +255,12 @@ export default function Episodes() {
       setNewEpisode({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
       toast({ title: "Episode created" });
     },
-    onError: () => toast({ title: "Failed to create episode", variant: "destructive" }),
+    onError: (err: any) => {
+      const msg = err?.message?.includes("409") || err?.status === 409
+        ? "Episode already exists for this interview"
+        : "Failed to create episode";
+      toast({ title: msg, variant: "destructive" });
+    },
   });
 
   const getEpisodeGuest = useCallback((episode: Episode): Guest | null => {

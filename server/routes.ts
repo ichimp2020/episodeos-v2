@@ -1,16 +1,79 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
   insertEpisodeFileSchema, insertEpisodeShortSchema, insertEpisodePlatformLinkSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
+  episodes, tasks,
+  type InsertEpisode, type Episode,
 } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { createCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { registerChatRoutes } from "./replit_integrations/chat";
+
+class DuplicateEpisodeError extends Error {
+  existingEpisode: Episode;
+  constructor(existing: Episode) {
+    super("Episode already exists");
+    this.existingEpisode = existing;
+  }
+}
+
+const DEFAULT_TASK_TEMPLATES = [
+  { title: "Episode Title", assigneeNames: ["Gal", "Homsie"] },
+  { title: "Description Context", assigneeNames: ["Gal", "Homsie"] },
+  { title: "Graphics", assigneeNames: ["Yair", "Yuli"] },
+  { title: "Teasers", assigneeNames: ["Knob"] },
+  { title: "Final Edit for Upload", assigneeNames: ["Knob"] },
+];
+
+async function ensureEpisodeWithDefaultTasks(
+  episodeData: InsertEpisode
+): Promise<{ episode: Episode; created: boolean }> {
+  const allEpisodes = await storage.getEpisodes();
+
+  if (episodeData.interviewId) {
+    const existing = allEpisodes.find(e => e.interviewId === episodeData.interviewId);
+    if (existing) return { episode: existing, created: false };
+  }
+
+  if (episodeData.requestId) {
+    const existing = allEpisodes.find(e => e.requestId === episodeData.requestId);
+    if (existing) return { episode: existing, created: false };
+  }
+
+  const allMembers = await storage.getTeamMembers();
+  const findIds = (names: string[]) =>
+    allMembers.filter(m => names.some(n => m.name.toLowerCase() === n.toLowerCase())).map(m => m.id);
+
+  const episode = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(episodes).values(episodeData).returning();
+
+    for (const tmpl of DEFAULT_TASK_TEMPLATES) {
+      const existingTasks = await tx.select().from(tasks).where(
+        and(eq(tasks.episodeId, created.id), eq(tasks.title, tmpl.title))
+      );
+      if (existingTasks.length === 0) {
+        await tx.insert(tasks).values({
+          episodeId: created.id,
+          title: tmpl.title,
+          assigneeIds: findIds(tmpl.assigneeNames),
+          status: "todo",
+        });
+      }
+    }
+
+    return created;
+  });
+
+  console.log(`[ensureEpisodeWithDefaultTasks] Created episode ${episode.id} "${episode.title}" with 5 default tasks`);
+  return { episode, created: true };
+}
 
 const updateTeamMemberSchema = insertTeamMemberSchema.partial();
 const updateEpisodeSchema = insertEpisodeSchema.partial();
@@ -81,30 +144,15 @@ export async function registerRoutes(
       episodeData.guestId = guest.id;
     }
 
-    const episode = await storage.createEpisode(episodeData);
-
-    const allMembers = await storage.getTeamMembers();
-    const findIds = (names: string[]) =>
-      allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
-
-    const defaultTasks = [
-      { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
-      { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
-      { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
-      { title: "Teasers", assigneeIds: findIds(["Knob"]) },
-      { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
-    ];
-
-    for (const dt of defaultTasks) {
-      await storage.createTask({
-        episodeId: episode.id,
-        title: dt.title,
-        assigneeIds: dt.assigneeIds,
-        status: "todo",
-      });
+    try {
+      const { episode, created } = await ensureEpisodeWithDefaultTasks(episodeData);
+      res.status(created ? 201 : 200).json(episode);
+    } catch (err) {
+      if (err instanceof DuplicateEpisodeError) {
+        return res.status(409).json({ message: "Episode already exists", existingId: err.existingEpisode.id });
+      }
+      throw err;
     }
-
-    res.status(201).json(episode);
   });
 
   app.patch("/api/episodes/:id", async (req, res) => {
@@ -292,48 +340,30 @@ export async function registerRoutes(
     if (!updated) return res.status(404).json({ message: "Guest not found" });
 
     if (parsed.data.status === "confirmed" || updated.status === "confirmed") {
-      const allEpisodes = await storage.getEpisodes();
-      const guestNameTrimmed = updated.name.trim();
-      const alreadyExists = allEpisodes.some((e) => e.title.trim() === guestNameTrimmed);
-      if (!alreadyExists) {
+      const interviews = await storage.getInterviews();
+      const guestInterview = interviews.find((i) => i.guestId === req.params.id && i.status === "confirmed");
+
+      if (guestInterview) {
+        const allEpisodes = await storage.getEpisodes();
         const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
+        const guestNameTrimmed = updated.name.trim();
 
-        const interviews = await storage.getInterviews();
-        const guestInterview = interviews.find((i) => i.guestId === req.params.id && i.status === "confirmed");
-
-        const episode = await storage.createEpisode({
-          title: guestNameTrimmed,
-          description: `Interview with ${guestNameTrimmed}`,
-          status: "scheduled",
-          scheduledDate: guestInterview?.scheduledDate || null,
-          scheduledTime: guestInterview?.scheduledTime || null,
-          episodeNumber: maxEpNum + 1,
-          interviewId: guestInterview?.id || null,
-          guestId: req.params.id,
-          recordingLink: null,
-          timestampsJson: null,
-          aiStatus: null,
-        });
-
-        const allMembers = await storage.getTeamMembers();
-        const findIds = (names: string[]) =>
-          allMembers.filter((m) => names.some((n) => m.name.toLowerCase() === n.toLowerCase())).map((m) => m.id);
-
-        const defaultTasks = [
-          { title: "Episode Title", assigneeIds: findIds(["Gal", "Homsie"]) },
-          { title: "Description Context", assigneeIds: findIds(["Gal", "Homsie"]) },
-          { title: "Graphics", assigneeIds: findIds(["Yair", "Yuli"]) },
-          { title: "Teasers", assigneeIds: findIds(["Knob"]) },
-          { title: "Final Edit for Upload", assigneeIds: findIds(["Knob"]) },
-        ];
-
-        for (const dt of defaultTasks) {
-          await storage.createTask({
-            episodeId: episode.id,
-            title: dt.title,
-            assigneeIds: dt.assigneeIds,
-            status: "todo",
+        try {
+          await ensureEpisodeWithDefaultTasks({
+            title: guestNameTrimmed,
+            description: `Interview with ${guestNameTrimmed}`,
+            status: "scheduled",
+            scheduledDate: guestInterview.scheduledDate || null,
+            scheduledTime: guestInterview.scheduledTime || null,
+            episodeNumber: maxEpNum + 1,
+            interviewId: guestInterview.id,
+            guestId: req.params.id,
+            recordingLink: null,
+            timestampsJson: null,
+            aiStatus: null,
           });
+        } catch (err) {
+          if (!(err instanceof DuplicateEpisodeError)) throw err;
         }
       }
     }
@@ -396,13 +426,13 @@ export async function registerRoutes(
     if (!updated) return res.status(404).json({ message: "Interview not found" });
 
     if (parsed.data.status === "confirmed" && existing.status !== "confirmed") {
+      const guest = updated.guestId ? await storage.getGuest(updated.guestId) : null;
+      const guestName = guest?.name || "Guest";
       const existingEpisodes = await storage.getEpisodes();
-      const alreadyLinked = existingEpisodes.some((e) => e.interviewId === req.params.id);
-      if (!alreadyLinked) {
-        const guest = updated.guestId ? await storage.getGuest(updated.guestId) : null;
-        const guestName = guest?.name || "Guest";
-        const maxEpNum = existingEpisodes.reduce((max, e) => Math.max(max, e.episodeNumber || 0), 0);
-        await storage.createEpisode({
+      const maxEpNum = existingEpisodes.reduce((max, e) => Math.max(max, e.episodeNumber || 0), 0);
+
+      try {
+        await ensureEpisodeWithDefaultTasks({
           title: guestName,
           description: `Interview with ${guestName}`,
           status: "scheduled",
@@ -410,10 +440,13 @@ export async function registerRoutes(
           scheduledTime: updated.scheduledTime || null,
           episodeNumber: maxEpNum + 1,
           interviewId: req.params.id,
+          guestId: updated.guestId || null,
           recordingLink: null,
           timestampsJson: null,
           aiStatus: null,
         });
+      } catch (err) {
+        if (!(err instanceof DuplicateEpisodeError)) throw err;
       }
     }
 
@@ -608,6 +641,38 @@ export async function registerRoutes(
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
+  });
+
+  app.post("/api/episodes/:id/repair", async (req, res) => {
+    const episode = await storage.getEpisode(req.params.id);
+    if (!episode) return res.status(404).json({ message: "Episode not found" });
+
+    const existingTasks = await storage.getTasksByEpisode(episode.id);
+    const existingTitles = new Set(existingTasks.map(t => t.title));
+
+    const allMembers = await storage.getTeamMembers();
+    const findIds = (names: string[]) =>
+      allMembers.filter(m => names.some(n => m.name.toLowerCase() === n.toLowerCase())).map(m => m.id);
+
+    const repaired: string[] = [];
+    const alreadyPresent: string[] = [];
+
+    for (const tmpl of DEFAULT_TASK_TEMPLATES) {
+      if (existingTitles.has(tmpl.title)) {
+        alreadyPresent.push(tmpl.title);
+      } else {
+        await storage.createTask({
+          episodeId: episode.id,
+          title: tmpl.title,
+          assigneeIds: findIds(tmpl.assigneeNames),
+          status: "todo",
+        });
+        repaired.push(tmpl.title);
+        console.log(`[repair] Created missing task "${tmpl.title}" for episode ${episode.id} "${episode.title}"`);
+      }
+    }
+
+    res.json({ repaired, alreadyPresent });
   });
 
   registerObjectStorageRoutes(app);

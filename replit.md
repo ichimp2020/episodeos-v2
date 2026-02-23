@@ -18,7 +18,7 @@ A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. De
 
 ## Data Model
 - `teamMembers` - name, role, color, initials, phone, email, responsibilities
-- `episodes` - title, description, status, scheduledDate, episodeNumber
+- `episodes` - title, description, status, scheduledDate, episodeNumber, requestId (client-generated UUID for idempotent creation)
 - `tasks` - episodeId, assigneeId, title, status, dueDate
 - `studioDates` - date, status (available/taken), notes, bookedSlot, participantEmails (JSON)
 - `episodeFiles` - episodeId, name, category (graphic/thumbnail/document), objectPath, contentType, size
@@ -43,6 +43,7 @@ A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. De
 - `GET/POST /api/episodes/:episodeId/platform-links`, `GET /api/platform-links`, `PATCH/DELETE /api/platform-links/:id`
 - `GET/POST /api/shared-links`, `PATCH/DELETE /api/shared-links/:id`
 - `POST /api/episodes/auto-status` - Auto-transitions episode statuses based on dates (recording on scheduled date, editing day after, archived after publish date)
+- `POST /api/episodes/:id/repair` - Idempotent: creates only missing default tasks for an episode, returns `{ repaired, alreadyPresent }`
 - `POST /api/calendar-event` - Creates a Google Calendar event with attendees; supports `previousEventId` to auto-cancel old events on reschedule
 - `GET /api/search?q=query` - Cross-entity search (guests, episodes, team, interviews, studio dates)
 - `GET/POST /api/conversations`, `GET/DELETE /api/conversations/:id` - AI chat conversations
@@ -54,7 +55,7 @@ A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. De
 - `client/src/lib/rescheduleHelpers.ts` — `needsReschedule()` and `canReschedule()` shared between episodes.tsx and EpisodeEditDialog.tsx
 
 ## State Management Patterns
-- **Episode detail dialog** (`episodes.tsx`): Uses `selectedEpisode` local state synced from query cache via `useEffect`. After mutations, query invalidation + sync effect updates the dialog — no manual `setSelectedEpisode({...spread})` patches.
+- **Episode detail dialog** (`episodes.tsx`): Uses `selectedEpisodeId` (string state) with derived `selectedEpisode` from query cache. No sync effect needed — always fresh from `episodes.find()`.
 - **Studio invite flow** (`studio.tsx`): Master toggle `sendInvites` (OFF by default) + role-based `inviteRecipients` checkboxes (all OFF by default). Invites only sent when master is ON and recipients are selected.
 
 ## Dialog Sizing Standards
