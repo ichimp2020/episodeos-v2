@@ -974,7 +974,6 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      {console.log("RENDER: episodes.tsx dialog")}
       <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
         <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0">
           {selectedEpisode && (
