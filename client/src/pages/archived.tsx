@@ -74,7 +74,7 @@ export default function ArchivedEpisodes() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted/50 mb-4">
             <Archive className="h-7 w-7 text-muted-foreground/40" />
           </div>
-          <p className="text-sm text-muted-foreground" data-testid="text-no-archived">No archived episodes yet</p>
+          <p className="text-sm text-muted-foreground" data-testid="text-no-archived">{t.episodes.noArchivedYet}</p>
         </div>
       ) : (
         <div className="space-y-3">

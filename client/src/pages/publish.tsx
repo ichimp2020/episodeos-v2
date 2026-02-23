@@ -20,6 +20,8 @@ import { Plus, Upload, Trash2, CheckCircle, ExternalLink, Pencil, Check, X, Glob
 import { SiSpotify, SiYoutube, SiApplemusic } from "react-icons/si";
 import type { Publishing, Episode, EpisodePlatformLink } from "@shared/schema";
 import { format, parseISO } from "date-fns";
+import { useLanguage } from "@/i18n/LanguageProvider";
+import { publishingStatusColors, getPublishingStatusLabel } from "@/lib/statusColors";
 
 const platforms = [
   { value: "spotify", label: "Spotify", icon: SiSpotify, color: "#1DB954" },
@@ -28,13 +30,9 @@ const platforms = [
 ];
 
 const pubStatuses = ["scheduled", "published", "failed"];
-const statusColors: Record<string, string> = {
-  scheduled: "bg-chart-4/10 text-chart-4 border-transparent",
-  published: "bg-chart-2/10 text-chart-2 border-transparent",
-  failed: "bg-destructive/10 text-destructive border-transparent",
-};
 
 export default function Publish() {
+  const { t } = useLanguage();
   const [showNewPublish, setShowNewPublish] = useState(false);
   const [editingPublish, setEditingPublish] = useState<Publishing | null>(null);
   const [editPubValues, setEditPubValues] = useState({ title: "", description: "", scheduledDate: "", scheduledTime: "", externalUrl: "", status: "" });
@@ -146,12 +144,12 @@ export default function Publish() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-publishing-title">Publishing</h1>
-          <p className="text-sm text-muted-foreground mt-1">Schedule and track episode releases across platforms</p>
+          <h1 className="text-2xl font-bold tracking-tight" data-testid="text-publishing-title">{t.publishing.title}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{t.publishing.subtitle}</p>
         </div>
         <Button className="rounded-full px-5 shadow-md" onClick={() => setShowNewPublish(true)} data-testid="button-new-publish">
           <Plus className="h-4 w-4" />
-          Schedule Release
+          {t.publishing.scheduleRelease}
         </Button>
       </div>
 
@@ -161,11 +159,11 @@ export default function Publish() {
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted/50 mb-3">
               <Upload className="h-6 w-6 text-muted-foreground/60" />
             </div>
-            <p className="text-muted-foreground font-medium">No releases scheduled</p>
-            <p className="text-sm text-muted-foreground mt-1">Schedule your first episode release</p>
+            <p className="text-muted-foreground font-medium">{t.publishing.noReleases}</p>
+            <p className="text-sm text-muted-foreground mt-1">{t.publishing.scheduleFirst}</p>
             <Button className="rounded-full px-5 shadow-md mt-4" onClick={() => setShowNewPublish(true)} data-testid="button-create-first-publish">
               <Plus className="h-4 w-4" />
-              Schedule Release
+              {t.publishing.scheduleRelease}
             </Button>
           </div>
         </div>
@@ -174,7 +172,7 @@ export default function Publish() {
           {scheduled.length > 0 && (
             <div>
               <div className="ios-section-header flex items-center gap-2 mb-3 px-0">
-                <h2 className="ios-section-title">Scheduled</h2>
+                <h2 className="ios-section-title">{t.publishing.scheduled}</h2>
                 <Badge variant="secondary" className="ios-badge border-0 text-xs">{scheduled.length}</Badge>
               </div>
               <div className="space-y-3">
@@ -196,9 +194,9 @@ export default function Publish() {
                             {ep?.episodeNumber && (
                               <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{ep.episodeNumber}</span>
                             )}
-                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || "Untitled"}</h3>
-                            <Badge className={`ios-badge border-0 ${statusColors[pub.status]}`}>
-                              {pub.status}
+                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || t.publishing.titlePlaceholder}</h3>
+                            <Badge className={`ios-badge border-0 ${publishingStatusColors[pub.status]}`}>
+                              {getPublishingStatusLabel(t, pub.status)}
                             </Badge>
                             <Badge variant="secondary" className="ios-badge border-0 gap-1" style={{ color: platform?.color }}>
                               <PlatformIcon className="w-3 h-3" />
@@ -209,7 +207,7 @@ export default function Publish() {
                             <span className={`text-xs ${!pub.scheduledDate ? "text-muted-foreground/50 italic" : "text-muted-foreground"}`}>
                               {pub.scheduledDate
                                 ? <>{format(parseISO(pub.scheduledDate), "MMM d, yyyy")}{pub.scheduledTime ? ` at ${pub.scheduledTime}` : ""}</>
-                                : "No date set"}
+                                : t.dashboard.noDateSet}
                             </span>
                           </div>
                           {pub.episodeId && epLinks.length > 0 && (
@@ -271,7 +269,7 @@ export default function Publish() {
           {published.length > 0 && (
             <div>
               <div className="ios-section-header flex items-center gap-2 mb-3 px-0">
-                <h2 className="ios-section-title">Published</h2>
+                <h2 className="ios-section-title">{t.publishing.publishedLabel}</h2>
                 <Badge variant="secondary" className="ios-badge border-0 text-xs">{published.length}</Badge>
               </div>
               <div className="space-y-3">
@@ -293,9 +291,9 @@ export default function Publish() {
                             {ep?.episodeNumber && (
                               <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{ep.episodeNumber}</span>
                             )}
-                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || "Untitled"}</h3>
-                            <Badge className={`ios-badge border-0 ${statusColors[pub.status]}`}>
-                              {pub.status}
+                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || t.publishing.titlePlaceholder}</h3>
+                            <Badge className={`ios-badge border-0 ${publishingStatusColors[pub.status]}`}>
+                              {getPublishingStatusLabel(t, pub.status)}
                             </Badge>
                             <Badge variant="secondary" className="ios-badge border-0 gap-1" style={{ color: platform?.color }}>
                               <PlatformIcon className="w-3 h-3" />
@@ -304,7 +302,7 @@ export default function Publish() {
                           </div>
                           <div className="flex items-center gap-4 mt-2 flex-wrap">
                             <span className={`text-xs ${pub.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
-                              {pub.scheduledDate ? format(parseISO(pub.scheduledDate), "MMM d, yyyy") : "No date set"}
+                              {pub.scheduledDate ? format(parseISO(pub.scheduledDate), "MMM d, yyyy") : t.dashboard.noDateSet}
                             </span>
                           </div>
                           {pub.episodeId && epLinks.length > 0 && (
@@ -361,25 +359,25 @@ export default function Publish() {
           {editingPublish && (
             <>
               <DialogHeader>
-                <DialogTitle>Edit Release</DialogTitle>
-                <DialogDescription>Update publishing details</DialogDescription>
+                <DialogTitle>{t.publishing.editRelease}</DialogTitle>
+                <DialogDescription>{t.publishing.updateDetails}</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
+                  <label className="text-sm font-medium">{t.publishing.status}</label>
                   <Select value={editPubValues.status} onValueChange={(val) => setEditPubValues({ ...editPubValues, status: val })}>
                     <SelectTrigger data-testid="select-edit-pub-status">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {pubStatuses.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                        <SelectItem key={s} value={s}>{getPublishingStatusLabel(t, s)}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Title</label>
+                  <label className="text-sm font-medium">{t.publishing.titleLabel}</label>
                   <Input
                     value={editPubValues.title}
                     onChange={(e) => setEditPubValues({ ...editPubValues, title: e.target.value })}
@@ -387,7 +385,7 @@ export default function Publish() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
+                  <label className="text-sm font-medium">{t.publishing.descriptionLabel}</label>
                   <Textarea
                     value={editPubValues.description}
                     onChange={(e) => setEditPubValues({ ...editPubValues, description: e.target.value })}
@@ -397,7 +395,7 @@ export default function Publish() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Date</label>
+                    <label className="text-sm font-medium">{t.publishing.publishDate}</label>
                     <Input
                       type="date"
                       value={editPubValues.scheduledDate}
@@ -406,7 +404,7 @@ export default function Publish() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Time</label>
+                    <label className="text-sm font-medium">{t.publishing.time}</label>
                     <Input
                       type="time"
                       value={editPubValues.scheduledTime}
@@ -416,11 +414,11 @@ export default function Publish() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">External URL</label>
+                  <label className="text-sm font-medium">{t.publishing.externalUrl}</label>
                   <Input
                     value={editPubValues.externalUrl}
                     onChange={(e) => setEditPubValues({ ...editPubValues, externalUrl: e.target.value })}
-                    placeholder="Link to published episode"
+                    placeholder={t.publishing.externalUrlPlaceholder}
                     data-testid="input-edit-pub-url"
                   />
                 </div>
@@ -430,7 +428,7 @@ export default function Publish() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
                         <Globe className="w-4 h-4" />
-                        Platform Links
+                        {t.episodes.platformLinks}
                       </label>
                       <div className="flex flex-wrap gap-2">
                         {(["youtube", "spotify", "apple-music"] as const).map((plat) => {
@@ -522,7 +520,7 @@ export default function Publish() {
                   disabled={updatePublishing.isPending}
                   data-testid="button-save-edit-publish"
                 >
-                  {updatePublishing.isPending ? "Saving..." : "Save Changes"}
+                  {updatePublishing.isPending ? t.publishing.saving : t.episodes.saveChanges}
                 </Button>
               </div>
             </>
@@ -533,15 +531,15 @@ export default function Publish() {
       <Dialog open={showNewPublish} onOpenChange={setShowNewPublish}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Schedule Release</DialogTitle>
-            <DialogDescription>Schedule an episode for publishing on a platform</DialogDescription>
+            <DialogTitle>{t.publishing.scheduleRelease}</DialogTitle>
+            <DialogDescription>{t.publishing.scheduleEpisode}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Episode</label>
+              <label className="text-sm font-medium">{t.publishing.episode}</label>
               <Select value={newPublish.episodeId} onValueChange={selectEpisode}>
                 <SelectTrigger data-testid="select-publish-episode">
-                  <SelectValue placeholder="Select an episode" />
+                  <SelectValue placeholder={t.publishing.selectEpisode} />
                 </SelectTrigger>
                 <SelectContent>
                   {episodes?.map((e) => (
@@ -554,7 +552,7 @@ export default function Publish() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Platform</label>
+              <label className="text-sm font-medium">{t.publishing.platform}</label>
               <div className="flex gap-2">
                 {platforms.map((p) => {
                   const Icon = p.icon;
@@ -576,7 +574,7 @@ export default function Publish() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Publish Date</label>
+                <label className="text-sm font-medium">{t.publishing.publishDate}</label>
                 <Input
                   type="date"
                   value={newPublish.scheduledDate}
@@ -585,7 +583,7 @@ export default function Publish() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Time</label>
+                <label className="text-sm font-medium">{t.publishing.time}</label>
                 <Input
                   type="time"
                   value={newPublish.scheduledTime}
@@ -596,21 +594,21 @@ export default function Publish() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Title</label>
+              <label className="text-sm font-medium">{t.publishing.titleLabel}</label>
               <Input
                 value={newPublish.title}
                 onChange={(e) => setNewPublish({ ...newPublish, title: e.target.value })}
-                placeholder="Episode title for this platform"
+                placeholder={t.publishing.titlePlaceholder}
                 data-testid="input-publish-title"
               />
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">{t.publishing.descriptionLabel}</label>
               <Textarea
                 value={newPublish.description}
                 onChange={(e) => setNewPublish({ ...newPublish, description: e.target.value })}
-                placeholder="Episode description for this platform"
+                placeholder={t.publishing.descriptionPlaceholder}
                 data-testid="input-publish-description"
               />
             </div>
@@ -621,7 +619,7 @@ export default function Publish() {
               disabled={!newPublish.episodeId || !newPublish.platform || createPublishing.isPending}
               data-testid="button-submit-publish"
             >
-              {createPublishing.isPending ? "Scheduling..." : "Schedule Release"}
+              {createPublishing.isPending ? t.publishing.scheduling : t.publishing.scheduleRelease}
             </Button>
           </div>
         </DialogContent>

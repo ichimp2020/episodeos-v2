@@ -59,13 +59,7 @@ function parseTimeSlots(notes: string): TimeSlot[] {
   }
   return slots;
 }
-const statusColors: Record<string, string> = {
-  proposed: "bg-chart-4/10 text-chart-4 border-transparent",
-  confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
-  completed: "bg-primary/10 text-primary border-transparent",
-  cancelled: "bg-destructive/10 text-destructive border-transparent",
-  "needs-reschedule": "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-transparent",
-};
+import { interviewStatusColors, getInterviewStatusLabel } from "@/lib/statusColors";
 
 export default function Scheduling() {
   const [showNewInterview, setShowNewInterview] = useState(false);
@@ -379,8 +373,8 @@ export default function Scheduling() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="text-sm font-medium">{guest?.name || "Unknown Guest"}</h3>
-                              <div className={`ios-badge border-0 ${statusColors[interview.status]}`}>
-                                {interview.status}
+                              <div className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
+                                {getInterviewStatusLabel(t, interview.status)}
                               </div>
                             </div>
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -438,8 +432,8 @@ export default function Scheduling() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-medium">{guest?.name || "Unknown"}</h3>
-                            <div className={`ios-badge border-0 ${statusColors[interview.status]}`}>
-                              {interview.status}
+                            <div className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
+                              {getInterviewStatusLabel(t, interview.status)}
                             </div>
                           </div>
                           {interview.scheduledDate && (

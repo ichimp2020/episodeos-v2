@@ -42,15 +42,9 @@ import {
   isAfter,
 } from "date-fns";
 
+import { episodeStatusColors, getEpisodeStatusLabel } from "@/lib/statusColors";
+
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
-const statusColors: Record<string, string> = {
-  scheduled: "bg-primary/10 text-primary border-transparent",
-  planning: "bg-chart-4/10 text-chart-4 border-transparent",
-  recording: "bg-chart-5/10 text-chart-5 border-transparent",
-  editing: "bg-chart-3/10 text-chart-3 border-transparent",
-  publishing: "bg-chart-2/10 text-chart-2 border-transparent",
-  archived: "bg-muted text-muted-foreground border-transparent",
-};
 
 
 function parseTimeSlotsEpisodes(notes: string): { start: string; end: string; label: string }[] {
@@ -650,8 +644,8 @@ export default function Episodes() {
                         <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                       )}
                       <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
-                      <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
-                        {episode.status}
+                      <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
+                        {getEpisodeStatusLabel(t, episode.status)}
                       </Badge>
                       {needsReschedule && (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-episode-${episode.id}`}>
@@ -666,6 +660,18 @@ export default function Episodes() {
                           ? <>{format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}{isPastDate && " (past)"}</>
                           : t.dashboard.noDateSet}
                       </span>
+                      {(() => {
+                        const epGuest = getEpisodeGuest(episode);
+                        if (epGuest && !epGuest.email && episode.scheduledDate) {
+                          return (
+                            <span className="text-[10px] text-amber-500 flex items-center gap-0.5" data-testid={`hint-no-email-${episode.id}`}>
+                              <Mail className="w-2.5 h-2.5" />
+                              {t.episodes.missingGuestEmail}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                       {eTasks.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -735,8 +741,8 @@ export default function Episodes() {
                       <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                     )}
                     <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
-                    <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
-                      {episode.status}
+                    <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
+                      {getEpisodeStatusLabel(t, episode.status)}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">

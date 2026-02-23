@@ -21,15 +21,9 @@ import { format, parseISO, isAfter } from "date-fns";
 import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability, EpisodePlatformLink, Guest } from "@shared/schema";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
+import { episodeStatusColors, getEpisodeStatusLabel } from "@/lib/statusColors";
+
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
-const statusColors: Record<string, string> = {
-  scheduled: "bg-primary/10 text-primary",
-  planning: "bg-chart-4/10 text-chart-4",
-  recording: "bg-chart-5/10 text-chart-5",
-  editing: "bg-chart-3/10 text-chart-3",
-  publishing: "bg-chart-2/10 text-chart-2",
-  archived: "bg-muted text-muted-foreground",
-};
 
 interface TimeSlot {
   start: string;
@@ -495,7 +489,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                       const blocked = isEarly && (s === "publishing" || s === "archived");
                       return (
                         <SelectItem key={s} value={s} disabled={blocked}>
-                          <Badge className={`ios-badge border-0 ${statusColors[s]}`}>{s}</Badge>
+                          <Badge className={`ios-badge border-0 ${episodeStatusColors[s]}`}>{getEpisodeStatusLabel(t, s)}</Badge>
                         </SelectItem>
                       );
                     })}

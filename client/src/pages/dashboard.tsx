@@ -13,31 +13,7 @@ import EpisodeEditDialog from "@/components/EpisodeEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-
-const statusColors: Record<string, string> = {
-  scheduled: "bg-primary/10 text-primary",
-  planning: "bg-chart-4/10 text-chart-4",
-  recording: "bg-chart-5/10 text-chart-5",
-  editing: "bg-chart-3/10 text-chart-3",
-  publishing: "bg-chart-2/10 text-chart-2",
-  archived: "bg-muted text-muted-foreground",
-};
-
-const interviewStatusColors: Record<string, string> = {
-  proposed: "bg-chart-4/10 text-chart-4",
-  confirmed: "bg-chart-2/10 text-chart-2",
-  completed: "bg-primary/10 text-primary",
-  cancelled: "bg-destructive/10 text-destructive",
-  "needs-reschedule": "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-};
-
-const guestStatusColors: Record<string, string> = {
-  prospect: "bg-chart-4/10 text-chart-4",
-  contacted: "bg-amber-500/10 text-amber-600",
-  confirmed: "bg-chart-2/10 text-chart-2",
-  declined: "bg-destructive/10 text-destructive",
-  completed: "bg-primary/10 text-primary",
-};
+import { episodeStatusColors, guestStatusColors, getEpisodeStatusLabel, getGuestStatusLabel } from "@/lib/statusColors";
 
 export default function Dashboard() {
   const { t } = useLanguage();
@@ -371,8 +347,8 @@ export default function Dashboard() {
                           </span>
                         </div>
                       )}
-                      <Badge className={`ios-badge border-0 ${statusColors[episode.status]}`}>
-                        {episode.status}
+                      <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
+                        {getEpisodeStatusLabel(t, episode.status)}
                       </Badge>
                       <button
                         className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
@@ -466,7 +442,7 @@ export default function Dashboard() {
                             </div>
                           </div>
                           <Badge className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
-                            {guest.status}
+                            {getGuestStatusLabel(t, guest.status)}
                           </Badge>
                           <button
                             className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"

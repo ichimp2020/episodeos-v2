@@ -19,13 +19,9 @@ import type { Guest, TeamMember, Interview } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
+import { guestStatusColors, getGuestStatusLabel } from "@/lib/statusColors";
+
 const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
-const statusColors: Record<string, string> = {
-  prospect: "bg-chart-4/10 text-chart-4 border-transparent",
-  contacted: "bg-primary/10 text-primary border-transparent",
-  confirmed: "bg-chart-2/10 text-chart-2 border-transparent",
-  declined: "bg-destructive/10 text-destructive border-transparent",
-};
 
 export default function Guests() {
   const [showNewGuest, setShowNewGuest] = useState(false);
@@ -210,8 +206,8 @@ export default function Guests() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm font-medium" data-testid={`text-guest-name-${guest.id}`}>{guest.name}</h3>
-                          <span className={`ios-badge border-0 ${statusColors[guest.status]}`}>
-                            {guest.status}
+                          <span className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
+                            {getGuestStatusLabel(t, guest.status)}
                           </span>
                           {interviews?.find((i) => i.guestId === guest.id && i.status === 'needs-reschedule') && (
                             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1 text-[10px] py-0 px-1.5" data-testid={`badge-reschedule-guest-${guest.id}`}>
@@ -242,6 +238,11 @@ export default function Guests() {
                           {guest.addedBy && (
                             <span className="text-xs text-muted-foreground">
                               {t.guests.addedBy} {getMemberName(guest.addedBy)}
+                            </span>
+                          )}
+                          {guest.status === "confirmed" && !interviews?.find((i) => i.guestId === guest.id && i.scheduledDate) && (
+                            <span className="text-[10px] text-amber-500 flex items-center gap-0.5" data-testid={`hint-no-schedule-${guest.id}`}>
+                              {t.episodes.guestNoSchedule}
                             </span>
                           )}
                         </div>
