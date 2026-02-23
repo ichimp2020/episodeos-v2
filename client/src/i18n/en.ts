@@ -151,6 +151,10 @@ const en = {
     archiveEpisode: "Archive Episode",
     activeEpisodes: "Active Episodes",
     publishedEpisodes: "Published",
+    sendCalendarInvites: "Send Calendar Invites",
+    inviteSentSuccess: "Calendar invite sent",
+    inviteNotSent: "Booking saved without invite",
+    inviteSendFailed: "Booking saved but invite failed",
   },
   team: {
     title: "Team",

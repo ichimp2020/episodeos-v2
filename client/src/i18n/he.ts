@@ -153,6 +153,10 @@ const he: TranslationKeys = {
     archiveEpisode: "העבר לארכיון",
     activeEpisodes: "פרקים פעילים",
     publishedEpisodes: "פורסמו",
+    sendCalendarInvites: "שלח הזמנות ליומן",
+    inviteSentSuccess: "הזמנה ליומן נשלחה",
+    inviteNotSent: "ההזמנה נשמרה ללא הזמנה",
+    inviteSendFailed: "ההזמנה נשמרה אך שליחת ההזמנה נכשלה",
   },
   team: {
     title: "צוות",

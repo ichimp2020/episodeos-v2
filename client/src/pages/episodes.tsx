@@ -322,13 +322,13 @@ export default function Episodes() {
     if (!episode || !members) return {};
     const attendees: Record<string, boolean> = {};
     const guest = getEpisodeGuest(episode);
-    if (guest?.email) attendees[guest.email] = true;
+    if (guest?.email) attendees[guest.email] = false;
     for (const m of members) {
       if (m.email) {
-        attendees[m.email] = DEFAULT_TEAM_NAMES.includes(m.name.toLowerCase());
+        attendees[m.email] = false;
       }
     }
-    attendees[STUDIO_EMAIL] = true;
+    attendees[STUDIO_EMAIL] = false;
     return attendees;
   }, [members, getEpisodeGuest]);
 

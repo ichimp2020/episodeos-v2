@@ -15,7 +15,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight, Globe, Plus, ExternalLink, AlertTriangle, UserPlus } from "lucide-react";
+import { Pencil, Trash2, CheckCircle, Circle, Mic, Calendar, Clock, Check, X, ArrowRight, Globe, Plus, ExternalLink, AlertTriangle, UserPlus, Mail } from "lucide-react";
 import { SiYoutube, SiSpotify, SiApplemusic } from "react-icons/si";
 import { format, parseISO, isAfter } from "date-fns";
 import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnavailability, EpisodePlatformLink, Guest } from "@shared/schema";
@@ -85,6 +85,8 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [inviteEmails, setInviteEmails] = useState({ studio: "", interviewers: "", interviewee: "" });
+  const [inviteToggles, setInviteToggles] = useState({ studio: false, interviewers: false, interviewee: false });
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -187,6 +189,13 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
       setShowCalendar(false);
       setSelectedDate(null);
       setSelectedSlot(null);
+      setInviteToggles({ studio: false, interviewers: false, interviewee: false });
+      const guest = episode.guestId ? guests?.find(g => g.id === episode.guestId) : null;
+      setInviteEmails({
+        studio: "studio@example.com",
+        interviewers: members?.filter(m => m.email).map(m => m.email).join(", ") || "",
+        interviewee: guest?.email || "",
+      });
       setShowPublishDate(false);
       setPublishDateValue("");
       setPublishTimeValue("12:00");
@@ -327,8 +336,54 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
           console.error("Failed to create publishing entry:", e);
         }
       }
+
+      let calendarResult: "sent" | "no-invites" | "failed" = "no-invites";
+      if (hasScheduleChange && selectedDate && selectedSlot) {
+        const selectedEmails: string[] = [];
+        if (inviteToggles.studio && inviteEmails.studio.trim()) {
+          selectedEmails.push(inviteEmails.studio.trim());
+        }
+        if (inviteToggles.interviewers && inviteEmails.interviewers.trim()) {
+          inviteEmails.interviewers.split(",").map(e => e.trim()).filter(e => e.includes("@")).forEach(e => selectedEmails.push(e));
+        }
+        if (inviteToggles.interviewee && inviteEmails.interviewee.trim()) {
+          selectedEmails.push(inviteEmails.interviewee.trim());
+        }
+
+        if (selectedEmails.length > 0) {
+          try {
+            const guest = episodeGuest;
+            const calResponse = await apiRequest("POST", "/api/calendar-event", {
+              date: selectedDate,
+              startTime: selectedSlot.start,
+              endTime: selectedSlot.end,
+              summary: `Podcast Recording: ${editForm.title}`,
+              description: `Recording session for "${editForm.title}"${guest ? ` with ${guest.name}` : ""}`,
+              attendeeEmails: selectedEmails,
+              previousEventId: (episode as any).calendarEventId || undefined,
+            });
+            const eventData = await calResponse.json();
+            if (eventData.id) {
+              await apiRequest("PATCH", `/api/episodes/${episode.id}`, {
+                calendarEventId: eventData.id,
+              });
+            }
+            calendarResult = "sent";
+          } catch (calErr) {
+            console.error("Calendar invite failed:", calErr);
+            calendarResult = "failed";
+          }
+        }
+
+        if (newStudioDate) {
+          await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, {
+            participantEmails: selectedEmails,
+          });
+        }
+      }
+      return calendarResult;
     },
-    onSuccess: () => {
+    onSuccess: (calendarResult) => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
@@ -337,9 +392,14 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
         if (episode) queryClient.invalidateQueries({ queryKey: ["/api/episodes", episode.id, "platform-links"] });
       }
       onOpenChange(false);
-      const msg = hasScheduleChange && selectedDate
+      let msg = hasScheduleChange && selectedDate
         ? `Rescheduled to ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}`
         : "Episode updated";
+      if (calendarResult === "sent") {
+        msg += ` · ${t.episodes.inviteSentSuccess}`;
+      } else if (calendarResult === "failed") {
+        msg += ` · ${t.episodes.inviteSendFailed}`;
+      }
       toast({ title: msg });
     },
     onError: () => toast({ title: "Failed to update episode", variant: "destructive" }),
@@ -656,6 +716,86 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                       <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                         {t.episodes.selected}: {format(parseISO(selectedDate!), "MMM d, yyyy")}{selectedSlot ? ` (${selectedSlot.label})` : ""}
                       </Badge>
+                    </div>
+                  )}
+
+                  {isDateFullySelected && hasScheduleChange && (
+                    <div className="mt-3 rounded-xl border border-border/50 bg-muted/30 p-3 space-y-3" data-testid="panel-invite-emails">
+                      <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-send-invites">
+                        <input
+                          type="checkbox"
+                          checked={inviteToggles.studio || inviteToggles.interviewers || inviteToggles.interviewee}
+                          onChange={(e) => {
+                            const val = e.target.checked;
+                            setInviteToggles({ studio: val, interviewers: val, interviewee: val });
+                          }}
+                          className="rounded border-border"
+                        />
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{t.episodes.sendCalendarInvites}</span>
+                      </label>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={inviteToggles.studio}
+                            onChange={(e) => setInviteToggles({ ...inviteToggles, studio: e.target.checked })}
+                            className="rounded border-border shrink-0"
+                            data-testid="toggle-invite-studio"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <label className="text-xs text-muted-foreground">{t.studio.studioEmail}</label>
+                            <Input
+                              value={inviteEmails.studio}
+                              onChange={(e) => setInviteEmails({ ...inviteEmails, studio: e.target.value })}
+                              placeholder="studio@example.com"
+                              className="h-8 text-sm"
+                              data-testid="input-invite-studio-email"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={inviteToggles.interviewers}
+                            onChange={(e) => setInviteToggles({ ...inviteToggles, interviewers: e.target.checked })}
+                            className="rounded border-border shrink-0"
+                            data-testid="toggle-invite-interviewers"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <label className="text-xs text-muted-foreground">{t.studio.interviewerEmails}</label>
+                            <Input
+                              value={inviteEmails.interviewers}
+                              onChange={(e) => setInviteEmails({ ...inviteEmails, interviewers: e.target.value })}
+                              placeholder="interviewer1@email.com, interviewer2@email.com"
+                              className="h-8 text-sm"
+                              data-testid="input-invite-interviewer-emails"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={inviteToggles.interviewee}
+                            onChange={(e) => setInviteToggles({ ...inviteToggles, interviewee: e.target.checked })}
+                            className="rounded border-border shrink-0"
+                            data-testid="toggle-invite-interviewee"
+                          />
+                          <div className="flex-1 space-y-1">
+                            <label className="text-xs text-muted-foreground">{t.studio.intervieweeEmail}</label>
+                            <Input
+                              value={inviteEmails.interviewee}
+                              onChange={(e) => setInviteEmails({ ...inviteEmails, interviewee: e.target.value })}
+                              placeholder="guest@email.com"
+                              className="h-8 text-sm"
+                              data-testid="input-invite-interviewee-email"
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
