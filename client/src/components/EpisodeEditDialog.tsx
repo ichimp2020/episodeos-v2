@@ -69,6 +69,7 @@ interface EpisodeEditDialogProps {
 }
 
 export default function EpisodeEditDialog({ episode, open, onOpenChange }: EpisodeEditDialogProps) {
+  console.log("RENDER: EpisodeEditDialog.tsx");
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
