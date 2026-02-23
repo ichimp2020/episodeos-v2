@@ -972,58 +972,44 @@ export default function Episodes() {
       </Dialog>
 
       <Dialog open={!!selectedEpisode} onOpenChange={(open) => { if (!open) { setSelectedEpisode(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0">
           {selectedEpisode && (
             <>
-              <DialogHeader>
-                <div className="space-y-2">
-                  {(() => {
-                    const headerGuest = getEpisodeGuest(selectedEpisode);
-                    return (
-                      <DialogTitle className="flex items-center gap-2 flex-wrap" data-testid="text-episode-guest-header">
-                        {selectedEpisode.episodeNumber != null && (
-                          <span className="text-muted-foreground font-mono text-sm">#{selectedEpisode.episodeNumber}</span>
-                        )}
-                        <UserPlus className="h-4 w-4 text-primary" />
-                        <span>{headerGuest?.name || t.episodes.noGuestLinked}</span>
-                        {headerGuest?.shortDescription && (
-                          <span className="text-sm font-normal text-muted-foreground">— {headerGuest.shortDescription}</span>
-                        )}
-                      </DialogTitle>
-                    );
-                  })()}
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground font-medium">{t.episodes.episodeTitle}</label>
-                    {editingField === "title" ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          value={editValues.title}
-                          onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
-                          onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
-                          autoFocus
-                          className="text-sm"
-                          data-testid="input-edit-title"
-                        />
-                        <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <p
-                        className="text-sm cursor-pointer group flex items-center gap-1 hover:text-foreground transition-colors"
-                        onClick={() => startEditing("title")}
-                        data-testid="text-episode-title"
-                      >
-                        {selectedEpisode.title}
-                        <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </p>
+              <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border/40">
+                <DialogTitle className="space-y-1.5" data-testid="text-episode-detail-header">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {selectedEpisode.episodeNumber != null && (
+                      <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-detail">Ep #{selectedEpisode.episodeNumber}</span>
                     )}
+                    <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[selectedEpisode.status]}`}>{getEpisodeStatusLabel(t, selectedEpisode.status)}</Badge>
                   </div>
-
+                  {editingField === "title" ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editValues.title}
+                        onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
+                        autoFocus
+                        className="text-sm"
+                        data-testid="input-edit-title"
+                      />
+                      <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <p
+                      className="text-base font-semibold cursor-pointer group flex items-center gap-1 hover:text-foreground transition-colors truncate"
+                      onClick={() => startEditing("title")}
+                      data-testid="text-episode-title"
+                    >
+                      {selectedEpisode.title}
+                      <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                    </p>
+                  )}
                   {editingField === "description" ? (
                     <div className="flex items-start gap-2">
                       <Textarea
@@ -1045,19 +1031,20 @@ export default function Episodes() {
                       </div>
                     </div>
                   ) : (
-                    <DialogDescription
-                      className="cursor-pointer group flex items-center gap-1"
+                    <p
+                      className="text-sm text-muted-foreground cursor-pointer group flex items-center gap-1"
                       onClick={() => startEditing("description")}
                       data-testid="text-episode-description"
                     >
                       {selectedEpisode.description || "No description — click to add"}
                       <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                    </DialogDescription>
+                    </p>
                   )}
-                </div>
+                </DialogTitle>
+                <DialogDescription className="sr-only">Episode details</DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-5 mt-2">
+              <div className="overflow-y-auto flex-1 px-6 py-4 space-y-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <label className="text-sm text-muted-foreground">{t.episodes.status}:</label>
@@ -1310,9 +1297,11 @@ export default function Episodes() {
                       {guest ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium" data-testid="text-episode-guest-name">{guest.name}</span>
+                            {!selectedEpisode.title.trim().toLowerCase().includes(guest.name.trim().toLowerCase()) && (
+                              <span className="text-sm font-medium" data-testid="text-episode-guest-name">{guest.name}</span>
+                            )}
                             {guest.shortDescription && (
-                              <span className="text-xs text-muted-foreground">— {guest.shortDescription}</span>
+                              <span className="text-xs text-muted-foreground">{!selectedEpisode.title.trim().toLowerCase().includes(guest.name.trim().toLowerCase()) ? "— " : ""}{guest.shortDescription}</span>
                             )}
                           </div>
                           {showGuestDetails && (

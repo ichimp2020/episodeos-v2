@@ -1,0 +1,159 @@
+🚫 STOP SHIPPING REGRESSIONS — EPISODEOS UI + DATA CONSISTENCY FIX (NON-NEGOTIABLE)
+
+We are constantly breaking previously-working flows. Before any new UI changes, freeze features and do a stability pass focused on data binding, component reuse, and mobile dialogs.
+
+0) Rule: No changes that break existing flows
+
+If you touch EpisodeEditDialog / GuestEditDialog / Reschedule / Invite:
+	•	you must verify all card types still work: Episode, Guest, Published, Archived
+	•	same look/feel, same dialog sizing rules
+	•	no horizontal scroll on mobile
+	•	calendar logic works in every relevant card
+
+⸻
+
+1) Critical Bug: Wrong episode data showing in another episode (Mia shows Sasi)
+
+This is a severity-1 data binding / state leak bug.
+
+Required investigation (do this first):
+	•	Verify dialogs are opened with the correct episodeId every time.
+	•	Check for:
+	•	stale selectedEpisode state not updated
+	•	memoization using wrong dependencies
+	•	list rendering keyed by index instead of episode.id
+	•	a dialog component holding internal state that is not reset when episodeId changes
+	•	Add a hard guard:
+	•	On dialog open, log episodeId, episode.title, guestId, guestName
+	•	If mismatch between requested id and loaded entity → show a visible warning and prevent save.
+
+Acceptance:
+	•	Opening any episode card always shows the correct episode title/guest consistently, no cross-contamination.
+
+⸻
+
+2) Reschedule availability inconsistent (some cards have it, some don’t, “needs reschedule” but no reschedule button)
+
+There must be one source of truth for:
+	•	when reschedule is available
+	•	how “Reschedule Needed” is computed
+	•	which UI shows reschedule CTA
+
+Fix approach:
+	•	Extract a shared helper:
+	•	canReschedule(episode) and rescheduleNeeded(episode)
+	•	Use the same logic in:
+	•	episode list rows
+	•	episode dialog header
+	•	guest dialog (if it links to episode)
+	•	If status shows “Reschedule Needed”, the dialog must show Reschedule CTA.
+
+Acceptance:
+	•	“Reschedule Needed” badge and Reschedule button behave consistently across all cards.
+
+⸻
+
+3) Invite recipients UX (must be OFF by default + quick-pick)
+
+We do NOT want prefilled email strings or default checked recipients.
+
+Requirement (lock this):
+	•	Master toggle Send Calendar Invites is OFF by default
+	•	When ON:
+	•	show recipient list (chips/checkboxes)
+	•	ALL recipients OFF by default
+	•	booking agent explicitly selects who gets invite
+	•	Recipients list should be role-based and stable, not random per card:
+	•	Zion (Host)
+	•	Gal (Co-Host)
+	•	Nob (Studio) (from studio/team record)
+	•	Guest (from guest record) — only if guest has email
+	•	No “delete emails one by one” flow. Only toggles/picks.
+
+Acceptance:
+	•	No invites sent unless user intentionally turns ON master + selects recipients.
+
+⸻
+
+4) UI consistency + mobile-first dialogs (all cards)
+
+Right now dialogs vary wildly: widths, unscrollable publishing dialog, horizontal scrolling, duplicate guest names, etc.
+
+Global dialog standards (apply to all dialogs):
+	•	w-[95vw] max-w-lg (mobile first)
+	•	max-h-[85vh] overflow-y-auto
+	•	never require horizontal scroll (overflow-x-hidden)
+	•	consistent header layout + typography
+	•	consistent spacing (space-y-3/4), no random padding jumps
+
+Episode dialog cleanup (repeat the goal):
+	•	guest name appears once only (header OR guest card, not everywhere)
+	•	clear hierarchy:
+	•	Line 1: Ep # + status + reschedule badge
+	•	Line 2: Title
+	•	Line 3: schedule date/time
+	•	Guest card below (optional)
+	•	title/number/description grouped before scheduling block
+
+Publishing dialog issue:
+	•	must be scrollable on mobile
+	•	no “frozen” area preventing access to Save button
+	•	platform links section must wrap cleanly
+
+Acceptance:
+	•	All dialogs look like one product family: same fonts, same header patterns, same device behavior.
+
+⸻
+
+5) Cross-card sync rules (data must reflect everywhere)
+
+If I change:
+	•	guest name / guest contact
+	•	episode title / schedule / status
+	•	publish date / platform links
+
+…it must immediately reflect in:
+	•	dashboard tables
+	•	episode cards
+	•	guest cards
+	•	published/archived cards
+
+Required:
+	•	identify the canonical data model (Episode vs Guest fields)
+	•	remove duplicated fields that drift OR ensure updates propagate via one write path
+	•	after mutation, ensure queries invalidate/refetch correctly (or optimistic update correctly)
+
+Acceptance:
+	•	No stale UI. No mismatched names between list and dialog.
+
+⸻
+
+6) “System notes” / missing info
+
+If key info missing (no schedule date, no guest email, no title):
+	•	show a subtle warning row or tooltip/popover
+	•	don’t silently fail (especially calendar/invite actions)
+
+⸻
+
+7) QA checklist before republish (mandatory)
+
+Before merging/deploying, manually test:
+	1.	Open 5 different episodes → verify correct guest/title each time
+	2.	Episode shows “Reschedule Needed” → dialog must offer reschedule
+	3.	Reschedule flow shows same UI everywhere
+	4.	Invite master toggle OFF by default
+	5.	Turn invites ON → all recipients OFF by default
+	6.	Select only Gal → only Gal gets included in payload
+	7.	Publishing dialog scrolls on mobile and Save always reachable
+	8.	No horizontal scrolling anywhere
+
+If any fails → no deploy.
+
+⸻
+
+Deliverables
+	•	Fix the wrong episode data bug first (state leak / keying / stale memo)
+	•	Then enforce shared reschedule logic
+	•	Then enforce invite defaults OFF
+	•	Then standardize dialog sizing + scroll + header layout
