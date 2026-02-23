@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, date, timestamp, integer, serial, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, date, timestamp, integer, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -31,10 +31,8 @@ export const episodes = pgTable("episodes", {
   calendarEventId: text("calendar_event_id"),
   publishDate: date("publish_date"),
   publishTime: text("publish_time"),
-  requestId: varchar("request_id"),
-}, (table) => [
-  uniqueIndex("episodes_request_id_unique").on(table.requestId).where(sql`request_id IS NOT NULL`),
-]);
+  requestId: varchar("request_id").unique(),
+});
 
 export const episodePlatformLinks = pgTable("episode_platform_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
