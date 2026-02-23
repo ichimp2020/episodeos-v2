@@ -979,71 +979,7 @@ export default function Episodes() {
           {selectedEpisode && (
             <>
               <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border/40">
-                <DialogTitle className="space-y-1.5" data-testid="text-episode-detail-header">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {selectedEpisode.episodeNumber != null && (
-                      <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-detail">Ep #{selectedEpisode.episodeNumber}</span>
-                    )}
-                    <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[selectedEpisode.status]}`}>{getEpisodeStatusLabel(t, selectedEpisode.status)}</Badge>
-                  </div>
-                  {editingField === "title" ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editValues.title}
-                        onChange={(e) => setEditValues({ ...editValues, title: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveField("title"); if (e.key === "Escape") cancelEditing(); }}
-                        autoFocus
-                        className="text-sm"
-                        data-testid="input-edit-title"
-                      />
-                      <Button size="icon" variant="ghost" onClick={() => saveField("title")} data-testid="button-save-title">
-                        <Check className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-title">
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <p
-                      className="text-base font-semibold cursor-pointer group flex items-center gap-1 hover:text-foreground transition-colors truncate"
-                      onClick={() => startEditing("title")}
-                      data-testid="text-episode-title"
-                    >
-                      {selectedEpisode.title}
-                      <Pencil className="h-3 w-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </p>
-                  )}
-                  {editingField === "description" ? (
-                    <div className="flex items-start gap-2">
-                      <Textarea
-                        value={editValues.description}
-                        onChange={(e) => setEditValues({ ...editValues, description: e.target.value })}
-                        onKeyDown={(e) => { if (e.key === "Escape") cancelEditing(); }}
-                        autoFocus
-                        rows={2}
-                        className="text-sm"
-                        data-testid="input-edit-description"
-                      />
-                      <div className="flex flex-col gap-1">
-                        <Button size="icon" variant="ghost" onClick={() => saveField("description")} data-testid="button-save-description">
-                          <Check className="h-4 w-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={cancelEditing} data-testid="button-cancel-description">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p
-                      className="text-sm text-muted-foreground cursor-pointer group flex items-center gap-1"
-                      onClick={() => startEditing("description")}
-                      data-testid="text-episode-description"
-                    >
-                      {selectedEpisode.description || "No description — click to add"}
-                      <Pencil className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                    </p>
-                  )}
-                </DialogTitle>
+                <DialogTitle>TEST HEADER CHANGE</DialogTitle>
                 <DialogDescription className="sr-only">Episode details</DialogDescription>
               </DialogHeader>
 
