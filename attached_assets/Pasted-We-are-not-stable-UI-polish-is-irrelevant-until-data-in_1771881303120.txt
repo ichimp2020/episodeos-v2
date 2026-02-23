@@ -1,0 +1,52 @@
+We are not stable. UI polish is irrelevant until data integrity is fixed.
+
+Symptoms:
+1) Duplicate episodes exist (e.g., duplicate “ניר שלזינגר” episodes).
+2) Tasks sometimes missing for episodes.
+
+Goal:
+Fix the ROOT cause + add guardrails so this cannot happen again.
+
+A) Diagnose duplicates (backend truth)
+1) Identify whether duplicates are:
+   - same episode.id shown twice (UI bug) OR
+   - different ids (data duplication).
+2) Add a temporary “debug mode” in the episodes list and dialog to display:
+   - episode.id
+   - guestId
+   - scheduledAt (or date/time fields)
+   - createdAt
+This is to prove whether duplicates are real.
+
+B) Prevent double-create (must)
+1) Ensure the “Create episode” / “Book episode” action cannot fire twice:
+   - disable button immediately on first click (isLoading)
+   - prevent double submit in handler (early return if pending)
+2) Confirm the create mutation is invoked exactly once (add a temporary console log / server log).
+
+C) Add uniqueness rule (must, minimal)
+At minimum enforce one of these in backend:
+- unique(guestId, scheduledAt) OR
+- unique(guestId, episodeNumber) OR
+- unique(externalBookingId) if you have it
+If a duplicate attempt happens: return 409 and show “Episode already exists”.
+
+D) Tasks default creation must be transactional / guaranteed
+1) When an episode is created, default tasks must be created in the SAME server operation (transaction).
+2) If tasks are created separately (client-side or async), refactor so episode creation endpoint returns:
+   - episode + tasks array
+3) Add a server-side invariant check endpoint or log:
+   - every episode must have N default tasks (or at least a “taskTemplateVersion” field).
+
+E) Add a “Repair” tool (minimal admin)
+Add a dev-only button:
+- “Repair episode defaults”
+It should:
+- detect missing default tasks for an episode
+- create only missing ones (idempotent)
+- log what was fixed
+
+Deliverables before any further UI changes:
+1) Proof whether duplicates are same id or different ids (screenshots with ids).
+2) The exact fix applied (double-submit prevention + uniqueness constraint).
+3) Confirmation tasks are now created reliably (transaction or idempotent repair).

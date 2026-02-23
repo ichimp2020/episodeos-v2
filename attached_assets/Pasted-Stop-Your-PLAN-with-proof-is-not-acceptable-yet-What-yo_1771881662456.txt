@@ -1,0 +1,41 @@
+Stop. Your “PLAN with proof” is not acceptable yet.
+
+What you pasted is missing the actual proof (no SQL text + no outputs) and the plan has a hole: saying “no transactions” while claiming partial-task scenarios are “nearly impossible” is not credible. If tasks are sometimes missing, you need atomicity or idempotency (or both).
+
+Stay in PLAN mode. Before ANY build, deliver this exactly:
+
+1) DB proof (raw SQL + raw results)
+- Show the exact queries you ran and the first ~20 rows of results for each:
+  a) Duplicate episodes for “ניר שלזינגר” (by title + by guestId)
+  b) Episodes with <5 tasks (LEFT JOIN tasks)
+  c) Orphans (episode with guest_id null / tasks missing)
+  d) Any duplicate tasks per episode (same title duplicated)
+- Include schema excerpts: episodes + tasks + guest tables (relevant columns + constraints).
+
+2) Code path proof (file + line + endpoint)
+- List every backend entry point that can create an episode:
+  - guest confirm flow
+  - interview confirm flow
+  - manual create flow
+  - any “repair” endpoint
+For EACH: show the exact function name + route + file + line numbers, and whether it also creates tasks.
+
+3) Define the *uniqueness rule* that prevents the “duplicate ניר” bug
+- What exactly counts as a duplicate? (same guestId? same title? same interviewId? same date slot?)
+- Your current statement “multiple episodes per guest is valid” is fine — but then your 409 guard must be based on the real uniqueness rule, NOT “same guest”.
+
+4) Minimal fix proposal (server-side first)
+- Propose ONE canonical server function: ensureEpisodeWithDefaultTasks(...)
+- It must be idempotent and safe under double-submit / retries.
+- Show exactly how you’ll prevent:
+  a) duplicate episode rows
+  b) missing tasks
+  c) duplicate tasks
+- If you refuse DB constraints, you must show application-level idempotency (e.g., unique request key) AND either:
+  - a transaction, OR
+  - an upsert pattern that guarantees tasks exist.
+
+5) UI debug toggle is optional and last
+- Only after server correctness. UI can’t fix DB integrity.
+
+When you provide the above, I’ll approve the plan and only then you switch to BUILD.
