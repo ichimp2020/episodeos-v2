@@ -453,7 +453,7 @@ export default function Scheduling() {
       )}
 
       <Dialog open={showNewInterview} onOpenChange={setShowNewInterview}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Schedule Interview</DialogTitle>
             <DialogDescription>Set up a new interview with a guest</DialogDescription>
@@ -634,7 +634,7 @@ export default function Scheduling() {
       <Dialog open={!!selectedInterview} onOpenChange={(open) => {
         if (!open) { setSelectedInterview(null); setIsEditing(false); setShowRescheduleCalendar(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingContact(false); setShowDetailReschedule(false); setDetailRescheduleDate(null); setDetailRescheduleSlot(null); setRescheduleAttendees({}); setShowSendInvite(false); setSendInviteAttendees({}); setSendingInvite(false); }
       }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           {selectedInterview && (() => {
             const guest = getGuest(selectedInterview.guestId);
             const studio = getStudioDate(selectedInterview.studioDateId);

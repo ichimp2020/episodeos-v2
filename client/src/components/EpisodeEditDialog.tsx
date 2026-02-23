@@ -22,6 +22,7 @@ import type { Episode, Task, TeamMember, StudioDate, Interview, InterviewerUnava
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 import { episodeStatusColors, getEpisodeStatusLabel } from "@/lib/statusColors";
+import { needsReschedule as checkNeedsReschedule } from "@/lib/rescheduleHelpers";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
 
@@ -212,10 +213,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
     studioDates?.filter((d) => d.status === "taken").map((d) => d.date) || []
   );
 
-  const episodeNeedsReschedule = episode ? (
-    linkedInterview?.status === 'needs-reschedule' ||
-    (episode.scheduledDate && !availableStudioDateStrings.has(episode.scheduledDate) && !takenStudioDateStrings.has(episode.scheduledDate) && !["publishing", "archived"].includes(episode.status))
-  ) : false;
+  const episodeNeedsReschedule = episode ? checkNeedsReschedule(episode, availableStudioDateStrings, takenStudioDateStrings, linkedInterview) : false;
 
   const episodeGuest = episode ? getEpisodeGuest(episode) : null;
 

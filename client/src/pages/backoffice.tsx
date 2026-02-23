@@ -213,7 +213,7 @@ export default function BackOffice() {
       )}
 
       <Dialog open={showAddLink || !!editingLink} onOpenChange={(open) => { if (!open) { setShowAddLink(false); setEditingLink(null); resetForm(); } }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{editingLink ? t.backoffice.editLink : t.backoffice.addNewLink}</DialogTitle>
           </DialogHeader>

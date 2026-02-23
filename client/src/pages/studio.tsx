@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Calendar, ChevronLeft, ChevronRight, Trash2, MessageSquare, Check, X, AlertCircle, Clock, Mail, Users, UserX, UserCheck, User, ExternalLink, CalendarPlus, Eraser } from "lucide-react";
 import type { StudioDate, TeamMember, InterviewerUnavailability, Interview, Guest, Episode } from "@shared/schema";
@@ -237,6 +238,8 @@ export default function Studio() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const [bookingEmails, setBookingEmails] = useState<BookingEmails>({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
+  const [sendInvites, setSendInvites] = useState(false);
+  const [inviteRecipients, setInviteRecipients] = useState<Record<string, boolean>>({});
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [blockStep, setBlockStep] = useState<"idle" | "confirm" | "note">("idle");
@@ -516,10 +519,14 @@ export default function Studio() {
       setSelectedDate(null);
       setSelectedSlot(null);
       setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
+      setSendInvites(false);
+      setInviteRecipients({});
       if (result?.calendarFailed) {
         toast({ title: "Slot booked", description: "But calendar invite could not be sent. Check Google Calendar connection.", variant: "destructive" });
+      } else if (sendInvites && Object.values(inviteRecipients).some(Boolean)) {
+        toast({ title: "Slot booked successfully", description: "Calendar invites sent to selected recipients" });
       } else {
-        toast({ title: "Slot booked successfully", description: "Calendar invites sent to all participants" });
+        toast({ title: "Slot booked successfully" });
       }
     },
     onError: () => {
@@ -866,7 +873,7 @@ export default function Studio() {
       )}
 
       <Dialog open={showAddDate} onOpenChange={setShowAddDate}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Add Studio Date</DialogTitle>
             <DialogDescription>Add an available date from your studio partner</DialogDescription>
@@ -910,7 +917,7 @@ export default function Studio() {
           setWhatsappText("");
         }
       }}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -1448,62 +1455,60 @@ export default function Studio() {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor="email-studio">Studio Contact Email</Label>
-                    <Input
-                      id="email-studio"
-                      type="email"
-                      placeholder="studio@example.com"
-                      value={bookingEmails.studio}
-                      onChange={(e) => setBookingEmails({ ...bookingEmails, studio: e.target.value })}
-                      data-testid="input-email-studio"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">Send Calendar Invites</Label>
+                    <Switch
+                      checked={sendInvites}
+                      onCheckedChange={(checked) => {
+                        setSendInvites(checked);
+                        if (!checked) setInviteRecipients({});
+                      }}
+                      data-testid="switch-send-invites"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor="email-interviewers">Interviewer Emails</Label>
-                    <Input
-                      id="email-interviewers"
-                      type="text"
-                      placeholder="gal@example.com, zion@example.com"
-                      value={bookingEmails.interviewers}
-                      onChange={(e) => setBookingEmails({ ...bookingEmails, interviewers: e.target.value })}
-                      data-testid="input-email-interviewers"
-                    />
-                    <p className="text-[11px] text-muted-foreground">Separate multiple emails with commas</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor="interviewee-name">Interviewee Name</Label>
-                    <Input
-                      id="interviewee-name"
-                      type="text"
-                      placeholder="Guest name"
-                      value={bookingEmails.intervieweeName}
-                      onChange={(e) => setBookingEmails({ ...bookingEmails, intervieweeName: e.target.value })}
-                      data-testid="input-interviewee-name"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor="interviewee-phone">Interviewee Phone</Label>
-                    <Input
-                      id="interviewee-phone"
-                      type="tel"
-                      placeholder="+972-50-123-4567"
-                      value={bookingEmails.intervieweePhone}
-                      onChange={(e) => setBookingEmails({ ...bookingEmails, intervieweePhone: e.target.value })}
-                      data-testid="input-interviewee-phone"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm" htmlFor="email-interviewee">Interviewee Email</Label>
-                    <Input
-                      id="email-interviewee"
-                      type="email"
-                      placeholder="guest@example.com"
-                      value={bookingEmails.interviewee}
-                      onChange={(e) => setBookingEmails({ ...bookingEmails, interviewee: e.target.value })}
-                      data-testid="input-email-interviewee"
-                    />
-                  </div>
+
+                  {sendInvites && (() => {
+                    const linkedInterview = interviews?.find((i) => i.studioDateId === selectedDate.id);
+                    const linkedGuest = linkedInterview ? guests?.find((g) => g.id === linkedInterview.guestId) : null;
+                    const host = teamMembersData?.find((m) => m.role?.toLowerCase().includes("host") && !m.role?.toLowerCase().includes("co"));
+                    const coHost = teamMembersData?.find((m) => m.role?.toLowerCase().includes("co-host") || m.role?.toLowerCase().includes("co host"));
+                    const studio = teamMembersData?.find((m) => m.role?.toLowerCase().includes("studio") || m.role?.toLowerCase().includes("production"));
+
+                    const recipients = [
+                      { key: "host", label: host?.name || "Host", role: host?.role || "Host", email: host?.email || null },
+                      { key: "cohost", label: coHost?.name || "Co-Host", role: coHost?.role || "Co-Host", email: coHost?.email || null },
+                      { key: "studio", label: studio?.name || "Studio", role: studio?.role || "Studio", email: studio?.email || null },
+                      { key: "guest", label: linkedGuest?.name || "Guest", role: "Guest", email: linkedGuest?.email || null },
+                    ];
+
+                    return (
+                      <div className="space-y-2 rounded-lg border p-3">
+                        <p className="text-xs text-muted-foreground font-medium">Select recipients (all OFF by default)</p>
+                        {recipients.map((r) => (
+                          <div key={r.key} className="flex items-center justify-between py-1.5">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`invite-${r.key}`}
+                                checked={!!inviteRecipients[r.key]}
+                                onCheckedChange={(checked) => setInviteRecipients((prev) => ({ ...prev, [r.key]: !!checked }))}
+                                disabled={!r.email}
+                                data-testid={`checkbox-invite-${r.key}`}
+                              />
+                              <label htmlFor={`invite-${r.key}`} className={`text-sm ${!r.email ? "text-muted-foreground" : ""}`}>
+                                {r.label}
+                                <span className="text-xs text-muted-foreground ml-1">({r.role})</span>
+                              </label>
+                            </div>
+                            {r.email ? (
+                              <span className="text-[11px] text-muted-foreground truncate max-w-[140px]">{r.email}</span>
+                            ) : (
+                              <span className="text-[11px] text-amber-500">No email on file</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center gap-2 pt-2">
@@ -1512,6 +1517,8 @@ export default function Studio() {
                     onClick={() => {
                       setSelectedSlot(null);
                       setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });
+                      setSendInvites(false);
+                      setInviteRecipients({});
                     }}
                     data-testid="button-back-to-slots"
                   >
@@ -1520,11 +1527,32 @@ export default function Studio() {
                   <button
                     className="ios-pill-button ios-pill-button-primary flex-1"
                     disabled={bookSlot.isPending}
-                    onClick={() => bookSlot.mutate({ dateRecord: selectedDate, slot: selectedSlot, emails: bookingEmails })}
+                    onClick={() => {
+                      const emailsForMutation: BookingEmails = { studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" };
+                      if (sendInvites) {
+                        const linkedInterview = interviews?.find((i) => i.studioDateId === selectedDate.id);
+                        const linkedGuest = linkedInterview ? guests?.find((g) => g.id === linkedInterview.guestId) : null;
+                        const host = teamMembersData?.find((m) => m.role?.toLowerCase().includes("host") && !m.role?.toLowerCase().includes("co"));
+                        const coHost = teamMembersData?.find((m) => m.role?.toLowerCase().includes("co-host") || m.role?.toLowerCase().includes("co host"));
+                        const studioMember = teamMembersData?.find((m) => m.role?.toLowerCase().includes("studio") || m.role?.toLowerCase().includes("production"));
+
+                        if (inviteRecipients["studio"] && studioMember?.email) emailsForMutation.studio = studioMember.email;
+                        const interviewerEmails: string[] = [];
+                        if (inviteRecipients["host"] && host?.email) interviewerEmails.push(host.email);
+                        if (inviteRecipients["cohost"] && coHost?.email) interviewerEmails.push(coHost.email);
+                        emailsForMutation.interviewers = interviewerEmails.join(", ");
+                        if (inviteRecipients["guest"] && linkedGuest?.email) {
+                          emailsForMutation.interviewee = linkedGuest.email;
+                          emailsForMutation.intervieweeName = linkedGuest.name;
+                          emailsForMutation.intervieweePhone = linkedGuest.phone || "";
+                        }
+                      }
+                      bookSlot.mutate({ dateRecord: selectedDate, slot: selectedSlot, emails: emailsForMutation });
+                    }}
                     data-testid="button-confirm-booking"
                   >
                     {bookSlot.isPending ? <Clock className="h-4 w-4 mr-1.5 animate-spin" /> : <Users className="h-4 w-4 mr-1.5" />}
-                    {bookSlot.isPending ? "Booking & Sending Invites..." : "Confirm Booking"}
+                    {bookSlot.isPending ? "Booking..." : "Confirm Booking"}
                   </button>
                 </div>
               </div>

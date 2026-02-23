@@ -267,7 +267,7 @@ export default function Guests() {
       )}
 
       <Dialog open={showNewGuest} onOpenChange={setShowNewGuest}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{t.guests.addGuest}</DialogTitle>
             <DialogDescription>{t.guests.addGuestToPipeline}</DialogDescription>

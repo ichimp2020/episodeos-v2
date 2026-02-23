@@ -43,6 +43,7 @@ import {
 } from "date-fns";
 
 import { episodeStatusColors, getEpisodeStatusLabel } from "@/lib/statusColors";
+import { needsReschedule as checkNeedsReschedule, canReschedule } from "@/lib/rescheduleHelpers";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
 
@@ -138,6 +139,16 @@ export default function Episodes() {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
     }).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (selectedEpisode && episodes) {
+      const fresh = episodes.find((e) => e.id === selectedEpisode.id);
+      if (!fresh) return;
+      if (JSON.stringify(fresh) !== JSON.stringify(selectedEpisode)) {
+        setSelectedEpisode(fresh);
+      }
+    }
+  }, [episodes]);
 
   useEffect(() => {
     const checkHighlight = () => {
@@ -454,13 +465,6 @@ export default function Episodes() {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
-      if (selectedEpisode && rescheduleDate) {
-        setSelectedEpisode({
-          ...selectedEpisode,
-          scheduledDate: rescheduleDate,
-          scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
-        } as Episode);
-      }
       setShowReschedule(false);
       setRescheduleDate(null);
       setRescheduleSlot(null);
@@ -492,7 +496,6 @@ export default function Episodes() {
       data[field] = value;
     }
     updateEpisode.mutate({ id: selectedEpisode.id, data });
-    setSelectedEpisode({ ...selectedEpisode, ...data } as Episode);
     setEditingField(null);
   };
 
@@ -778,7 +781,7 @@ export default function Episodes() {
       </Button>
 
       <Dialog open={showNewEpisode} onOpenChange={setShowNewEpisode}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{t.episodes.newEpisode}</DialogTitle>
             <DialogDescription>{t.episodes.addToYourPipeline}</DialogDescription>
@@ -1058,7 +1061,6 @@ export default function Episodes() {
                           return;
                         }
                         updateEpisode.mutate({ id: selectedEpisode.id, data: { status: val } });
-                        setSelectedEpisode({ ...selectedEpisode, status: val });
                       }}
                     >
                       <SelectTrigger className="w-[140px]" data-testid="select-episode-status">
@@ -1076,8 +1078,7 @@ export default function Episodes() {
                       </SelectContent>
                     </Select>
                     {(() => {
-                      const detailDateNoLongerAvailable = selectedEpisode.scheduledDate && !availableStudioDates.has(selectedEpisode.scheduledDate) && !takenStudioDates.has(selectedEpisode.scheduledDate);
-                      const detailNeedsReschedule = getEpisodeInterview(selectedEpisode)?.status === 'needs-reschedule' || (detailDateNoLongerAvailable && !["publishing", "archived"].includes(selectedEpisode.status));
+                      const detailNeedsReschedule = checkNeedsReschedule(selectedEpisode, availableStudioDates, takenStudioDates, getEpisodeInterview(selectedEpisode));
                       return detailNeedsReschedule ? (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-detail">
                           <AlertTriangle className="w-3 h-3" />
@@ -1256,6 +1257,31 @@ export default function Episodes() {
                 )}
 
                 {(() => {
+                  const warnings: { key: string; msg: string }[] = [];
+                  if (!selectedEpisode.scheduledDate && !["publishing", "archived"].includes(selectedEpisode.status)) {
+                    warnings.push({ key: "no-date", msg: "No scheduled date set" });
+                  }
+                  const warnGuest = getEpisodeGuest(selectedEpisode);
+                  if (warnGuest && !warnGuest.email) {
+                    warnings.push({ key: "no-email", msg: `${warnGuest.name}: no email on file (needed for invites)` });
+                  }
+                  if (!selectedEpisode.title.trim()) {
+                    warnings.push({ key: "no-title", msg: "Episode has no title" });
+                  }
+                  if (warnings.length === 0) return null;
+                  return (
+                    <div className="space-y-1" data-testid="section-missing-info-warnings">
+                      {warnings.map((w) => (
+                        <div key={w.key} className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-1.5">
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          <span>{w.msg}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {(() => {
                   const guest = getEpisodeGuest(selectedEpisode);
                   return (
                     <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid="section-episode-guest">
@@ -1284,7 +1310,6 @@ export default function Episodes() {
                               className="h-6 text-xs text-muted-foreground"
                               onClick={() => {
                                 updateEpisode.mutate({ id: selectedEpisode.id, data: { guestId: null } });
-                                setSelectedEpisode({ ...selectedEpisode, guestId: null } as Episode);
                               }}
                               data-testid="button-unlink-guest"
                             >
@@ -1387,7 +1412,6 @@ export default function Episodes() {
                               className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-muted/50 transition-colors text-sm"
                               onClick={() => {
                                 linkGuestToEpisode.mutate({ episodeId: selectedEpisode.id, guestId: g.id });
-                                setSelectedEpisode({ ...selectedEpisode, guestId: g.id } as Episode);
                               }}
                               data-testid={`button-link-guest-${g.id}`}
                             >
@@ -1702,7 +1726,7 @@ export default function Episodes() {
               </div>
 
               <Dialog open={showNewTask} onOpenChange={setShowNewTask}>
-                <DialogContent>
+                <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
                   <DialogHeader>
                     <DialogTitle>{t.episodes.newTask}</DialogTitle>
                     <DialogDescription>{t.episodes.addATaskForThisEpisode}</DialogDescription>
@@ -1769,7 +1793,7 @@ export default function Episodes() {
       </Dialog>
 
       <Dialog open={showPublishDate} onOpenChange={setShowPublishDate}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{t.episodes.setPublishDate}</DialogTitle>
             <DialogDescription>{t.episodes.setPublishDateDescription}</DialogDescription>
@@ -1805,7 +1829,6 @@ export default function Episodes() {
                   },
                   {
                     onSuccess: async () => {
-                      setSelectedEpisode({ ...selectedEpisode, status: "publishing", publishDate: publishDateValue, publishTime: publishTimeValue || null });
                       setShowPublishDate(false);
                       queryClient.invalidateQueries({ queryKey: ["/api/episodes", selectedEpisode.id, "platform-links"] });
                       try {
@@ -1838,7 +1861,7 @@ export default function Episodes() {
       </Dialog>
 
       <Dialog open={!!showPlatformLink} onOpenChange={(open) => { if (!open) setShowPlatformLink(null); }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>
               {showPlatformLink === "youtube" ? t.episodes.youtube : showPlatformLink === "spotify" ? t.episodes.spotify : t.episodes.appleMusic}
@@ -2239,7 +2262,7 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
       )}
 
       <Dialog open={showAddShort} onOpenChange={setShowAddShort}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>Add Teaser</DialogTitle>
             <DialogDescription>Add a teaser clip for approval</DialogDescription>
@@ -2370,7 +2393,7 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
       )}
 
       <Dialog open={showAddLink} onOpenChange={setShowAddLink}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{t.episodes.largeFileLinks}</DialogTitle>
             <DialogDescription>Google Drive, Dropbox, or other external links</DialogDescription>

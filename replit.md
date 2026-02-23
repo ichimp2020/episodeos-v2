@@ -49,6 +49,18 @@ A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. De
 - `POST /api/conversations/:id/messages` - Send message and stream AI response (SSE)
 - `POST /api/ai/quick` - One-off AI prompt with streaming response (SSE)
 
+## Shared Utilities
+- `client/src/lib/statusColors.ts` — Episode status colors and translated labels used across all views
+- `client/src/lib/rescheduleHelpers.ts` — `needsReschedule()` and `canReschedule()` shared between episodes.tsx and EpisodeEditDialog.tsx
+
+## State Management Patterns
+- **Episode detail dialog** (`episodes.tsx`): Uses `selectedEpisode` local state synced from query cache via `useEffect`. After mutations, query invalidation + sync effect updates the dialog — no manual `setSelectedEpisode({...spread})` patches.
+- **Studio invite flow** (`studio.tsx`): Master toggle `sendInvites` (OFF by default) + role-based `inviteRecipients` checkboxes (all OFF by default). Invites only sent when master is ON and recipients are selected.
+
+## Dialog Sizing Standards
+- **Standard (forms/inputs)**: `max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden`
+- **Large (detail views)**: `max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0` with fixed header (`shrink-0`) and scrollable body (`overflow-y-auto flex-1`)
+
 ## Running
 - `npm run dev` starts both the Express backend and Vite frontend dev server
 - `npm run db:push` pushes schema changes to the database

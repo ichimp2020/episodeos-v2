@@ -323,7 +323,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
-      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto w-[95vw] sm:w-full">
+      <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
         {guest && (
           <>
             <DialogHeader>

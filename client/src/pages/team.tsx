@@ -414,7 +414,7 @@ export default function Team() {
       </Dialog>
 
       <Dialog open={showAddMember} onOpenChange={setShowAddMember}>
-        <DialogContent>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden">
           <DialogHeader>
             <DialogTitle>{t.team.addTeamMember}</DialogTitle>
             <DialogDescription>{t.team.addNewMember}</DialogDescription>
