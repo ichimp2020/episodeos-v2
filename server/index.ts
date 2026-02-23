@@ -59,7 +59,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/health", (_req, res) => {
+app.get("/health", (req, res) => {
+  const up = process.uptime().toFixed(1);
+  const rss = (process.memoryUsage().rss / 1024 / 1024).toFixed(1);
+  console.log(`[health] hit at ${new Date().toISOString()} from=${req.ip} uptime=${up}s RSS=${rss}MB`);
   res.status(200).json({ status: "ok" });
 });
 
