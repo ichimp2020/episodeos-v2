@@ -1564,18 +1564,21 @@ export default function Studio() {
 
             const confirmedBookings = monthDates.filter((d) => {
               if (d.status !== "taken") return false;
-              const interview = interviews?.find((i) => i.studioDateId === d.id);
-              return !!interview;
+              const interview = interviews?.find((i) => i.studioDateId === d.id && i.status === "confirmed");
+              const hasBookedSlot = !!d.bookedSlot;
+              return !!interview || hasBookedSlot;
             }).map((d) => {
-              const interview = interviews?.find((i) => i.studioDateId === d.id)!;
-              const guest = guests?.find((g) => g.id === interview.guestId);
-              return { studioDate: d, interview, guest };
+              const interview = interviews?.find((i) => i.studioDateId === d.id);
+              const guest = interview ? guests?.find((g) => g.id === interview.guestId) : null;
+              const ep = interview ? episodes?.find((e) => e.guestId === interview.guestId) : null;
+              return { studioDate: d, interview: interview || null, guest: guest || null, episode: ep || null };
             });
 
             const unlinkedDates = monthDates.filter((d) => {
               if (d.status !== "taken") return true;
-              const interview = interviews?.find((i) => i.studioDateId === d.id);
-              return !interview;
+              const interview = interviews?.find((i) => i.studioDateId === d.id && i.status === "confirmed");
+              const hasBookedSlot = !!d.bookedSlot;
+              return !interview && !hasBookedSlot;
             });
 
             const handleClearMonth = async () => {

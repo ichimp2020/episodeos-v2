@@ -77,7 +77,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
-    status: "planning",
+    status: "scheduled",
     episodeNumber: "",
     scheduledDate: "",
     scheduledTime: "",

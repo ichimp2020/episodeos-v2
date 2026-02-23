@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Upload, Trash2, CheckCircle, Clock, ExternalLink, Pencil, Check, X, Globe } from "lucide-react";
+import { Plus, Upload, Trash2, CheckCircle, ExternalLink, Pencil, Check, X, Globe, ChevronRight } from "lucide-react";
 import { SiSpotify, SiYoutube, SiApplemusic } from "react-icons/si";
 import type { Publishing, Episode, EpisodePlatformLink } from "@shared/schema";
 import { format, parseISO } from "date-fns";
@@ -177,142 +177,90 @@ export default function Publish() {
                 <h2 className="ios-section-title">Scheduled</h2>
                 <Badge variant="secondary" className="ios-badge border-0 text-xs">{scheduled.length}</Badge>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {scheduled.map((pub) => {
                   const ep = getEpisode(pub.episodeId);
                   const platform = getPlatformInfo(pub.platform);
                   const PlatformIcon = platform?.icon || Upload;
+                  const epLinks = allPlatformLinks?.filter((l) => l.episodeId === pub.episodeId) || [];
                   return (
-                    <div key={pub.id} className="ios-card p-4" data-testid={`card-publishing-${pub.id}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div
-                              className="flex h-9 w-9 items-center justify-center rounded-md shrink-0"
-                              style={{ backgroundColor: `${platform?.color}15`, color: platform?.color }}
-                            >
-                              <PlatformIcon className="h-4 w-4" />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="text-sm font-medium truncate">{pub.title || ep?.title || "Untitled"}</h3>
-                                <Badge variant="secondary" className={`ios-badge border-0 ${statusColors[pub.status]}`}>
-                                  {pub.status}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                <span className="text-xs text-muted-foreground capitalize">{platform?.label}</span>
-                                {pub.scheduledDate && (
-                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    {format(parseISO(pub.scheduledDate), "EEE, MMM d")}
-                                    {pub.scheduledTime && ` at ${pub.scheduledTime}`}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                    <div
+                      key={pub.id}
+                      className="ios-card cursor-pointer p-4 px-5 group relative"
+                      onClick={() => openEditPublish(pub)}
+                      data-testid={`card-publishing-${pub.id}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {ep?.episodeNumber && (
+                              <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{ep.episodeNumber}</span>
+                            )}
+                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || "Untitled"}</h3>
+                            <Badge className={`ios-badge border-0 ${statusColors[pub.status]}`}>
+                              {pub.status}
+                            </Badge>
+                            <Badge variant="secondary" className="ios-badge border-0 gap-1" style={{ color: platform?.color }}>
+                              <PlatformIcon className="w-3 h-3" />
+                              {platform?.label}
+                            </Badge>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="secondary"
-                              className="rounded-full px-4"
-                              onClick={() => openEditPublish(pub)}
-                              data-testid={`button-edit-publishing-${pub.id}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              className="rounded-full px-4"
-                              onClick={() => updatePublishing.mutate({ id: pub.id, data: { status: "published" } })}
-                              data-testid={`button-mark-published-${pub.id}`}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Done
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              className="rounded-full px-4"
-                              onClick={() => deletePublishing.mutate(pub.id)}
-                              data-testid={`button-delete-publishing-${pub.id}`}
-                            >
-                              <Trash2 className="h-3 w-3 text-muted-foreground" />
-                            </Button>
+                          <div className="flex items-center gap-4 mt-2 flex-wrap">
+                            <span className={`text-xs ${!pub.scheduledDate ? "text-muted-foreground/50 italic" : "text-muted-foreground"}`}>
+                              {pub.scheduledDate
+                                ? <>{format(parseISO(pub.scheduledDate), "MMM d, yyyy")}{pub.scheduledTime ? ` at ${pub.scheduledTime}` : ""}</>
+                                : "No date set"}
+                            </span>
                           </div>
-                        </div>
-                        {pub.episodeId && (() => {
-                          const epLinks = allPlatformLinks?.filter((l) => l.episodeId === pub.episodeId) || [];
-                          return (
-                            <div className="mt-3 pt-3 border-t flex flex-wrap gap-2 items-center">
-                              <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+                          {pub.episodeId && epLinks.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
                               {(["youtube", "spotify", "apple-music"] as const).map((plat) => {
                                 const existing = epLinks.find((l) => l.platform === plat);
+                                if (!existing) return null;
                                 const Icon = plat === "youtube" ? SiYoutube : plat === "spotify" ? SiSpotify : SiApplemusic;
                                 const label = plat === "youtube" ? "YouTube" : plat === "spotify" ? "Spotify" : "Apple Music";
-                                const colors = plat === "youtube" ? "text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30" : plat === "spotify" ? "text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30" : "text-pink-600 hover:bg-pink-50 dark:hover:bg-pink-950/30";
-                                return existing ? (
+                                const colors = plat === "youtube" ? "text-red-600" : plat === "spotify" ? "text-green-600" : "text-pink-600";
+                                return (
                                   <a
                                     key={plat}
                                     href={existing.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${colors} transition-colors`}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${colors} transition-colors`}
+                                    onClick={(e) => e.stopPropagation()}
                                     data-testid={`link-pub-platform-${plat}-${pub.id}`}
                                   >
-                                    <Icon className="w-3.5 h-3.5" />
+                                    <Icon className="w-3 h-3" />
                                     {label}
-                                    <ExternalLink className="w-3 h-3 opacity-50" />
+                                    <ExternalLink className="w-2.5 h-2.5 opacity-50" />
                                   </a>
-                                ) : addingPlatformLink?.episodeId === pub.episodeId && addingPlatformLink?.platform === plat ? (
-                                  <div key={plat} className="flex items-center gap-1.5">
-                                    <Input
-                                      placeholder={`${label} URL`}
-                                      value={platformLinkUrl}
-                                      onChange={(e) => setPlatformLinkUrl(e.target.value)}
-                                      className="h-7 text-xs w-48"
-                                      autoFocus
-                                      data-testid={`input-pub-platform-url-${plat}-${pub.id}`}
-                                    />
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7"
-                                      disabled={!platformLinkUrl}
-                                      onClick={async () => {
-                                        try {
-                                          await apiRequest("POST", `/api/episodes/${pub.episodeId}/platform-links`, { platform: plat, url: platformLinkUrl });
-                                          queryClient.invalidateQueries({ queryKey: ["/api/platform-links"] });
-                                          queryClient.invalidateQueries({ queryKey: ["/api/episodes", pub.episodeId, "platform-links"] });
-                                          setAddingPlatformLink(null);
-                                          setPlatformLinkUrl("");
-                                          toast({ title: `${label} link added` });
-                                        } catch { toast({ title: "Failed to add link", variant: "destructive" }); }
-                                      }}
-                                      data-testid={`button-save-pub-platform-${plat}-${pub.id}`}
-                                    >
-                                      <Check className="h-3 w-3" />
-                                    </Button>
-                                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setAddingPlatformLink(null); setPlatformLinkUrl(""); }}>
-                                      <X className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <Button
-                                    key={plat}
-                                    variant="outline"
-                                    size="sm"
-                                    className={`gap-1.5 rounded-full text-xs ${colors}`}
-                                    onClick={() => { setAddingPlatformLink({ episodeId: pub.episodeId, platform: plat }); setPlatformLinkUrl(""); }}
-                                    data-testid={`button-add-pub-platform-${plat}-${pub.id}`}
-                                  >
-                                    <Icon className="w-3.5 h-3.5" />
-                                    <Plus className="w-3 h-3" />
-                                    {label}
-                                  </Button>
                                 );
                               })}
                             </div>
-                          );
-                        })()}
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => { e.stopPropagation(); updatePublishing.mutate({ id: pub.id, data: { status: "published" } }); }}
+                            data-testid={`button-mark-published-${pub.id}`}
+                          >
+                            <CheckCircle className="h-4 w-4 text-chart-2" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => { e.stopPropagation(); deletePublishing.mutate(pub.id); }}
+                            data-testid={`button-delete-publishing-${pub.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -326,28 +274,79 @@ export default function Publish() {
                 <h2 className="ios-section-title">Published</h2>
                 <Badge variant="secondary" className="ios-badge border-0 text-xs">{published.length}</Badge>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {published.map((pub) => {
                   const ep = getEpisode(pub.episodeId);
                   const platform = getPlatformInfo(pub.platform);
                   const PlatformIcon = platform?.icon || Upload;
+                  const epLinks = allPlatformLinks?.filter((l) => l.episodeId === pub.episodeId) || [];
                   return (
-                    <div key={pub.id} className="ios-card p-3 opacity-60" data-testid={`card-publishing-${pub.id}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <PlatformIcon className="h-4 w-4 shrink-0" style={{ color: platform?.color }} />
-                            <span className="text-sm truncate">{pub.title || ep?.title}</span>
-                            <Badge variant="secondary" className={statusColors.published}>published</Badge>
+                    <div
+                      key={pub.id}
+                      className="ios-card cursor-pointer p-4 px-5 group relative opacity-70"
+                      onClick={() => openEditPublish(pub)}
+                      data-testid={`card-publishing-${pub.id}`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {ep?.episodeNumber && (
+                              <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{ep.episodeNumber}</span>
+                            )}
+                            <h3 className="text-sm font-semibold">{pub.title || ep?.title || "Untitled"}</h3>
+                            <Badge className={`ios-badge border-0 ${statusColors[pub.status]}`}>
+                              {pub.status}
+                            </Badge>
+                            <Badge variant="secondary" className="ios-badge border-0 gap-1" style={{ color: platform?.color }}>
+                              <PlatformIcon className="w-3 h-3" />
+                              {platform?.label}
+                            </Badge>
                           </div>
+                          <div className="flex items-center gap-4 mt-2 flex-wrap">
+                            <span className={`text-xs ${pub.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
+                              {pub.scheduledDate ? format(parseISO(pub.scheduledDate), "MMM d, yyyy") : "No date set"}
+                            </span>
+                          </div>
+                          {pub.episodeId && epLinks.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                              {(["youtube", "spotify", "apple-music"] as const).map((plat) => {
+                                const existing = epLinks.find((l) => l.platform === plat);
+                                if (!existing) return null;
+                                const Icon = plat === "youtube" ? SiYoutube : plat === "spotify" ? SiSpotify : SiApplemusic;
+                                const label = plat === "youtube" ? "YouTube" : plat === "spotify" ? "Spotify" : "Apple Music";
+                                const colors = plat === "youtube" ? "text-red-600" : plat === "spotify" ? "text-green-600" : "text-pink-600";
+                                return (
+                                  <a
+                                    key={plat}
+                                    href={existing.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border ${colors} transition-colors`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`link-pub-platform-${plat}-${pub.id}`}
+                                  >
+                                    <Icon className="w-3 h-3" />
+                                    {label}
+                                    <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
                           <Button
-                            variant="secondary"
-                            className="rounded-full px-4"
-                            onClick={() => deletePublishing.mutate(pub.id)}
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={(e) => { e.stopPropagation(); deletePublishing.mutate(pub.id); }}
                             data-testid={`button-delete-publishing-${pub.id}`}
                           >
-                            <Trash2 className="h-3 w-3 text-muted-foreground" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
                         </div>
+                      </div>
                     </div>
                   );
                 })}

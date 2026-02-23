@@ -1,7 +1,7 @@
-# EpisodeOS - Podcast Team Hub
+# EpisodeOS - Voice Of Nova Podcast Team Hub
 
 ## Overview
-A simple, focused podcast team coordination tool. Designed for small podcast teams (~8-9 people) who need to sync responsibilities, track episodes through their lifecycle, and manage studio availability from a third-party partner.
+A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. Designed for small podcast teams (~8-9 people) who need to sync responsibilities, track episodes through their lifecycle, and manage studio availability from a third-party partner.
 
 ## Architecture
 - **Frontend**: React + Vite, TailwindCSS, shadcn/ui components, wouter for routing

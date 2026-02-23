@@ -661,12 +661,11 @@ export default function Episodes() {
                       )}
                     </div>
                     <div className="flex items-center gap-4 mt-2 flex-wrap">
-                      {episode.scheduledDate && (
-                        <span className={`text-xs ${isPastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                          {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}
-                          {isPastDate && " (past)"}
-                        </span>
-                      )}
+                      <span className={`text-xs ${!episode.scheduledDate ? "text-muted-foreground/50 italic" : isPastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                        {episode.scheduledDate
+                          ? <>{format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}{isPastDate && " (past)"}</>
+                          : t.dashboard.noDateSet}
+                      </span>
                       {eTasks.length > 0 && (
                         <div className="flex items-center gap-1.5">
                           <div className="w-12 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -741,11 +740,9 @@ export default function Episodes() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">
-                    {episode.scheduledDate && (
-                      <span className="text-xs text-muted-foreground">
-                        {format(parseISO(episode.scheduledDate), "MMM d, yyyy")}
-                      </span>
-                    )}
+                    <span className={`text-xs ${episode.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
+                      {episode.scheduledDate ? format(parseISO(episode.scheduledDate), "MMM d, yyyy") : t.dashboard.noDateSet}
+                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
