@@ -70,7 +70,8 @@ if (isProd && !process.env.PORT) {
   process.exit(1);
 }
 
-const port = parseInt(process.env.PORT || "5000", 10);
+const port = isProd ? parseInt(process.env.PORT!, 10) : parseInt(process.env.PORT || "5000", 10);
+console.log(`[boot] NODE_ENV=${process.env.NODE_ENV} PORT=${port}`);
 
 function logMemory(label: string) {
   const mem = process.memoryUsage();
