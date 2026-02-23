@@ -1,0 +1,77 @@
+Pre-Republish QA + Consistency Audit (NO breaking changes)
+
+Goal:
+Before republishing, run a full UI + data consistency check across ALL “cards” and ensure calendar sync + field propagation is correct.
+
+Scope:
+Cards / lists / tables that must be reviewed:
+- Episodes (active/planning/scheduled/editing)
+- Guests (pipeline/prospect/confirmed)
+- Published
+- Archived
+- Any dashboard overview tables showing counts or rows
+
+1) Data Sync + Field Propagation (non-negotiable)
+- Verify that “the same entity” renders the same source-of-truth fields everywhere.
+- If a field is edited in one place, it must reflect everywhere else immediately (or after refresh) with no stale display.
+Examples:
+- Episode title/number/status/date/time/guest linkage
+- Guest name/email/phone/status + episode linkage
+- Scheduled date/time must match between Episode card, Guest card, Calendar views, and any “scheduled” lists.
+- Archived/published status must not desync across lists.
+
+2) Calendar Sync (highest priority)
+- Confirm that calendar-reschedule-booking updates propagate to:
+  - Episode card
+  - Guest card
+  - Calendar month view + day view + slot lists
+  - Dashboard counts/overview rows (if they depend on scheduled state)
+- Confirm no “ghost slot” remains taken after reschedule.
+- Confirm “Selected slot” reflects the real stored scheduled start/end.
+- Confirm time zones are consistent.
+
+3) Visual Consistency (UI system)
+- All cards should share:
+  - typography scale
+  - spacing/padding
+  - corner radius
+  - button styles
+  - dialog/modal style (headers, close button, actions)
+- Dashboard overview tables should look consistent:
+  - same row height
+  - same font
+  - consistent status badges
+  - consistent progress indicators
+
+4) Editing + Quick Actions
+- Editing should be available anywhere users reasonably need it:
+  - quick view
+  - quick edit
+  - quick delete
+- Add consistent “…” menu / icon actions where appropriate rather than forcing users into deep screens.
+- Do NOT add edit/delete in places where it risks accidental taps without confirmation.
+
+5) System Notes / Missing Data Warnings
+- Add lightweight indicators (inline hint or small popover) when required info is missing.
+Examples:
+- Episode scheduled but missing guest email
+- Invites enabled but no recipients selected
+- Guest confirmed but no scheduled slot
+- Episode missing required assets before publish (thumbnail/title/description)
+- Notes should be subtle; only show when it matters.
+
+Process (do this in order):
+A) List the canonical “source of truth” fields and where they are stored (DB schema / state).
+B) Map each card/list/table to those fields.
+C) Identify any mismatches or stale state issues.
+D) Fix with minimal changes:
+   - prefer shared components
+   - avoid duplicated rendering logic
+   - avoid large refactors
+E) Provide a checklist of manual QA steps + what was verified.
+
+Important constraints:
+- Do NOT redesign the app.
+- Do NOT refactor unrelated architecture.
+- Fix only issues that affect consistency, sync, and UX reliability.
+- After changes, verify no regressions in booking/reschedule/invites flow.

@@ -155,6 +155,11 @@ const en = {
     inviteSentSuccess: "Calendar invite sent",
     inviteNotSent: "Booking saved without invite",
     inviteSendFailed: "Booking saved but invite failed",
+    hostRole: "Host",
+    coHostRole: "Co-Host",
+    studioRole: "Studio",
+    guestRole: "Guest",
+    noRecipientsSelected: "No recipients selected — no invites will be sent.",
   },
   team: {
     title: "Team",

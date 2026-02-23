@@ -157,6 +157,11 @@ const he: TranslationKeys = {
     inviteSentSuccess: "הזמנה ליומן נשלחה",
     inviteNotSent: "ההזמנה נשמרה ללא הזמנה",
     inviteSendFailed: "ההזמנה נשמרה אך שליחת ההזמנה נכשלה",
+    hostRole: "מנחה",
+    coHostRole: "מנחה משנה",
+    studioRole: "סטודיו",
+    guestRole: "אורח/ת",
+    noRecipientsSelected: "לא נבחרו נמענים — לא יישלחו הזמנות.",
   },
   team: {
     title: "צוות",

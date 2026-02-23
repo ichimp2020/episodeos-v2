@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,8 +85,8 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [inviteEmails, setInviteEmails] = useState({ studio: "", interviewers: "", interviewee: "" });
-  const [inviteToggles, setInviteToggles] = useState({ studio: false, interviewers: false, interviewee: false });
+  const [sendInvites, setSendInvites] = useState(false);
+  const [recipientToggles, setRecipientToggles] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -189,13 +189,8 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
       setShowCalendar(false);
       setSelectedDate(null);
       setSelectedSlot(null);
-      setInviteToggles({ studio: false, interviewers: false, interviewee: false });
-      const guest = episode.guestId ? guests?.find(g => g.id === episode.guestId) : null;
-      setInviteEmails({
-        studio: "studio@example.com",
-        interviewers: members?.filter(m => m.email).map(m => m.email).join(", ") || "",
-        interviewee: guest?.email || "",
-      });
+      setSendInvites(false);
+      setRecipientToggles({});
       setShowPublishDate(false);
       setPublishDateValue("");
       setPublishTimeValue("12:00");
@@ -229,6 +224,28 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
   ) : false;
 
   const episodeGuest = episode ? getEpisodeGuest(episode) : null;
+
+  const inviteRecipients = useMemo(() => {
+    const chips: { id: string; name: string; role: string; email: string | null }[] = [];
+    const hostRoles = ["host", "co-host"];
+    if (members) {
+      for (const m of members) {
+        const roleLower = m.role?.toLowerCase() || "";
+        if (hostRoles.includes(roleLower)) {
+          const roleLabel = roleLower === "co-host" ? t.episodes.coHostRole : t.episodes.hostRole;
+          chips.push({ id: m.id, name: m.name, role: roleLabel, email: m.email || null });
+        }
+      }
+      const studioMember = members.find(m => m.role?.toLowerCase().includes("studio"));
+      if (studioMember) {
+        chips.push({ id: "studio", name: studioMember.name, role: t.episodes.studioRole, email: studioMember.email || null });
+      }
+    }
+    if (episodeGuest?.email) {
+      chips.push({ id: "guest", name: episodeGuest.name, role: t.episodes.guestRole, email: episodeGuest.email });
+    }
+    return chips;
+  }, [members, episodeGuest, t]);
 
   const handleSelectDate = (date: string) => {
     const studioDate = availableDates.find((d) => d.date === date);
@@ -340,14 +357,12 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
       let calendarResult: "sent" | "no-invites" | "failed" = "no-invites";
       if (hasScheduleChange && selectedDate && selectedSlot) {
         const selectedEmails: string[] = [];
-        if (inviteToggles.studio && inviteEmails.studio.trim()) {
-          selectedEmails.push(inviteEmails.studio.trim());
-        }
-        if (inviteToggles.interviewers && inviteEmails.interviewers.trim()) {
-          inviteEmails.interviewers.split(",").map(e => e.trim()).filter(e => e.includes("@")).forEach(e => selectedEmails.push(e));
-        }
-        if (inviteToggles.interviewee && inviteEmails.interviewee.trim()) {
-          selectedEmails.push(inviteEmails.interviewee.trim());
+        if (sendInvites) {
+          for (const r of inviteRecipients) {
+            if (recipientToggles[r.id] && r.email) {
+              selectedEmails.push(r.email);
+            }
+          }
         }
 
         if (selectedEmails.length > 0) {
@@ -375,8 +390,9 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
           }
         }
 
-        if (newStudioDate) {
-          await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, {
+        const studioDateForInvite = availableDates.find((d) => d.date === selectedDate);
+        if (studioDateForInvite) {
+          await apiRequest("PATCH", `/api/studio-dates/${studioDateForInvite.id}`, {
             participantEmails: selectedEmails,
           });
         }
@@ -720,14 +736,15 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                   )}
 
                   {isDateFullySelected && hasScheduleChange && (
-                    <div className="mt-3 rounded-xl border border-border/50 bg-muted/30 p-3 space-y-3" data-testid="panel-invite-emails">
+                    <div className="mt-3 rounded-xl border border-border/50 bg-muted/30 p-3 space-y-3" data-testid="panel-invite-recipients">
                       <label className="flex items-center gap-2 cursor-pointer" data-testid="toggle-send-invites">
                         <input
                           type="checkbox"
-                          checked={inviteToggles.studio || inviteToggles.interviewers || inviteToggles.interviewee}
+                          checked={sendInvites}
                           onChange={(e) => {
                             const val = e.target.checked;
-                            setInviteToggles({ studio: val, interviewers: val, interviewee: val });
+                            setSendInvites(val);
+                            if (!val) setRecipientToggles({});
                           }}
                           className="rounded border-border"
                         />
@@ -735,67 +752,41 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                         <span className="text-sm font-medium">{t.episodes.sendCalendarInvites}</span>
                       </label>
 
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={inviteToggles.studio}
-                            onChange={(e) => setInviteToggles({ ...inviteToggles, studio: e.target.checked })}
-                            className="rounded border-border shrink-0"
-                            data-testid="toggle-invite-studio"
-                          />
-                          <div className="flex-1 space-y-1">
-                            <label className="text-xs text-muted-foreground">{t.studio.studioEmail}</label>
-                            <Input
-                              value={inviteEmails.studio}
-                              onChange={(e) => setInviteEmails({ ...inviteEmails, studio: e.target.value })}
-                              placeholder="studio@example.com"
-                              className="h-8 text-sm"
-                              data-testid="input-invite-studio-email"
-                            />
+                      {sendInvites && (
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap gap-1.5" data-testid="recipient-chips">
+                            {inviteRecipients.map((r) => {
+                              const isOn = !!recipientToggles[r.id];
+                              const hasEmail = !!r.email;
+                              return (
+                                <button
+                                  key={r.id}
+                                  type="button"
+                                  disabled={!hasEmail}
+                                  onClick={() => setRecipientToggles(prev => ({ ...prev, [r.id]: !prev[r.id] }))}
+                                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                                    !hasEmail
+                                      ? "bg-muted/30 text-muted-foreground/40 cursor-not-allowed line-through"
+                                      : isOn
+                                        ? "bg-primary text-primary-foreground shadow-sm"
+                                        : "bg-muted/50 text-foreground border border-border/50 hover:bg-muted"
+                                  }`}
+                                  data-testid={`chip-recipient-${r.id}`}
+                                >
+                                  <Mail className="h-3 w-3" />
+                                  {r.name} ({r.role})
+                                  {isOn && <Check className="h-3 w-3" />}
+                                </button>
+                              );
+                            })}
                           </div>
+                          {sendInvites && !Object.values(recipientToggles).some(v => v) && (
+                            <p className="text-[11px] text-muted-foreground italic" data-testid="text-no-recipients">
+                              {t.episodes.noRecipientsSelected}
+                            </p>
+                          )}
                         </div>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={inviteToggles.interviewers}
-                            onChange={(e) => setInviteToggles({ ...inviteToggles, interviewers: e.target.checked })}
-                            className="rounded border-border shrink-0"
-                            data-testid="toggle-invite-interviewers"
-                          />
-                          <div className="flex-1 space-y-1">
-                            <label className="text-xs text-muted-foreground">{t.studio.interviewerEmails}</label>
-                            <Input
-                              value={inviteEmails.interviewers}
-                              onChange={(e) => setInviteEmails({ ...inviteEmails, interviewers: e.target.value })}
-                              placeholder="interviewer1@email.com, interviewer2@email.com"
-                              className="h-8 text-sm"
-                              data-testid="input-invite-interviewer-emails"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={inviteToggles.interviewee}
-                            onChange={(e) => setInviteToggles({ ...inviteToggles, interviewee: e.target.checked })}
-                            className="rounded border-border shrink-0"
-                            data-testid="toggle-invite-interviewee"
-                          />
-                          <div className="flex-1 space-y-1">
-                            <label className="text-xs text-muted-foreground">{t.studio.intervieweeEmail}</label>
-                            <Input
-                              value={inviteEmails.interviewee}
-                              onChange={(e) => setInviteEmails({ ...inviteEmails, interviewee: e.target.value })}
-                              placeholder="guest@email.com"
-                              className="h-8 text-sm"
-                              data-testid="input-invite-interviewee-email"
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
