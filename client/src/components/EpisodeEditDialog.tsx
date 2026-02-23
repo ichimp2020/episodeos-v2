@@ -439,37 +439,66 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
 
   const hasExistingSchedule = editForm.scheduledDate && editForm.scheduledDate.length > 0;
 
+  const isGuestNameRedundant = episodeGuest
+    ? editForm.title.trim().toLowerCase().includes(episodeGuest.name.trim().toLowerCase())
+    : false;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto w-[95vw] sm:w-full">
+      <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0">
         {episode && (
           <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 flex-wrap">
-                <Mic className="h-4 w-4" />
-                {episodeGuest ? (
-                  <>
-                    <UserPlus className="h-4 w-4 text-primary" />
-                    <span>{episodeGuest.name}</span>
-                    {episodeGuest.shortDescription && (
-                      <span className="text-sm font-normal text-muted-foreground">— {episodeGuest.shortDescription}</span>
+            <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border/40">
+              <DialogTitle className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {episode.episodeNumber && (
+                    <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-header">Ep #{episode.episodeNumber}</span>
+                  )}
+                  <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[editForm.status]}`}>{getEpisodeStatusLabel(t, editForm.status)}</Badge>
+                  {episodeNeedsReschedule && (
+                    <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1 text-[10px]" data-testid="badge-reschedule-quick-edit">
+                      <AlertTriangle className="w-3 h-3" />
+                      {t.common.rescheduleNeeded}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-base font-semibold truncate" data-testid="text-episode-title-header">{editForm.title}</p>
+                {editForm.scheduledDate && (
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {format(parseISO(editForm.scheduledDate), "MMM d, yyyy")}
+                    {editForm.scheduledTime && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {editForm.scheduledTime}
+                      </span>
                     )}
-                  </>
-                ) : (
-                  <span>{t.episodes.title}</span>
-                )}
-                {episodeNeedsReschedule && (
-                  <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid="badge-reschedule-quick-edit">
-                    <AlertTriangle className="w-3 h-3" />
-                    {t.common.rescheduleNeeded}
-                  </Badge>
+                  </p>
                 )}
               </DialogTitle>
-              <DialogDescription>Quick edit episode details</DialogDescription>
+              <DialogDescription className="sr-only">Edit episode details</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 mt-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">{t.episodes.status}</label>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+              {episodeGuest && (
+                <div className="flex items-center gap-2.5 rounded-xl bg-muted/30 px-3 py-2" data-testid="panel-guest-card">
+                  <UserPlus className="h-4 w-4 text-primary shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    {!isGuestNameRedundant && (
+                      <span className="text-sm font-medium" data-testid="text-guest-name-card">{episodeGuest.name}</span>
+                    )}
+                    {isGuestNameRedundant && (
+                      <span className="text-sm font-medium text-muted-foreground">{t.episodes.guest}</span>
+                    )}
+                    {episodeGuest.shortDescription && (
+                      <span className="text-xs text-muted-foreground ml-1.5">— {episodeGuest.shortDescription}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium shrink-0">{t.episodes.status}</label>
                 <Select value={editForm.status} onValueChange={(val) => {
                   if (val === "publishing" && editForm.status !== "publishing") {
                     setPublishDateValue(episode.publishDate || format(new Date(), "yyyy-MM-dd"));
@@ -479,7 +508,7 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                   }
                   setEditForm({ ...editForm, status: val });
                 }}>
-                  <SelectTrigger data-testid="select-episode-status-quick">
+                  <SelectTrigger className="w-auto min-w-[140px] h-8" data-testid="select-episode-status-quick">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -560,6 +589,16 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                   onChange={(e) => setEditForm({ ...editForm, episodeNumber: e.target.value })}
                   placeholder="#"
                   data-testid="input-quick-episode-number"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{t.episodes.description}</label>
+                <Textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={2}
+                  data-testid="input-quick-episode-description"
                 />
               </div>
 
@@ -786,16 +825,6 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">{t.episodes.description}</label>
-                <Textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  rows={3}
-                  data-testid="input-quick-episode-description"
-                />
-              </div>
-
               {episodeTasks.length > 0 && editForm.status !== "archived" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
@@ -921,26 +950,27 @@ export default function EpisodeEditDialog({ episode, open, onOpenChange }: Episo
                 </div>
               )}
 
-              <div className="flex items-center justify-between gap-2 pt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive"
-                  onClick={() => deleteEpisode.mutate()}
-                  data-testid="button-delete-episode-quick"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  {t.episodes.deleteEpisode}
-                </Button>
-                <Button
-                  className="rounded-full px-5 shadow-md"
-                  onClick={() => updateEpisode.mutate()}
-                  disabled={!editForm.title || updateEpisode.isPending}
-                  data-testid="button-save-episode-quick"
-                >
-                  {updateEpisode.isPending ? t.episodes.saving : t.episodes.saveChanges}
-                </Button>
-              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-6 py-3 shrink-0 border-t border-border/40">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={() => deleteEpisode.mutate()}
+                data-testid="button-delete-episode-quick"
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                {t.episodes.deleteEpisode}
+              </Button>
+              <Button
+                className="rounded-full px-5 shadow-md"
+                onClick={() => updateEpisode.mutate()}
+                disabled={!editForm.title || updateEpisode.isPending}
+                data-testid="button-save-episode-quick"
+              >
+                {updateEpisode.isPending ? t.episodes.saving : t.episodes.saveChanges}
+              </Button>
             </div>
           </>
         )}

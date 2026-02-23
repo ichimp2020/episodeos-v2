@@ -355,7 +355,7 @@ export default function Publish() {
       )}
 
       <Dialog open={!!editingPublish} onOpenChange={(open) => { if (!open) setEditingPublish(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)]">
           {editingPublish && (
             <>
               <DialogHeader>
@@ -529,7 +529,7 @@ export default function Publish() {
       </Dialog>
 
       <Dialog open={showNewPublish} onOpenChange={setShowNewPublish}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t.publishing.scheduleRelease}</DialogTitle>
             <DialogDescription>{t.publishing.scheduleEpisode}</DialogDescription>
