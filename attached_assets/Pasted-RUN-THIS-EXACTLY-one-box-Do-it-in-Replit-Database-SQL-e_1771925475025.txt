@@ -1,0 +1,59 @@
+RUN THIS EXACTLY (one box). Do it in Replit → Database → SQL editor.
+
+========================
+STEP 1 — DRY RUN (shows orphan episodes)
+========================
+SELECT
+  e.id, e.episode_number, e.title, e.interview_id, e.status,
+  (SELECT count(*) FROM tasks t WHERE t.episode_id = e.id) as tasks,
+  (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id) as files,
+  (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id) as shorts,
+  (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id) as large_links,
+  (SELECT count(*) FROM episode_platform_links p WHERE p.episode_id = e.id) as platform_links,
+  (SELECT count(*) FROM publishing pub WHERE pub.episode_id = e.id) as publishing_rows
+FROM episodes e
+WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+ORDER BY e.episode_number;
+
+If this shows the orphan rows and publishing_rows=0, continue.
+
+========================
+STEP 2 — SAFE FIX (NON-DESTRUCTIVE): unlink orphans (keeps episode + tasks)
+========================
+BEGIN;
+
+UPDATE episodes
+SET interview_id = NULL
+WHERE interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = episodes.interview_id);
+
+COMMIT;
+
+========================
+STEP 3 — VERIFY (must be clean)
+========================
+
+-- A) should return 0 rows
+SELECT id, episode_number, title, interview_id
+FROM episodes
+WHERE interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = episodes.interview_id);
+
+-- B) check Nir duplicates visually (should now be only real ones, no orphan-linked dup)
+SELECT id, episode_number, title, interview_id
+FROM episodes
+WHERE title ILIKE '%שלזינגר%' OR title ILIKE '%ניר%'
+ORDER BY episode_number;
+
+========================
+STEP 4 — PREVENT FUTURE ORPHANS (add FK after Step 3 passes)
+========================
+ALTER TABLE episodes
+ADD CONSTRAINT episodes_interview_id_interviews_id_fk
+FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL;
+
+========================
+AFTER THIS
+========================
+Refresh the live app episodes list. The “duplicate-looking” orphan episode should stop showing as a booked duplicate because it’s no longer tied to a deleted interview.

@@ -1,0 +1,80 @@
+DO NOT switch to build yet.
+
+We’re stuck in circles because we keep redeploying UI while production data is still dirty.
+Next action is ONLY production DB cleanup + verification. After verification passes → THEN build/publish.
+
+Run these in Replit Database panel / Neon console in this exact order:
+
+STEP 1 — Find orphans (dry run)
+SELECT
+  e.id, e.episode_number, e.title, e.interview_id, e.status,
+  (SELECT count(*) FROM tasks t WHERE t.episode_id = e.id) as tasks,
+  (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id) as files,
+  (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id) as shorts,
+  (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id) as large_links,
+  (SELECT count(*) FROM episode_platform_links p WHERE p.episode_id = e.id) as platform_links
+FROM episodes e
+WHERE e.interview_id IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+ORDER BY e.episode_number;
+
+STEP 2 — Delete ONLY “safe” orphans (no files/shorts/links/platform_links). Transaction wrapped.
+BEGIN;
+
+DELETE FROM tasks
+WHERE episode_id IN (
+  SELECT e.id FROM episodes e
+  WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+  AND (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_platform_links p WHERE p.episode_id = e.id) = 0
+);
+
+DELETE FROM episode_platform_links
+WHERE episode_id IN (
+  SELECT e.id FROM episodes e
+  WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+  AND (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id) = 0
+);
+
+DELETE FROM episodes
+WHERE id IN (
+  SELECT e.id FROM episodes e
+  WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+  AND (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id) = 0
+  AND (SELECT count(*) FROM episode_platform_links p WHERE p.episode_id = e.id) = 0
+);
+
+COMMIT;
+
+STEP 3 — Verification (must pass BEFORE any build)
+-- A) Orphans should be 0 rows
+SELECT id, title, interview_id
+FROM episodes
+WHERE interview_id IS NOT NULL
+AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = episodes.interview_id);
+
+-- B) Total episodes should match expected
+SELECT count(*) as total_episodes FROM episodes;
+
+-- C) Nir check: exactly ONE episode for Nir
+SELECT e.id, e.episode_number, e.title, e.interview_id
+FROM episodes e
+WHERE e.title ILIKE '%שלזינגר%' OR e.title ILIKE '%ניר%'
+ORDER BY e.episode_number;
+
+STEP 4 — Only after STEP 3 passes: add FK to prevent new orphans
+ALTER TABLE episodes
+ADD CONSTRAINT episodes_interview_id_interviews_id_fk
+FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL;
+
+After you run STEP 3, paste the outputs of the 3 verification queries.
+If they pass → THEN we switch to BUILD mode and publish.
