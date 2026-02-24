@@ -67,7 +67,7 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/__version", (_req, res) => {
-  res.json({ serverVersion: "2026-02-25-v1", ts: Date.now() });
+  res.json({ serverVersion: "2026-02-25-v2", ts: Date.now() });
 });
 
 const isProd = process.env.NODE_ENV === "production";
@@ -121,7 +121,7 @@ process.on("unhandledRejection", (reason) => {
 if (isProd) {
   setInterval(() => {
     logMemory("heartbeat");
-  }, 5000);
+  }, 60000);
 }
 
 (async () => {
@@ -139,6 +139,27 @@ if (isProd) {
   if (isProd) {
     const { migrateProductionData } = await import("./migrate-prod");
     await migrateProductionData();
+
+    try {
+      const pg = await import("pg");
+      const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL });
+      const orphanId = "7f630d57-65a2-4023-9ec7-0aad96aeec07";
+      const { rowCount: tasksDel } = await pool.query("DELETE FROM tasks WHERE episode_id = $1", [orphanId]);
+      const { rowCount: epDel } = await pool.query("DELETE FROM episodes WHERE id = $1", [orphanId]);
+      if (epDel && epDel > 0) {
+        console.log(`[cleanup] Deleted orphan episode ${orphanId} (${tasksDel} tasks, ${epDel} episode)`);
+      }
+      const linkRes = await pool.query(
+        "UPDATE episodes SET interview_id = $1 WHERE id = $2 AND interview_id IS NULL",
+        ["0b24abe4-4724-4d31-94c8-cecd5e765f85", "bcfdad0f-5a00-4d9c-8e77-67898568221b"]
+      );
+      if (linkRes.rowCount && linkRes.rowCount > 0) {
+        console.log("[cleanup] Linked ניצן וניר שלזינגר episode to its interview");
+      }
+      await pool.end();
+    } catch (e: any) {
+      console.error("[cleanup] Non-fatal cleanup error:", e.message);
+    }
   } else {
     const { seedDatabase } = await import("./seed");
     await seedDatabase();
