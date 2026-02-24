@@ -1,0 +1,61 @@
+We’re finishing this TODAY. Stop guessing, stop “I see in production” claims unless you show proof from logs/queries. Follow this exact checklist and report outputs for each step.
+
+GOAL:
+1) Verify whether duplicates come from DB data or UI rendering.
+2) If DB: perform a ONE-TIME cleanup safely (no delete-on-startup hacks).
+3) Prevent future duplicates with a unique constraint or correct upsert logic.
+4) Fix UI inconsistency (icons, duplicate avatars, inconsistent delete icon placement) only after data is clean.
+
+STEP 1 — PROVE SOURCE (DB vs UI)
+A) Identify the exact endpoint the UI uses to fetch episodes (e.g. GET /api/episodes).
+B) From PRODUCTION logs or a server-side request, print the raw count and IDs returned by that endpoint.
+   - Log format: [proof] episodes_count=N ids=[...]
+C) If the API returns duplicate episodes (same title/guest, different IDs) => DB DUPLICATE.
+   If API returns clean but UI shows duplicates => FRONTEND BUG.
+
+STEP 2 — IF DB DUPLICATE: ONE-TIME CLEANUP (SAFE)
+Rules:
+- DO NOT add any “cleanup on server startup”.
+- DO NOT delete anything until you print a “dry-run” list of what would be deleted.
+- Wrap DB changes in a transaction.
+- Delete dependent rows first (tasks/files/links) if they exist.
+
+Actions:
+A) Write a one-off script (scripts/cleanup_duplicates.ts) OR a one-off migration that I can run manually once.
+B) The script must:
+   1) Query duplicates for the specific case shown: “ניר שלזינגר” duplicates and any other exact duplicates by episode_number or interview_id.
+   2) Print a DRY RUN report:
+      - episode_id, episode_number, title, interview_id, created_at, tasks_count, files_count, links_count
+   3) Select “keep” rule (explicit):
+      - Keep the row with a valid interview_id (or latest updated_at), delete orphaned one(s).
+   4) Execute deletes in correct order and commit.
+   5) Print final verification:
+      - re-query and print remaining rows for that guest/title.
+
+C) Run the script against production safely (whatever Replit/Neon allows), or explain exactly how to run it with credentials/environment already in Replit.
+D) After running, verify via API response that the duplicate is gone.
+
+STEP 3 — PREVENT IT FROM HAPPENING AGAIN
+A) Find where episodes are created (server route/service).
+B) Add protection:
+   - Prefer a DB UNIQUE constraint (recommended):
+     Choose correct natural key (likely podcast_id + episode_number OR podcast_id + interview_id).
+   - Update create logic to UPSERT or handle duplicate key properly.
+C) Provide the exact SQL migration and the code change.
+D) Show that creation now fails gracefully or updates existing instead of duplicating.
+
+STEP 4 — UI CONSISTENCY FIXES (ONLY AFTER STEP 1–3 DONE)
+A) Fix React list keys: ensure key={episode.id}.
+B) Ensure state updates replace list instead of appending duplicates.
+C) Fix inconsistent card UI:
+   - Delete icon placement consistent (either always shown or behind swipe/menu).
+   - Duplicate avatar initials (Y,Y) should not occur unless there are truly two assignees with same initials; otherwise dedupe by user id.
+D) Add a visible small footer marker: “UI BUILD <version>” (keep existing) so I can confirm deploy.
+
+DELIVERABLES (MANDATORY):
+1) The [proof] logs from STEP 1.
+2) The cleanup script/migration code (full file).
+3) The prevention migration SQL + code diff.
+4) The specific endpoint output before/after cleanup.
+
+If anything is blocked (prod DB permissions), propose the next best option (admin console SQL, Neon branch, etc.) with exact steps.

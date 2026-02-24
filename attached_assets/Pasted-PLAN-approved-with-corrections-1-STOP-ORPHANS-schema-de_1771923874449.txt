@@ -1,0 +1,43 @@
+PLAN (approved with corrections)
+	1.	STOP ORPHANS (schema + delete behavior)
+
+	•	Add FK: episodes.interview_id → interviews.id ON DELETE SET NULL
+Reason: deleting an interview must NOT destroy episode history/tasks/files. It should only unlink.
+	•	Update interview deletion route/service to rely on FK behavior (or explicitly set episodes.interview_id = NULL before delete).
+	•	Acceptance: delete an interview → episode remains, interview_id becomes NULL, no crashes, no broken UI.
+
+	2.	CLEANUP SCRIPT (surgical, NOT “delete all Nir”)
+Create scripts/cleanup_orphan_episodes.ts:
+
+	•	Default = DRY RUN only (prints table):
+id, episode_number, title, interview_id, guest_id, tasks_count, files_count, shorts_count, links_count, created_at
+	•	Orphan definition:
+episodes.interview_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM interviews WHERE interviews.id = episodes.interview_id)
+	•	Apply mode: --apply
+In a transaction:
+a) For each orphan episode:
+	•	If it has zero attached data (tasks/files/shorts/links/platform/publishing = 0 OR only default tasks untouched), delete it.
+	•	Else: set interview_id = NULL (keep the episode) and keep all attached data.
+b) Print before/after counts.
+
+	3.	RESTORE LEGIT EPISODES THAT WERE ACCIDENTALLY DELETED (critical)
+
+	•	If “Nir” has a confirmed interview and there is no episode for that interview:
+Run ensureEpisodeWithDefaultTasks({ interviewId, guestId, ... })
+	•	Acceptance: confirmed interview always has an episode card after cleanup.
+
+	4.	UI CONSISTENCY / DUPES
+
+	•	Ensure episode list query is the single source of truth.
+	•	Deduplicate rendering by stable keys (id), and dedupe “people chips” by userId/email (no repeated names).
+	•	Acceptance: no duplicate “Nir” cards, no missing tasks, consistent dialogs on mobile.
+
+	5.	PROOF REQUIRED (before publish)
+
+	•	Show DRY RUN output screenshot/table.
+	•	After APPLY:
+	•	orphan count = 0
+	•	“confirmed interview” count matches “episode per interview” expectation
+	•	Smoke test: create/confirm/delete interview flows
+
+IMPORTANT: deleting all episodes for a guest is NOT acceptable. Only delete orphan episodes with zero meaningful data.

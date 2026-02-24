@@ -1,0 +1,40 @@
+STOP. Do not implement any cleanup-on-startup.
+
+We have DB duplicates confirmed:
+- Episode #46 id=7f630d57 interview_id=3ef4d3bc (deleted interview) = ORPHAN
+- Episode #53 id=2eef3187 interview_id=ed342b12 (valid) = KEEP
+
+Now do STEP 2 exactly:
+
+1) Create a ONE-TIME cleanup script: scripts/cleanup_orphan_episodes.ts
+   Requirements:
+   - Runs only when I execute it manually (node scripts/cleanup_orphan_episodes.ts)
+   - DRY RUN by default (no writes unless --apply flag)
+   - Prints a table for each candidate:
+     episode_id, episode_number, title, interview_id, interview_exists, tasks_count, created_at
+   - Targets ONLY orphaned episodes where interview_id is set but interview record does not exist.
+   - For each orphan episode:
+       a) delete dependent rows first (episode_tasks, episode_links, episode_files, episode_shorts — whatever exists)
+       b) delete the episode row
+   - Wrap in a DB transaction.
+   - After apply: re-query and print remaining episodes for that guest/title.
+
+2) Run DRY RUN in production environment and show output.
+
+3) Run APPLY and show output.
+
+Then STEP 3 prevention:
+4) Add DB-level protection so orphans can’t happen quietly:
+   - Add foreign key on episodes.interview_id -> interviews.id with ON DELETE SET NULL (preferred) OR ON DELETE CASCADE (only if safe).
+   - If FK already exists, confirm it. If it doesn’t exist, add migration.
+   - Ensure code deletes/updates interviews safely without leaving dangling episode references.
+
+IMPORTANT:
+- Do NOT add uniqueness on interview_id (that would prevent multiple episodes per interview? maybe ok, but you MUST confirm the model).
+- Also inspect interview deletion path: when deleting an interview, it must either cascade delete related episodes OR set interview_id=NULL, not leave orphans.
+
+Deliverables I expect in your next reply:
+A) Full script file contents
+B) Exact commands to run dry-run and apply on Replit
+C) The migration SQL for the FK + the reasoning for SET NULL vs CASCADE
+D) Before/after proof: API endpoint episode IDs list showing #46 gone
