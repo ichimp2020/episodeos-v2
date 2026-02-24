@@ -1,0 +1,50 @@
+-- ================================
+-- ORPHAN INTERVIEW FIX (SAFE)
+-- Goal: stop duplicates caused by orphaned interview_id by UNLINKING (SET NULL),
+-- then prevent future orphans with FK ON DELETE SET NULL.
+-- ================================
+
+-- STEP 1: DRY RUN — list orphan-linked episodes (expect to see the bad ones here)
+SELECT
+  e.id,
+  e.episode_number,
+  e.title,
+  e.interview_id,
+  e.status,
+  (SELECT count(*) FROM tasks t WHERE t.episode_id = e.id)                    AS tasks,
+  (SELECT count(*) FROM episode_files f WHERE f.episode_id = e.id)            AS files,
+  (SELECT count(*) FROM episode_shorts s WHERE s.episode_id = e.id)           AS shorts,
+  (SELECT count(*) FROM episode_large_links l WHERE l.episode_id = e.id)      AS large_links,
+  (SELECT count(*) FROM episode_platform_links p WHERE p.episode_id = e.id)   AS platform_links
+FROM episodes e
+WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+ORDER BY e.episode_number;
+
+-- STEP 2: APPLY (SAFE) — unlink orphans (keeps episode + tasks; removes dead interview link)
+BEGIN;
+
+UPDATE episodes
+SET interview_id = NULL
+WHERE interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = episodes.interview_id);
+
+COMMIT;
+
+-- STEP 3: VERIFY — MUST return 0 rows
+SELECT e.id, e.episode_number, e.title, e.interview_id
+FROM episodes e
+WHERE e.interview_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id);
+
+-- Optional quick check for Nir duplicates (should no longer show “same person twice due to dead interview link”)
+SELECT e.id, e.episode_number, e.title, e.interview_id
+FROM episodes e
+WHERE e.title ILIKE '%שלזינגר%' OR e.title ILIKE '%ניר%'
+ORDER BY e.episode_number;
+
+-- STEP 4: PREVENT FUTURE ORPHANS — FK with ON DELETE SET NULL
+-- (If it errors because it already exists, that’s fine.)
+ALTER TABLE episodes
+ADD CONSTRAINT episodes_interview_id_interviews_id_fk
+FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL;
