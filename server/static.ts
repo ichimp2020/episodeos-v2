@@ -10,7 +10,15 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("index.html")) {
+        res.setHeader("Cache-Control", "no-store, max-age=0");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+      }
+    },
+  }));
 
   app.use("/{*path}", (req, res) => {
     const indexPath = path.resolve(distPath, "index.html");
@@ -21,6 +29,9 @@ export function serveStatic(app: Express) {
     html = html.replace(/content="\/og-image\.png"/g, `content="${baseUrl}/og-image.png"`);
     html = html.replace('content="/"', `content="${baseUrl}/"`);
     res.setHeader("Content-Type", "text/html");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.send(html);
   });
 }

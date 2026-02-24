@@ -66,6 +66,10 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+app.get("/__version", (_req, res) => {
+  res.json({ serverVersion: "2026-02-25-v1", ts: Date.now() });
+});
+
 const isProd = process.env.NODE_ENV === "production";
 
 if (isProd && !process.env.PORT) {
