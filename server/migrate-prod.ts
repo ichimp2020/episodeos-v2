@@ -107,6 +107,37 @@ export async function migrateProductionData() {
       throw e;
     }
   } finally {
+    try {
+      const { rowCount } = await client.query(`
+        UPDATE episodes SET interview_id = NULL
+        WHERE interview_id IS NOT NULL
+          AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = episodes.interview_id)
+      `);
+      if (rowCount && rowCount > 0) {
+        console.log(`[schema] Unlinked ${rowCount} orphan episode(s) with deleted interviews`);
+      }
+
+      const { rows: fkCheck } = await client.query(`
+        SELECT 1 FROM pg_constraint WHERE conname = 'episodes_interview_id_interviews_id_fk'
+      `);
+      if (fkCheck.length === 0) {
+        await client.query(`
+          ALTER TABLE episodes
+          ADD CONSTRAINT episodes_interview_id_interviews_id_fk
+          FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL
+        `);
+        console.log("[schema] Added FK: episodes.interview_id -> interviews.id ON DELETE SET NULL");
+      }
+
+      await client.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS episodes_interview_id_unique
+        ON episodes (interview_id) WHERE interview_id IS NOT NULL
+      `);
+      console.log("[schema] Ensured partial unique index on episodes.interview_id");
+    } catch (schemaErr: any) {
+      console.error("[schema] Non-fatal schema fix error:", schemaErr.message);
+    }
+
     client.release();
     await pool.end();
   }

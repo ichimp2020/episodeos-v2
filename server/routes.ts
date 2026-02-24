@@ -16,14 +16,6 @@ import { createCalendarEvent, deleteCalendarEvent } from "./google-calendar";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import { registerChatRoutes } from "./replit_integrations/chat";
 
-class DuplicateEpisodeError extends Error {
-  existingEpisode: Episode;
-  constructor(existing: Episode) {
-    super("Episode already exists");
-    this.existingEpisode = existing;
-  }
-}
-
 const DEFAULT_TASK_TEMPLATES = [
   { title: "Episode Title", assigneeNames: ["Gal", "Homsie"] },
   { title: "Description Context", assigneeNames: ["Gal", "Homsie"] },
@@ -35,15 +27,13 @@ const DEFAULT_TASK_TEMPLATES = [
 async function ensureEpisodeWithDefaultTasks(
   episodeData: InsertEpisode
 ): Promise<{ episode: Episode; created: boolean }> {
-  const allEpisodes = await storage.getEpisodes();
-
   if (episodeData.interviewId) {
-    const existing = allEpisodes.find(e => e.interviewId === episodeData.interviewId);
+    const [existing] = await db.select().from(episodes).where(eq(episodes.interviewId, episodeData.interviewId));
     if (existing) return { episode: existing, created: false };
   }
 
   if (episodeData.requestId) {
-    const existing = allEpisodes.find(e => e.requestId === episodeData.requestId);
+    const [existing] = await db.select().from(episodes).where(eq(episodes.requestId, episodeData.requestId));
     if (existing) return { episode: existing, created: false };
   }
 
@@ -51,28 +41,42 @@ async function ensureEpisodeWithDefaultTasks(
   const findIds = (names: string[]) =>
     allMembers.filter(m => names.some(n => m.name.toLowerCase() === n.toLowerCase())).map(m => m.id);
 
-  const episode = await db.transaction(async (tx) => {
-    const [created] = await tx.insert(episodes).values(episodeData).returning();
+  try {
+    const episode = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(episodes).values(episodeData).returning();
 
-    for (const tmpl of DEFAULT_TASK_TEMPLATES) {
-      const existingTasks = await tx.select().from(tasks).where(
-        and(eq(tasks.episodeId, created.id), eq(tasks.title, tmpl.title))
-      );
-      if (existingTasks.length === 0) {
-        await tx.insert(tasks).values({
-          episodeId: created.id,
-          title: tmpl.title,
-          assigneeIds: findIds(tmpl.assigneeNames),
-          status: "todo",
-        });
+      for (const tmpl of DEFAULT_TASK_TEMPLATES) {
+        const existingTasks = await tx.select().from(tasks).where(
+          and(eq(tasks.episodeId, created.id), eq(tasks.title, tmpl.title))
+        );
+        if (existingTasks.length === 0) {
+          await tx.insert(tasks).values({
+            episodeId: created.id,
+            title: tmpl.title,
+            assigneeIds: findIds(tmpl.assigneeNames),
+            status: "todo",
+          });
+        }
+      }
+
+      return created;
+    });
+
+    console.log(`[ensureEpisodeWithDefaultTasks] Created episode ${episode.id} "${episode.title}" with 5 default tasks`);
+    return { episode, created: true };
+  } catch (err: any) {
+    if (err.code === "23505") {
+      if (episodeData.interviewId) {
+        const [existing] = await db.select().from(episodes).where(eq(episodes.interviewId, episodeData.interviewId));
+        if (existing) return { episode: existing, created: false };
+      }
+      if (episodeData.requestId) {
+        const [existing] = await db.select().from(episodes).where(eq(episodes.requestId, episodeData.requestId));
+        if (existing) return { episode: existing, created: false };
       }
     }
-
-    return created;
-  });
-
-  console.log(`[ensureEpisodeWithDefaultTasks] Created episode ${episode.id} "${episode.title}" with 5 default tasks`);
-  return { episode, created: true };
+    throw err;
+  }
 }
 
 const updateTeamMemberSchema = insertTeamMemberSchema.partial();
@@ -144,15 +148,8 @@ export async function registerRoutes(
       episodeData.guestId = guest.id;
     }
 
-    try {
-      const { episode, created } = await ensureEpisodeWithDefaultTasks(episodeData);
-      res.status(created ? 201 : 200).json(episode);
-    } catch (err) {
-      if (err instanceof DuplicateEpisodeError) {
-        return res.status(409).json({ message: "Episode already exists", existingId: err.existingEpisode.id });
-      }
-      throw err;
-    }
+    const { episode, created } = await ensureEpisodeWithDefaultTasks(episodeData);
+    res.status(created ? 201 : 200).json(episode);
   });
 
   app.patch("/api/episodes/:id", async (req, res) => {
@@ -348,23 +345,19 @@ export async function registerRoutes(
         const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
         const guestNameTrimmed = updated.name.trim();
 
-        try {
-          await ensureEpisodeWithDefaultTasks({
-            title: guestNameTrimmed,
-            description: `Interview with ${guestNameTrimmed}`,
-            status: "scheduled",
-            scheduledDate: guestInterview.scheduledDate || null,
-            scheduledTime: guestInterview.scheduledTime || null,
-            episodeNumber: maxEpNum + 1,
-            interviewId: guestInterview.id,
-            guestId: req.params.id,
-            recordingLink: null,
-            timestampsJson: null,
-            aiStatus: null,
-          });
-        } catch (err) {
-          if (!(err instanceof DuplicateEpisodeError)) throw err;
-        }
+        await ensureEpisodeWithDefaultTasks({
+          title: guestNameTrimmed,
+          description: `Interview with ${guestNameTrimmed}`,
+          status: "scheduled",
+          scheduledDate: guestInterview.scheduledDate || null,
+          scheduledTime: guestInterview.scheduledTime || null,
+          episodeNumber: maxEpNum + 1,
+          interviewId: guestInterview.id,
+          guestId: req.params.id,
+          recordingLink: null,
+          timestampsJson: null,
+          aiStatus: null,
+        });
       }
     }
 
@@ -431,23 +424,19 @@ export async function registerRoutes(
       const existingEpisodes = await storage.getEpisodes();
       const maxEpNum = existingEpisodes.reduce((max, e) => Math.max(max, e.episodeNumber || 0), 0);
 
-      try {
-        await ensureEpisodeWithDefaultTasks({
-          title: guestName,
-          description: `Interview with ${guestName}`,
-          status: "scheduled",
-          scheduledDate: updated.scheduledDate || null,
-          scheduledTime: updated.scheduledTime || null,
-          episodeNumber: maxEpNum + 1,
-          interviewId: req.params.id,
-          guestId: updated.guestId || null,
-          recordingLink: null,
-          timestampsJson: null,
-          aiStatus: null,
-        });
-      } catch (err) {
-        if (!(err instanceof DuplicateEpisodeError)) throw err;
-      }
+      await ensureEpisodeWithDefaultTasks({
+        title: guestName,
+        description: `Interview with ${guestName}`,
+        status: "scheduled",
+        scheduledDate: updated.scheduledDate || null,
+        scheduledTime: updated.scheduledTime || null,
+        episodeNumber: maxEpNum + 1,
+        interviewId: req.params.id,
+        guestId: updated.guestId || null,
+        recordingLink: null,
+        timestampsJson: null,
+        aiStatus: null,
+      });
     }
 
     res.json(updated);

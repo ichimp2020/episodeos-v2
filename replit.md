@@ -62,6 +62,14 @@ A simple, focused podcast team coordination tool for "Voice Of Nova" podcast. De
 - **Standard (forms/inputs)**: `max-w-lg w-[95vw] sm:w-full max-h-[85vh] overflow-y-auto overflow-x-hidden`
 - **Large (detail views)**: `max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0` with fixed header (`shrink-0`) and scrollable body (`overflow-y-auto flex-1`)
 
+## Data Integrity
+- **Episode dedup**: `ensureEpisodeWithDefaultTasks()` in `server/routes.ts` is the single canonical episode creation function used by all 3 paths (manual POST, guest confirm, interview confirm)
+- **interviewId dedup**: Partial unique index `episodes_interview_id_unique` prevents two episodes from sharing the same interview. Auto paths use interviewId as dedup key.
+- **requestId dedup**: Unique constraint on `episodes.request_id`. Manual creation path generates a client-side UUID, preventing retry duplicates. If same requestId exists, returns existing episode (200 instead of 201).
+- **FK constraint**: `episodes.interview_id -> interviews.id ON DELETE SET NULL` prevents orphan episodes when interviews are deleted.
+- **DB-level safety**: 23505 unique violation errors caught in `ensureEpisodeWithDefaultTasks` as fallback for race conditions.
+- **Repair endpoint**: `POST /api/episodes/:id/repair` idempotently creates missing default tasks.
+
 ## Running
 - `npm run dev` starts both the Express backend and Vite frontend dev server
 - `npm run db:push` pushes schema changes to the database
