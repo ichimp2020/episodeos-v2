@@ -67,7 +67,87 @@ app.get("/health", (req, res) => {
 });
 
 app.get("/__version", (_req, res) => {
-  res.json({ serverVersion: "2026-02-25-v2", ts: Date.now() });
+  res.json({ serverVersion: "2026-02-25-v3", ts: Date.now() });
+});
+
+app.get("/__admin/cleanup-orphans", async (req, res) => {
+  const apply = req.query.apply === "true";
+  const pg = await import("pg");
+  const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL });
+  const client = await pool.connect();
+  try {
+    const { rows: orphans } = await client.query(`
+      SELECT 
+        e.id, e.episode_number, e.title, e.interview_id, e.guest_id, e.status,
+        (SELECT count(*)::int FROM tasks t WHERE t.episode_id = e.id) as tasks_count,
+        (SELECT count(*)::int FROM episode_files f WHERE f.episode_id = e.id) as files_count,
+        (SELECT count(*)::int FROM episode_shorts s WHERE s.episode_id = e.id) as shorts_count,
+        (SELECT count(*)::int FROM episode_large_links l WHERE l.episode_id = e.id) as large_links_count,
+        (SELECT count(*)::int FROM episode_platform_links p WHERE p.episode_id = e.id) as platform_links_count
+      FROM episodes e
+      WHERE e.interview_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+      ORDER BY e.episode_number
+    `);
+
+    if (!apply) {
+      const { rows: allEps } = await client.query(`SELECT id, episode_number, title, status, interview_id FROM episodes ORDER BY episode_number NULLS LAST`);
+      res.json({ mode: "DRY_RUN", orphans, allEpisodes: allEps, message: "Add ?apply=true to execute cleanup" });
+      return;
+    }
+
+    await client.query("BEGIN");
+    const results: string[] = [];
+    for (const o of orphans) {
+      const hasData = o.files_count > 0 || o.shorts_count > 0 || o.large_links_count > 0 || o.platform_links_count > 0;
+      const allDefaultTasks = o.tasks_count <= 5;
+      if (!hasData && allDefaultTasks) {
+        await client.query("DELETE FROM tasks WHERE episode_id = $1", [o.id]);
+        await client.query("DELETE FROM episode_platform_links WHERE episode_id = $1", [o.id]);
+        await client.query("DELETE FROM episodes WHERE id = $1", [o.id]);
+        results.push(`DELETED #${o.episode_number} "${o.title}" (${o.id})`);
+      } else {
+        await client.query("UPDATE episodes SET interview_id = NULL WHERE id = $1", [o.id]);
+        results.push(`SET NULL #${o.episode_number} "${o.title}" (${o.id}) — has attached data, kept episode`);
+      }
+    }
+    await client.query("COMMIT");
+
+    const { rows: remaining } = await client.query(`
+      SELECT id, episode_number, title, interview_id FROM episodes e
+      WHERE e.interview_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.id = e.interview_id)
+    `);
+
+    let fkStatus = "skipped (orphans remain)";
+    if (remaining.length === 0) {
+      try {
+        const { rows: fkExists } = await client.query(`
+          SELECT 1 FROM pg_constraint WHERE conname = 'episodes_interview_id_interviews_id_fk'
+        `);
+        if (fkExists.length === 0) {
+          await client.query(`
+            ALTER TABLE episodes 
+            ADD CONSTRAINT episodes_interview_id_interviews_id_fk 
+            FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL
+          `);
+          fkStatus = "ADDED — episodes.interview_id → interviews.id ON DELETE SET NULL";
+        } else {
+          fkStatus = "already exists";
+        }
+      } catch (fkErr: any) {
+        fkStatus = `FAILED: ${fkErr.message}`;
+      }
+    }
+
+    const { rows: allEps } = await client.query(`SELECT id, episode_number, title, status, interview_id FROM episodes ORDER BY episode_number NULLS LAST`);
+    res.json({ mode: "APPLIED", results, remainingOrphans: remaining.length, fkConstraint: fkStatus, allEpisodes: allEps });
+  } catch (err: any) {
+    try { await client.query("ROLLBACK"); } catch {}
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+    await pool.end();
+  }
 });
 
 const isProd = process.env.NODE_ENV === "production";
@@ -140,26 +220,6 @@ if (isProd) {
     const { migrateProductionData } = await import("./migrate-prod");
     await migrateProductionData();
 
-    try {
-      const pg = await import("pg");
-      const pool = new pg.default.Pool({ connectionString: process.env.DATABASE_URL });
-      const orphanId = "7f630d57-65a2-4023-9ec7-0aad96aeec07";
-      const { rowCount: tasksDel } = await pool.query("DELETE FROM tasks WHERE episode_id = $1", [orphanId]);
-      const { rowCount: epDel } = await pool.query("DELETE FROM episodes WHERE id = $1", [orphanId]);
-      if (epDel && epDel > 0) {
-        console.log(`[cleanup] Deleted orphan episode ${orphanId} (${tasksDel} tasks, ${epDel} episode)`);
-      }
-      const linkRes = await pool.query(
-        "UPDATE episodes SET interview_id = $1 WHERE id = $2 AND interview_id IS NULL",
-        ["0b24abe4-4724-4d31-94c8-cecd5e765f85", "bcfdad0f-5a00-4d9c-8e77-67898568221b"]
-      );
-      if (linkRes.rowCount && linkRes.rowCount > 0) {
-        console.log("[cleanup] Linked ניצן וניר שלזינגר episode to its interview");
-      }
-      await pool.end();
-    } catch (e: any) {
-      console.error("[cleanup] Non-fatal cleanup error:", e.message);
-    }
   } else {
     const { seedDatabase } = await import("./seed");
     await seedDatabase();

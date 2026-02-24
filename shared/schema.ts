@@ -23,7 +23,7 @@ export const episodes = pgTable("episodes", {
   scheduledDate: date("scheduled_date"),
   scheduledTime: text("scheduled_time"),
   episodeNumber: integer("episode_number"),
-  interviewId: varchar("interview_id"),
+  interviewId: varchar("interview_id").references(() => interviews.id, { onDelete: "set null" }),
   guestId: varchar("guest_id"),
   recordingLink: text("recording_link"),
   timestampsJson: text("timestamps_json"),
