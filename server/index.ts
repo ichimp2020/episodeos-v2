@@ -63,6 +63,10 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok" });
+});
+
 app.get("/__version", (_req, res) => {
   res.json({ serverVersion: "2026-02-25-v4", ts: Date.now() });
 });
@@ -97,8 +101,12 @@ process.on("unhandledRejection", (reason) => {
   );
 
   if (isProd) {
-    const { migrateProductionData } = await import("./migrate-prod");
-    await migrateProductionData();
+    try {
+      const { migrateProductionData } = await import("./migrate-prod");
+      await migrateProductionData();
+    } catch (migrationErr: any) {
+      console.error("[CRITICAL] migrate-prod failed — app will continue without migration:", migrationErr.message);
+    }
   } else {
     const { seedDatabase } = await import("./seed");
     await seedDatabase();

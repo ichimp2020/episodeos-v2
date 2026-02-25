@@ -6,35 +6,51 @@ export async function migrateProductionData() {
   const client = await pool.connect();
 
   try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    const { rows: marker } = await client.query(
+      "SELECT 1 FROM app_meta WHERE key = 'prod_seed_completed'"
+    );
+
+    if (marker.length > 0) {
+      console.log("[migrate-prod] Skipping — prod already initialized (marker found).");
+      return;
+    }
+
     const { rows: existingMembers } = await client.query("SELECT id, name FROM team_members");
-    const { rows: existingGuests } = await client.query("SELECT COUNT(*) as cnt FROM guests");
-    const { rows: existingEpisodes } = await client.query("SELECT COUNT(*) as cnt FROM episodes");
-
     const names = existingMembers.map((r: any) => r.name);
-    const guestCount = parseInt(existingGuests[0].cnt);
-    const episodeCount = parseInt(existingEpisodes[0].cnt);
-    const devData = migrationData as Record<string, any[]>;
-    const devMemberCount = devData.team_members?.length || 0;
-    const devGuestCount = devData.guests?.length || 0;
 
-    const hasRealDevData = names.includes("Nobcast") && names.includes("Omri") &&
-      names.includes("Yair") && names.includes("Yuli") &&
-      guestCount === devGuestCount;
+    const hasRealData = names.includes("Nobcast") && names.includes("Omri") &&
+      names.includes("Yair") && names.includes("Yuli");
 
-    if (hasRealDevData) {
-      console.log("Production already has real data, skipping migration.");
+    if (hasRealData) {
+      console.log("[migrate-prod] Production has real team data — setting marker and skipping.");
+      await client.query(
+        "INSERT INTO app_meta (key, value) VALUES ('prod_seed_completed', 'true') ON CONFLICT (key) DO NOTHING"
+      );
       return;
     }
 
     const seedNames = ["Casey Brooks", "Drew Patel", "Morgan Lee", "Jamie Ortiz", "Quinn Davis"];
     const hasSeedData = seedNames.some(n => names.includes(n));
 
-    if (!hasSeedData && existingMembers.length > 0 && existingMembers.length !== devMemberCount) {
-      console.log("Production has unknown data (not seed, not dev), skipping migration for safety.");
+    if (!hasSeedData && existingMembers.length > 0) {
+      console.log("[migrate-prod] Production has unknown data (not seed, not dev), skipping for safety.");
+      await client.query(
+        "INSERT INTO app_meta (key, value) VALUES ('prod_seed_completed', 'true') ON CONFLICT (key) DO NOTHING"
+      );
       return;
     }
 
-    console.log("Migrating development data to production...");
+    console.log("[migrate-prod] Running initial production seed...");
+
+    const devData = migrationData as Record<string, any[]>;
 
     await client.query("BEGIN");
 
@@ -54,8 +70,11 @@ export async function migrateProductionData() {
       }
 
       const insertOrder = [
-        "team_members", "guests", "episodes", "tasks", "interviews",
-        "interview_participants", "studio_dates", "shared_links",
+        "team_members", "guests",
+        "interviews", "interview_participants",
+        "studio_dates",
+        "episodes", "tasks",
+        "shared_links",
         "episode_files", "episode_shorts", "episode_large_links",
         "episode_platform_links", "publishing", "reminders",
         "interviewer_unavailability"
@@ -100,10 +119,15 @@ export async function migrateProductionData() {
       }
 
       await client.query("COMMIT");
-      console.log("Production migration complete!");
+
+      await client.query(
+        "INSERT INTO app_meta (key, value) VALUES ('prod_seed_completed', 'true') ON CONFLICT (key) DO NOTHING"
+      );
+
+      console.log("[migrate-prod] Initial production seed complete! Marker set.");
     } catch (e: any) {
       await client.query("ROLLBACK");
-      console.error("Migration failed, rolled back:", e.message);
+      console.error("[migrate-prod] Seed failed, rolled back:", e.message);
       throw e;
     }
   } finally {

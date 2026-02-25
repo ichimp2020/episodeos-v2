@@ -1,0 +1,72 @@
+REPLIT AGENT — PRODUCTION IS DOWN (“Cannot GET /”). DO THIS IN BUILD MODE.
+
+OBJECTIVE
+Restore episodeos.com by stopping migrate-prod from wiping/invalidating prod data, fixing FK insert order, adding /api/health alias, and ensuring a migration failure can’t block the server from mounting routes/static.
+
+CURRENT SYMPTOMS / CONTEXT
+- Site shows “Cannot GET /” (frontend not served / app not starting correctly).
+- /health may exist but user tried /api/health and got 404 earlier.
+- It was working a few hours ago, then broke.
+- Suspect: server/migrate-prod.ts runs on startup, wipes data, then fails on FK when re-inserting episodes that reference interviews not inserted yet. Crash happens before routes/static mount.
+
+TASKS (DO IN THIS ORDER)
+
+T001 — FIX INSERT ORDER (FK VIOLATION)
+File: server/migrate-prod.ts
+- Find insertOrder array (or equivalent sequence).
+- Ensure FK parents inserted BEFORE children:
+  REQUIRED ORDER (minimum):
+  1) team_members
+  2) guests
+  3) interviews
+  4) interview_participants
+  5) studio_dates (if referenced)
+  6) episodes
+  7) tasks
+  8) episode_files / episode_shorts / episode_large_links / episode_platform_links / publishing (anything referencing episodes)
+- Current bug likely has episodes before interviews → move interviews (+ participants) before episodes.
+ACCEPTANCE: migration completes without FK violation when episodes.interview_id is present.
+
+T002 — STOP MIGRATION FROM RUNNING ON REAL PRODUCTION DATA
+File: server/migrate-prod.ts
+- The “hasRealDevData” guard is wrong if it compares counts (guestCount === devGuestCount etc). That will fail after real usage and cause re-migration on every restart.
+- Change guard so once prod has “real data”, migration NEVER runs again.
+  Use stable identifiers instead of counts, e.g.:
+  - If there exists ANY guest created by real usage (or createdAt older than seed window)
+  - OR if there exists a “production marker” row (preferred)
+  - OR if there exists team members with expected production names/emails (stable)
+- Implement a durable “migration_applied” marker table/row if possible (best):
+  - Create table app_meta(key primary key, value text, updated_at)
+  - If app_meta has key='prod_seed_completed' => skip forever
+  - If not present, run seed ONCE then set marker.
+ACCEPTANCE: On restart, logs show “skipping migrate-prod (prod already initialized)” and it does NOT wipe/reinsert.
+
+T003 — ADD /api/health ALIAS
+File: server/index.ts
+- Keep existing GET /health
+- Add GET /api/health that returns the same JSON {status:"ok"}.
+ACCEPTANCE: both /health and /api/health return 200.
+
+T004 — NEVER LET MIGRATION FAILURE BLOCK APP BOOT
+File: server/index.ts
+- Wrap migrateProductionData() in try/catch.
+- Even if migration fails, continue to:
+  - registerRoutes(app)
+  - serveStatic(app)
+  - listen()
+- Log error loudly but do not throw.
+ACCEPTANCE: If migration fails, frontend still serves and /api routes respond.
+
+T005 — REBUILD + REPUBLISH + PROOF
+- Run npm run build
+- Publish
+- Provide proof in message:
+  1) Deployment logs show server started (listening) and “migrate-prod skipped” (or completed once successfully).
+  2) curl /health => 200 and curl /api/health => 200
+  3) GET / returns index.html (no “Cannot GET /”)
+  4) Confirm prod data not wiped (episode/guest counts stable)
+
+IMPORTANT NOTES
+- Do NOT delete production data.
+- Do NOT add any public admin cleanup endpoints.
+- Keep changes minimal and targeted: migrate-prod guard + order + health alias + boot try/catch.
