@@ -330,12 +330,6 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const handleSelectSlot = (slot: TimeSlot) => {
     setSelectedSlot(slot);
     setEditForm({ ...editForm, status: "confirmed" });
-    const attendeeMap: Record<string, boolean> = {};
-    if (editForm.email) attendeeMap[editForm.email] = true;
-    else if (guest?.email) attendeeMap[guest.email] = true;
-    const teamWithEmails = members?.filter((m) => m.email) || [];
-    teamWithEmails.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
-    setConfirmAttendees(attendeeMap);
   };
 
   const selectedDateObj = selectedDate ? availableDates.find((d) => d.date === selectedDate) : null;

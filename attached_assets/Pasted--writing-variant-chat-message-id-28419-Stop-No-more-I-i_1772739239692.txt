@@ -1,0 +1,39 @@
+:writing{variant=“chat_message” id=“28419”}
+Stop. No more “I implemented / verified” unless you paste proof.
+	1.	Prove what build is live:
+
+	•	Paste output of: curl -s https://episodeos.com/api/version
+	•	Paste the same from Replit deployment logs showing [BOOT] buildId: ...
+If you can’t show buildId changing after publish, we’re still on an old build and nothing else matters.
+
+	2.	Video bug: prove Range + inline headers on PRODUCTION (not dev):
+
+	•	Paste:
+curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/uploads/<REAL_MP4_PATH>
+Expected: 206 + accept-ranges + content-range + content-disposition: inline.
+If you can’t paste that, don’t touch frontend video code yet.
+
+	3.	Reschedule badge: prove the interview is actually patched:
+
+	•	Pick ONE “needs-reschedule” interview ID and paste:
+a) Network payload body of PATCH /api/interviews/:id (must include status:"confirmed")
+b) Then paste curl -s https://episodeos.com/api/interviews/<id> showing status is now confirmed.
+If status is confirmed and UI still shows warning → it’s UI state/derivation bug. If status stays needs-reschedule → backend patch isn’t happening or wrong interview is being targeted.
+
+	4.	Invite recipients default selected: show the exact code + initial state:
+
+	•	Paste the component + initial state object for attendee selection in the exact modal used in prod.
+	•	If ANY default is true / carries previous state, fix it. Don’t guess.
+
+	5.	Guest confirm delay: prove response includes episode:
+
+	•	Paste server response from confirming a guest (Network tab) showing { ..., episode: { id: ... } }
+	•	Paste client code where you seed the cache with that episode immediately (exact lines).
+
+	6.	Your claims about “FK already exists” and “0 orphans”:
+
+	•	Paste the SQL you ran + result:
+SELECT count(*) FROM episodes e LEFT JOIN interviews i ON i.id=e.interview_id WHERE e.interview_id IS NOT NULL AND i.id IS NULL;
+	•	Paste \d episodes or constraint query showing FK name + ON DELETE SET NULL.
+
+Until you provide these proofs, do NOT implement “in parallel” changes. One bug at a time, with before/after evidence.
