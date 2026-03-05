@@ -1,0 +1,119 @@
+HEY — nothing changed on prod = we are NOT actually running the new code path, OR the backend is silently ignoring fields, OR the UI state is being re-hydrated from old defaults.
+
+Do THIS in order (proof-first). One PR. One publish.
+
+========================
+0) PROVE PROD IS ON NEW BUILD (NO GUESSING)
+========================
+A) Add a hard version endpoint and log it on boot.
+
+FILE: server/index.ts
+- Add near the existing /health:
+  const BUILD_ID = process.env.REPL_ID || process.env.REPL_SLUG || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_SHA || `local-${Date.now()}`;
+
+  app.get("/api/version", (_req, res) => {
+    res.json({ ok: true, buildId: BUILD_ID, ts: new Date().toISOString() });
+  });
+
+- Also console.log on startup:
+  console.log("[BOOT] buildId:", BUILD_ID);
+
+B) Publish.
+C) From phone + desktop:
+  https://episodeos.com/api/version
+If buildId doesn’t change after publish → you’re not publishing to the deployment serving episodeos.com (or a cache/CDN is in front). Fix that before touching bugs.
+
+========================
+1) VIDEO STILL NOT PLAYING = YOU’RE NOT HITTING THE RANGE-SERVER ROUTE
+========================
+After publish, run:
+curl -I https://episodeos.com/objects/<path_to_mp4>
+curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/<path_to_mp4>
+
+EXPECTED:
+- With Range → HTTP 206 + Content-Range + Accept-Ranges: bytes + Content-Length: 2
+
+If you still get 200:
+- Either old server (Step 0), OR the browser is not using that endpoint at all.
+
+Fix the FRONTEND to force using OUR proxy route (not a raw GCS link):
+FILE: client/src/pages/episodes.tsx
+- Wherever you set src/href for shorts/teasers:
+  const src = `/objects/${short.objectPath}`  (or whatever your server route is)
+  NOT a direct https://storage.googleapis.com/... URL and NOT a signed URL.
+
+Also ensure the server response includes:
+- Accept-Ranges: bytes
+- Content-Disposition: inline
+- Content-Type: video/mp4
+(If you’re serving through Express, set Content-Disposition inline explicitly.)
+
+========================
+2) “RESCHEDULE NEEDED” STILL SHOWING = BACKEND PATCH IS IGNORING `status`
+========================
+Right now you changed the CLIENT payload, but the SERVER PATCH handler may whitelist fields and drop `status`.
+
+Fix server:
+FILE: server/routes.ts (or wherever PATCH /api/interviews/:id lives)
+- In the update set/values, include:
+  status: body.status ?? existing.status
+
+Also add a quick log (temporarily) to prove it arrives:
+console.log("[PATCH interview]", id, { scheduledDate, scheduledTime, studioDateId, status: body.status });
+
+After publish:
+- Reschedule once
+- Confirm in DB that interview.status became "confirmed"
+- The badge should disappear.
+
+(If the badge is computed purely from “missing date” then update needsReschedule() to use date/time, not status.)
+
+========================
+3) INVITE RECIPIENTS STILL AUTO-CHECKED = UI STATE IS PERSISTING OR DEFAULTS ARE TRUE
+========================
+This is almost always one of these:
+A) defaultRecipients is initialized with all members = true
+B) state isn’t reset when dialog opens, so previous selection persists
+C) localStorage rehydrates old selection
+
+Fix:
+FILE: client/src/components/<InviteDialog>.tsx (or wherever the invite UI lives)
+- On dialog open (useEffect watching isOpen):
+  setSendInvites(false);
+  setSelectedRecipients({}); // empty by default
+- Ensure checkboxes read from selectedRecipients[memberId] === true
+
+Also remove any localStorage hydration OR gate it behind an explicit “remember my choices” toggle.
+
+========================
+4) CONFIRM PROSPECT → EPISODE CARD STILL SLOW = YOU’RE WAITING FOR CHAIN + NOT RETURNING EPISODE ID
+========================
+Fix it so the confirm endpoint returns the created/linked episode immediately and the UI opens it instantly.
+
+SERVER:
+- In PATCH /api/guests/:id confirm path (or wherever confirm triggers ensureEpisodeWithDefaultTasks):
+  return { guest, interview, episode } in the response JSON.
+
+CLIENT:
+FILE: client/src/components/GuestEditDialog.tsx
+- After confirm succeeds:
+  1) Update UI optimistically (guest status confirmed)
+  2) If response includes episode.id → immediately navigate/open that episode card
+     (no waiting for query invalidation / refetch)
+- Calendar invite MUST be fire-and-forget AFTER UI update (you already aimed for this, but prove it by timing logs).
+
+========================
+5) PUBLISH + VERIFY CHECKLIST (NO “SEEMS”)
+========================
+After publish:
+1) /api/version shows new buildId ✅
+2) curl Range returns 206 ✅
+3) Reschedule updates interview.status in DB ✅
+4) Invite dialog opens with ALL unchecked ✅
+5) Confirm guest returns episode.id and opens card within 1s ✅
+
+If any of these fails, STOP and fix that specific proof point.
+
+Also: user mentioned “סולי” — if there’s a specific episode/guest named סולי that still flags reschedule, use it as the test case and check that interview row’s status/date fields actually update after reschedule.
+
+GO implement Step 0 + Step 2 first (version + server PATCH whitelist). That’s the most likely reason “literally nothing changed”.

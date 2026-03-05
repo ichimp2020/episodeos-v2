@@ -1,0 +1,113 @@
+You’re over-talking again and your pasted plan is messy/duplicated. Here’s the clean final “one dialog box” you send him. Use THIS and nothing else.
+
+---
+
+OBJECTIVE
+Prove production is running the latest build, then fix/verify: (A) video playback, (B) reschedule badge, (C) slow confirm→episode, (D) invites default unchecked, (E) remove watermark. No destructive migrations.
+
+WHY THIS IS HAPPENING
+Based on symptoms (“literally nothing changed”), production is almost certainly NOT serving the latest build (cached/old deploy). First we add an undeniable proof endpoint.
+
+T001 — Add build/version proof endpoint + boot log
+Files: server/index.ts
+- Add:
+  const BUILD_ID =
+    process.env.REPL_DEPLOYMENT_ID ||
+    process.env.REPL_ID ||
+    process.env.REPL_SLUG ||
+    process.env.GIT_SHA ||
+    `manual-${Date.now()}`;
+
+  app.get("/api/version", (_req, res) => {
+    res.json({ ok: true, buildId: BUILD_ID, ts: new Date().toISOString() });
+  });
+
+- On startup add:
+  console.log("[BOOT] buildId:", BUILD_ID);
+
+ACCEPTANCE (PROD)
+- After publish: https://episodeos.com/api/version returns a buildId.
+- Re-publish should change buildId.
+
+T002 — Video playback: add Content-Disposition inline + keep Range support
+Files: server/replit_integrations/object_storage/objectStorage.ts
+- Ensure BOTH full (200) and ranged (206) responses set:
+  Accept-Ranges: bytes
+  Content-Disposition: inline
+- Range behavior must return:
+  206 Partial Content
+  Content-Range: bytes start-end/total
+  Content-Length: (end-start+1)
+
+ACCEPTANCE (PROD)
+- curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/<mp4> => 206 + Content-Range + Accept-Ranges + Content-Disposition:inline
+
+T003 — Video UI: render inline <video> (not just a link)
+Files: client/src/pages/episodes.tsx
+- Replace the “View video” link with:
+  <video controls playsInline preload="metadata" src={short.objectPath} />
+- Keep a small “Open in new tab” link below if desired.
+
+ACCEPTANCE
+- On Mac Safari + iPhone Safari: video plays inside the card (not a dead black box).
+
+T004 — Reschedule badge: ensure status flips (and verify it actually reaches backend)
+Files: client/src/pages/episodes.tsx
+- In reschedule mutation PATCH /api/interviews/:id include:
+  status: "confirmed"
+Also add TEMP debug log on backend PATCH /api/interviews/:id (remove after verification):
+Files: server/routes.ts (or interviews route)
+- console.log("[PATCH interview]", req.params.id, req.body);
+
+ACCEPTANCE (PROD)
+- After rescheduling: badge disappears immediately and stays gone after refresh.
+- Server logs show status:"confirmed" received.
+
+T005 — Fast confirm → episode: return created episode in response and update cache immediately
+Files: server/routes.ts, client/src/components/GuestEditDialog.tsx
+Server:
+- In PATCH /api/guests/:id confirm path:
+  after ensureEpisodeWithDefaultTasks(...) fetch/return episode:
+  res.json({ guest: updatedGuest, interview: updatedInterview, episode })
+
+Client:
+- Use returned episode to update React Query cache immediately and open that episode card instantly (no waiting on refetch).
+- Calendar event remains fire-and-forget AFTER UI updates (do not block confirm).
+
+ACCEPTANCE
+- Confirm prospect → episode card appears/opens within ~1s.
+
+T006 — Invites default unchecked (if still wrong in prod, it’s old build OR UI state bug)
+Files: client invite dialog component(s)
+- Confirm initial state is all unchecked:
+  sendInvites=false and recipients map empty/default false
+- If UI still shows checked: fix state initialization so it does NOT reuse previous dialog state.
+  (Most likely culprit: dialog component not resetting state when reopened.)
+
+ACCEPTANCE
+- Open invite dialog: nobody pre-selected.
+
+T007 — Remove watermark in prod
+Files: client/src/App.tsx
+- Gate watermark behind dev only:
+  if (import.meta.env.DEV) render footer else nothing
+
+ACCEPTANCE
+- No “UI Build …” watermark on episodeos.com
+
+DEPLOY / VERIFY (NO GUESSING)
+1) npm run build
+2) Publish
+3) Verify:
+   - /api/version buildId changed
+   - Range curl returns 206 + headers
+   - Videos play inline on Safari
+   - Reschedule badge clears and logs show status received
+   - Confirm creates/opens episode fast
+   - Invite dialog opens with none selected
+   - Watermark gone
+
+STOP CONDITION
+If /api/version does NOT change after publish, DO NOT TOUCH MORE CODE — fix deployment/caching first.
+
+--- 

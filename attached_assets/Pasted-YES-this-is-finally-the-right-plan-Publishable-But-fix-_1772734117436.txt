@@ -1,0 +1,91 @@
+YES — this is finally the right plan. Publishable.
+
+But fix 2 things in your doc before you hand it to him:
+
+1) Your task numbering is broken/duplicated (T004/T005 and some leftover text at the bottom). Clean it so there’s ONE deploy step.
+
+2) You’re still missing the most likely reason “reschedule needed” didn’t change:
+   - Client sending `status:"confirmed"` is useless if the backend PATCH /api/interviews/:id ignores `status` (field whitelist).
+   Add that as a task. Otherwise you’ll publish and still see the badge.
+
+Here is the single copy/paste “one dialog box” version for the Replit agent:
+
+------------------------------------------------------------
+
+PLAN (COPY/PASTE)
+
+Objective
+Prove prod is serving the latest build, then harden remaining gaps and verify fixes with evidence. No destructive migrations.
+
+T001 — Add /api/version + boot log (PROOF prod is updated)
+Files: server/index.ts
+- Add:
+  const BUILD_ID =
+    process.env.REPL_DEPLOYMENT_ID ||
+    process.env.REPL_ID ||
+    process.env.REPL_SLUG ||
+    process.env.GIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    `local-${Date.now()}`;
+
+  app.get("/api/version", (_req, res) => {
+    res.json({ ok: true, buildId: BUILD_ID, ts: new Date().toISOString() });
+  });
+
+- On startup:
+  console.log("[BOOT] buildId:", BUILD_ID);
+
+Acceptance:
+- After publish, https://episodeos.com/api/version returns a new buildId.
+
+T002 — Ensure interview PATCH accepts status (fix “Reschedule Needed” actually clearing)
+Files: server/routes.ts (or wherever PATCH /api/interviews/:id is implemented)
+- Confirm handler does NOT drop unknown fields.
+- Ensure update includes:
+  status: body.status ?? existing.status
+- Add temporary log:
+  console.log("[PATCH interview]", id, { scheduledDate, scheduledTime, studioDateId, status: body.status });
+
+Acceptance:
+- Reschedule once → interview.status becomes "confirmed" in DB and badge disappears.
+
+T003 — Harden video serving headers + Range verification
+Files: server/replit_integrations/object_storage/objectStorage.ts
+- In both 200 and 206 paths set:
+  "Accept-Ranges": "bytes",
+  "Content-Disposition": "inline"
+- Keep Range logic returning 206 with Content-Range + correct Content-Length.
+
+Acceptance (prod):
+- curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/<mp4> returns 206 + Content-Range + Accept-Ranges + Content-Disposition:inline
+
+T004 — Return episode immediately on guest confirm (remove “slow appearing episode card”)
+Files: server/routes.ts, client/src/components/GuestEditDialog.tsx
+Server:
+- In PATCH /api/guests/:id confirm flow, after ensureEpisodeWithDefaultTasks, return episode in JSON:
+  res.json({ guest: updatedGuest, interview: updatedInterview, episode });
+
+Client:
+- In GuestEditDialog onSuccess:
+  - Immediately update caches/UI using returned episode
+  - Open/navigate to the episode card instantly (don’t wait for refetch)
+- Calendar invite stays fire-and-forget after UI update (non-blocking).
+
+Acceptance:
+- Confirm prospect → episode card appears/open within ~1s.
+
+T005 — Deploy + verification checklist (NO GUESSING)
+1) /api/version shows new buildId
+2) Range curl shows 206 + headers
+3) Reschedule updates interview.status + badge disappears
+4) Invite recipients dialog opens ALL unchecked (confirm in UI)
+5) Confirm prospect → episode shows instantly
+
+If any item fails, stop and fix that specific proof point.
+
+------------------------------------------------------------
+
+Answer to “Can I publish?”
+Yes — but only after T001 is in. Otherwise you can’t prove anything and you’ll keep chasing ghosts.
+
+If you want my blunt take: your earlier deploy “did nothing” because either (a) prod wasn’t updated, or (b) backend interview PATCH ignores status. This plan nails both.

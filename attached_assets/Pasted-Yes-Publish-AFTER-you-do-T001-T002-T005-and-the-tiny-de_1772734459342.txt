@@ -1,0 +1,39 @@
+Yes. Publish AFTER you do T001 + T002 + T005 (and the tiny debug log in T004). 
+
+Because right now you *think* T003/T006/T007 are done, but production is clearly not running the build, and you still have 2 real gaps:
+- No /api/version proof (T001) → you’re blind.
+- No Content-Disposition:inline (T002) → Safari can still be weird even with Range.
+- Confirm→episode speed still relies on refetch (T005) → still feels “slow”.
+
+Copy/paste this to the agent as the next instruction (single box):
+
+--- START ---
+Do NOT change anything else yet. Implement ONLY: T001 + T002 + T005 + add temporary debug log for T004. Then build+publish. After publish we verify with evidence.
+
+T001: server/index.ts
+- Add BUILD_ID + GET /api/version returning { ok, buildId, ts }
+- Add console log at boot: [BOOT] buildId: <id>
+
+T002: server/replit_integrations/object_storage/objectStorage.ts
+- Add header Content-Disposition: inline to BOTH 200 and 206 paths
+- Keep Accept-Ranges: bytes and correct Content-Range/Content-Length for 206
+
+T004 (TEMP DEBUG): server route for PATCH /api/interviews/:id
+- Log req.body once: console.log("[PATCH interview]", id, req.body)
+- Remove after verification.
+
+T005:
+Server: PATCH /api/guests/:id confirm path
+- After ensureEpisodeWithDefaultTasks(...) fetch linked episode and return it:
+  res.json({ guest: updatedGuest, interview: linkedInterview, episode })
+Client: GuestEditDialog.tsx
+- Use returned episode to update react-query cache immediately and open the episode card instantly
+- Calendar invite stays fire-and-forget AFTER UI updates.
+
+Publish + Verify checklist (MUST provide proof):
+1) https://episodeos.com/api/version returns buildId (and changes after publish)
+2) curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/<mp4> => 206 + Content-Range + Accept-Ranges + Content-Disposition:inline
+3) Reschedule: badge disappears and server log shows status:"confirmed"
+4) Invite dialog: opens with no recipients selected
+5) Confirm guest: episode appears/opens within ~1s
+--- END ---
