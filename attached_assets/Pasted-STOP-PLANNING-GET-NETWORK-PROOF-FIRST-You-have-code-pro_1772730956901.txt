@@ -1,0 +1,71 @@
+STOP PLANNING. GET NETWORK PROOF FIRST.
+
+You have code-proof that downloadObject can’t support Range.
+Now you MUST add network-proof from production and dev preview before changing code.
+
+## A) VIDEO BUG — REQUIRED PROOF (do this first)
+1) Pick ONE failing teaser/short (objectPath).
+2) Reproduce on:
+   - Mac Safari (or iPhone Safari if easier) AND Chrome desktop.
+3) For the media request (NOT the HTML page):
+   Paste ALL of this in the reply:
+   - Request URL
+   - Request headers: Range (if present), Accept, Origin
+   - Response status code (200/206/302/401/403/etc)
+   - Response headers: Content-Type, Content-Length, Accept-Ranges, Content-Range, Cache-Control, Location (if any)
+   - First 100 bytes of response body (hex or text) to prove it’s a media file and not HTML/JSON
+   - Console errors (if any)
+
+4) Run these CURL checks (paste outputs):
+   - curl -I "<MEDIA_URL>"
+   - curl -I -H "Range: bytes=0-1" "<MEDIA_URL>"
+   - curl -v -H "Range: bytes=0-1" "<MEDIA_URL>" --output /dev/null
+
+### Decision table (do NOT code until you match a row)
+- If request includes Range AND server returns 200 + no Content-Range => implement 206 Range support.
+- If server returns 302/401/403 => fix auth/redirect so the media is directly accessible to the app.
+- If Content-Type is wrong or body is HTML => fix the route/object response, not Range.
+- If media plays in Chrome but not Safari AND Safari sends Range => Range fix is valid.
+
+## B) VIDEO FIX (ONLY after A is proven)
+Backend:
+- Add Range support in the route that serves the media (Express req+res).
+- Must set: Accept-Ranges: bytes
+- If Range header present:
+  - return 206
+  - set Content-Range + Content-Length for the chunk
+  - stream only that byte range (start/end)
+- If no Range: return 200 full stream
+Frontend:
+- Replace “View video” link with inline <video controls playsInline preload="metadata"> using the same URL.
+Acceptance:
+- Safari iOS + Mac Safari show 206 for range requests and play video.
+
+## C) RESCHEDULE BUG — SAFE FIX (already code-proof, still verify API contract)
+- Confirm what server accepts for interview.status values.
+- Update reschedule mutation to also set status back to "confirmed" (or server-side do it on reschedule endpoint).
+- Ensure query invalidation/refetch so warning disappears immediately.
+Acceptance: warning gone immediately and after refresh.
+
+## D) CONFIRM FLOW SLOW — PROVE BOTTLENECK
+- Add timestamps (server logs) for each step:
+  guest patch -> interview upsert -> studio-date booking -> ensureEpisodeWithDefaultTasks -> calendar-event
+- If calendar-event is slow, make it async AFTER DB commit (do not block UI).
+Acceptance: episode shows within ~1s.
+
+## E) SHARE EPISODE CARD — implement after A-D
+- Add “Share” button on episode card: copies a deep link that opens that specific episode.
+- If no deep-link mechanism exists, add /episodes?open=<id> and implement auto-open.
+Acceptance: link opens the exact episode card for logged-in users.
+
+## F) DEFAULT INVITES UNCHECKED + REMOVE WATERMARK
+- Verify default in UI. Fix only if wrong.
+- Remove watermark in production or gate behind env flag.
+
+DELIVERABLE FORMAT:
+Reply ONLY with:
+1) Video network proof (A) + curl outputs
+2) Which decision row matches
+3) Then the minimal code changes you will make
+
+NO MORE “lines 2210-2219” claims unless you paste the actual snippet.

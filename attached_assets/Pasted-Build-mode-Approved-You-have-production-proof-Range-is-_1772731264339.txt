@@ -1,0 +1,42 @@
+Build mode. Approved.
+
+You have production proof Range is ignored (Range header → still 200, full Content-Length, no Accept-Ranges/Content-Range). Implement T001–T004 in this exact order and ship:
+
+T001 (server): Add Range/206 support for @google-cloud/storage downloads.
+- In objectStorage.ts change downloadObject signature to (file, req, res).
+- If req.headers.range exists:
+  - parse "bytes=start-end"
+  - clamp end to fileSize-1, default chunk size if end missing (ex: start+1MB-1)
+  - set status 206
+  - set headers: Accept-Ranges: bytes, Content-Range, Content-Length (end-start+1), Content-Type video/mp4 (or file.metadata.contentType if available)
+  - stream: file.createReadStream({ start, end })
+- Else:
+  - set Accept-Ranges: bytes
+  - stream full file (200)
+- Update routes.ts to pass req into downloadObject.
+PROOF after: 
+  curl -I -H "Range: bytes=0-1" <URL> must return 206 + Content-Range + Accept-Ranges and Content-Length: 2.
+
+T002 (client): Replace “View video” link with inline <video controls playsInline preload="metadata" src=...>.
+Keep a small “Open in new tab” link as secondary.
+PROOF: plays inline on Safari iOS + Mac.
+
+T003 (client): Reschedule mutation PATCH /api/interviews/:id must include status:"confirmed".
+PROOF: “needs reschedule” badge disappears immediately and stays gone after refresh.
+
+T004 (client): Guest confirm: move calendar-event call out of mutationFn.
+- mutationFn only does guest/interview/studio-date writes.
+- onSuccess: invalidate queries immediately; then fire calendar call async (don’t block UI). On failure: warning toast only.
+PROOF: confirm → guest shows confirmed + episode appears fast even if calendar slow.
+
+Also remove footer watermark UI BUILD vNEXT.
+
+After deploy: run smoke:
+1) Video plays on Safari iOS + Mac + Chrome
+2) Range curl returns 206
+3) Reschedule warning clears
+4) Confirm prospect creates episode quickly
+5) No watermark
+6) No regressions (episodes list, dialog open/close)
+
+Ship it and paste: the 206 curl output + exact diff snippets for T001 and the reschedule PATCH payload.

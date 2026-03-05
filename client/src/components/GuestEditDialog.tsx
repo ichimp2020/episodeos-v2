@@ -197,34 +197,14 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
           }
           await apiRequest("PATCH", `/api/studio-dates/${selectedStudioDate.id}`, patchData);
         }
-
-        const selectedEmails = Object.entries(confirmAttendees)
-          .filter(([, checked]) => checked)
-          .map(([email]) => email)
-          .filter((e) => e.includes("@"));
-
-        if (selectedEmails.length > 0 && selectedSlot) {
-          try {
-            const linkedEp = episodes?.find((e) => e.guestId === guest.id);
-            const calResponse = await apiRequest("POST", "/api/calendar-event", {
-              date: selectedDate,
-              startTime: selectedSlot.start,
-              endTime: selectedSlot.end,
-              summary: `Podcast Recording: ${editForm.name || guest.name}`,
-              description: `Recording session with ${editForm.name || guest.name}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
-              attendeeEmails: selectedEmails,
-            });
-            const eventData = await calResponse.json();
-            if (eventData.id && linkedEp) {
-              await apiRequest("PATCH", `/api/episodes/${linkedEp.id}`, {
-                calendarEventId: eventData.id,
-              });
-            }
-          } catch {}
-        }
       }
+      return {
+        guestId: guest.id,
+        guestName: editForm.name || guest.name,
+        wasConfirmed: !!(selectedDate && editForm.status === "confirmed" && isDateFullySelected),
+      };
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
@@ -233,9 +213,43 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
       onOpenChange(false);
       const hasInvitees = Object.values(confirmAttendees).some(Boolean);
       const msg = selectedDate && editForm.status === "confirmed" && isDateFullySelected
-        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}${hasInvitees && selectedSlot ? " — invite sent" : ""}`
+        ? `Guest confirmed for ${format(parseISO(selectedDate), "MMM d, yyyy")}${selectedSlot ? ` (${selectedSlot.label})` : ""}${hasInvitees && selectedSlot ? " — invite sending..." : ""}`
         : "Guest updated";
       toast({ title: msg });
+
+      if (result?.wasConfirmed && selectedSlot && selectedDate) {
+        const selectedEmails = Object.entries(confirmAttendees)
+          .filter(([, checked]) => checked)
+          .map(([email]) => email)
+          .filter((e) => e.includes("@"));
+
+        if (selectedEmails.length > 0) {
+          (async () => {
+            try {
+              const freshEpisodes = queryClient.getQueryData<any[]>(["/api/episodes"]);
+              const linkedEp = freshEpisodes?.find((e: any) => e.guestId === result.guestId) ||
+                episodes?.find((e) => e.guestId === result.guestId);
+              const calResponse = await apiRequest("POST", "/api/calendar-event", {
+                date: selectedDate,
+                startTime: selectedSlot.start,
+                endTime: selectedSlot.end,
+                summary: `Podcast Recording: ${result.guestName}`,
+                description: `Recording session with ${result.guestName}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
+                attendeeEmails: selectedEmails,
+              });
+              const eventData = await calResponse.json();
+              if (eventData.id && linkedEp) {
+                await apiRequest("PATCH", `/api/episodes/${linkedEp.id}`, {
+                  calendarEventId: eventData.id,
+                });
+                queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+              }
+            } catch {
+              toast({ title: "Calendar invite failed — guest confirmed successfully", variant: "destructive" });
+            }
+          })();
+        }
+      }
     },
     onError: () => toast({ title: "Failed to update guest", variant: "destructive" }),
   });

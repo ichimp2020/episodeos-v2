@@ -1,0 +1,96 @@
+STOP. Wrong plan for today.
+
+You (agent) drifted back to the old “migrate-prod / Cannot GET /” incident. That is NOT the current ask.
+
+CURRENT ASK (from user): fix UX + workflow bugs:
+1) Teasers/Shorts videos won’t play on Mac/PC + iPhone (used to work)
+2) Reschedule warning “Reschedule needed” stays stuck after reschedule
+3) Confirm prospect -> guest/episode creation is slow / delayed
+4) Add “Share this episode card” deep link button on episode card
+5) “Individual invites” checkbox should default UNCHECKED
+6) Remove footer watermark “UI Build vNext …”
+7) Data mirroring: guest changes should reflect in episode automatically
+
+DO NOT touch migrate-prod unless you can prove it’s breaking prod right now. No destructive migrations.
+
+------------------------------------------------------------
+PLAN (DO THESE IN ORDER)
+
+A) VIDEO PLAYBACK BUG (HIGHEST PRIORITY)
+A1) Find the endpoint that serves uploaded media (teasers/shorts). Locate code path and identify whether it:
+    - streams from disk
+    - proxies storage
+    - returns signed URLs
+A2) Reproduce on:
+    - Mac Safari
+    - iPhone Safari
+    Use DevTools Network:
+    - check Response headers for the video request
+    - confirm response is binary mp4, not HTML/404/auth page
+A3) Fix the server to properly support byte-range streaming for mp4:
+    - If request has Range header -> respond 206 Partial Content
+    - Send:
+        Content-Type: video/mp4 (or correct mime)
+        Accept-Ranges: bytes
+        Content-Range: bytes start-end/total
+        Content-Length: (end-start+1)
+    - If no Range -> 200 with correct Content-Type
+A4) Ensure auth/cookies don’t cause redirects for the <video src>.
+    - If protected route: ensure same-origin cookies apply and route returns media (not HTML).
+A5) Frontend: ensure <video controls playsInline preload="metadata"> and correct src.
+Acceptance: Newly uploaded teaser plays on Mac + iPhone. Network shows 206 for Range requests.
+
+B) RESCHEDULE WARNING STUCK
+B1) Confirm the exact condition that triggers “Reschedule Needed”.
+B2) In reschedule mutation handler:
+    - After successful reschedule, CLEAR the flag/status:
+        if interview.status is “needs-reschedule” (or similar) -> set back to “confirmed” (or scheduled/confirmed).
+        ALSO update scheduledDate/scheduledTime/studioDateId as needed.
+B3) Frontend: after reschedule mutation, invalidate:
+    - episode detail query
+    - episodes list
+    - dashboard stats
+Acceptance: Warning disappears immediately after reschedule and stays gone after refresh.
+
+C) CONFIRM PROSPECT IS SLOW / DELAYED
+C1) Make confirm endpoint synchronous from UI perspective:
+    - confirm prospect -> update guest -> create/ensure episode (and tasks) in ONE transaction
+    - return updated guest + created/linked episode id in response
+C2) Frontend: onSuccess:
+    - invalidate guests list + episodes list + dashboard
+    - (optional) optimistic UI update
+Acceptance: Confirm -> guest/episode appears within ~1s, without multiple refreshes.
+
+D) SHARE SPECIFIC EPISODE CARD
+D1) Add “Share” button on episode card between Save Changes and Delete.
+D2) Implement simplest approach:
+    - Auth-only deep link: /episodes/:id opens the episode card directly.
+    - Button copies `${window.location.origin}/episodes/${episodeId}`
+    - If route doesn’t exist, create it (frontend router) to render the same card view.
+(If you want public sharing later, we can add token links, but not required now.)
+Acceptance: Share copies link; opening it lands on that exact episode card.
+
+E) INDIVIDUAL INVITES DEFAULT UNCHECKED
+E1) Find invite UI component.
+E2) Set default state false. Don’t persist a “true” default in localStorage.
+Acceptance: Invite flow starts with checkbox OFF.
+
+F) REMOVE FOOTER WATERMARK
+F1) Find build tag footer component.
+F2) Hide in production:
+    - show only when NODE_ENV !== "production" or when explicit env flag enabled.
+Acceptance: No watermark on episodeos.com.
+
+G) MIRRORING (GUEST -> EPISODE)
+G1) Stop duplicating guest data into episode if possible:
+    - render guest info via joins (episode -> interview -> guest)
+G2) Ensure API returns joined guest data and UI uses it.
+G3) Invalidate queries after guest edits so card reflects updates immediately.
+Acceptance: Edit guest name/contact -> episode card reflects after save without manual sync.
+
+------------------------------------------------------------
+DELIVERABLES
+- Commit(s) addressing A–F minimum.
+- Provide quick QA checklist and screenshots of Network headers for video request after fix.
+
+Start with A (video). Don’t do anything else until video plays again.

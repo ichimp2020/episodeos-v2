@@ -420,6 +420,7 @@ export default function Episodes() {
           scheduledDate: rescheduleDate,
           scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
           studioDateId: newStudioDate?.id || null,
+          status: "confirmed",
         });
       }
 
@@ -2208,15 +2209,25 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
                     {short.status}
                   </Badge>
                   {short.objectPath ? (
-                    <a
-                      href={short.objectPath}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary underline"
-                      data-testid={`link-view-short-${short.id}`}
-                    >
-                      View video
-                    </a>
+                    <div className="flex flex-col gap-1 w-full" data-testid={`video-container-short-${short.id}`}>
+                      <video
+                        controls
+                        playsInline
+                        preload="metadata"
+                        src={short.objectPath}
+                        className="w-full max-w-[320px] rounded-md"
+                        data-testid={`video-short-${short.id}`}
+                      />
+                      <a
+                        href={short.objectPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-muted-foreground underline"
+                        data-testid={`link-view-short-${short.id}`}
+                      >
+                        Open in new tab
+                      </a>
+                    </div>
                   ) : (
                     <label className="text-xs text-primary cursor-pointer underline" data-testid={`button-upload-short-video-${short.id}`}>
                       {isUploadingShort ? "Uploading..." : "Upload video"}

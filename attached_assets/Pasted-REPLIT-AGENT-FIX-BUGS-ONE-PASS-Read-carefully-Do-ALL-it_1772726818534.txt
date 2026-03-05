@@ -1,0 +1,221 @@
+REPLIT AGENT — FIX BUGS (ONE PASS). Read carefully. Do ALL items below.
+
+Context:
+- Users report: teaser/shorts videos won’t play on Mac/PC browser and on phone (they used to).
+- Reschedule flow: after rescheduling, episode card stays stuck with “Reschedule Needed” warning.
+- Confirming a prospect -> guest card / episode card creation is slow / delayed even after refresh.
+- Need “Share specific episode card” link/button (deep link to one episode, not overview).
+- “Individual invites” checkbox should be UNCHECKED by default.
+- Remove footer watermark: “UI Build vNext 2026-02-25-v3”.
+
+------------------------------------------------------------
+0) QUICK TRIAGE CHECKLIST (DO THIS FIRST)
+- Reproduce each issue on dev + prod build.
+- Open browser DevTools (Network + Console) when:
+  A) playing teaser video
+  B) confirming prospect
+  C) rescheduling episode
+- Capture failing requests/status codes/response headers and fix root causes below.
+
+------------------------------------------------------------
+1) BUG: UPLOADED TEASERS/SHORTS DON’T PLAY (WEB + PHONE)
+Likely causes:
+- Wrong Content-Type (served as application/octet-stream or text/plain)
+- Missing Accept-Ranges / broken Range requests (Safari/iOS needs byte-range for MP4)
+- CORS / auth redirect returning HTML (video tag downloads HTML login/404)
+- Signed URL expiry / wrong URL
+- Server returns 206/200 incorrectly, or blocks “Range” header
+- File path / storage proxy not streaming
+
+Tasks:
+1.1 Verify API endpoint that serves video files (e.g. /api/files/:id, /uploads/*, or storage proxy).
+- Ensure it supports Range requests:
+  - If request has “Range: bytes=...”, respond 206 Partial Content with:
+    Content-Range, Accept-Ranges: bytes, Content-Length, correct Content-Type (video/mp4)
+  - If no Range, respond 200 with full file and correct headers.
+- If using Express + static file:
+  - Express static does NOT handle Range for some setups; implement manual streaming using fs.createReadStream with start/end.
+  - Add “Accept-Ranges: bytes”.
+
+1.2 Ensure correct Content-Type:
+- MP4 => video/mp4
+- WEBM => video/webm
+- MOV => video/quicktime (better: transcode to mp4 if needed)
+If stored in DB/file table, ensure mimeType column is saved from upload and reused on serve.
+
+1.3 Ensure the response is NOT an HTML page:
+- In Network tab, check response body is binary, not “Cannot GET …” or an auth page.
+- If auth middleware blocks the file route, fix:
+  - Either allow authenticated access properly (token/cookie included) OR generate a signed public URL for the <video src>.
+  - Make sure the <video src> uses same-origin cookies if needed (no cross-origin mismatch).
+
+1.4 Frontend <video> usage:
+- Ensure we render:
+  <video controls playsInline preload="metadata" ...>
+- For iOS: playsInline helps; also avoid autoplay unless muted.
+- Confirm src points to the correct served file URL.
+
+1.5 Add a small diagnostic endpoint/log:
+- Log file serve requests: id, range header, status, content-type, bytes served, user id.
+- This should quickly confirm if Range is failing.
+
+Acceptance:
+- On Safari iPhone + Mac Safari/Chrome: newly uploaded teaser plays.
+- Old teaser plays too.
+- Network shows 206 on Range requests for mp4, correct headers.
+
+------------------------------------------------------------
+2) BUG: RESCHEDULE WARNING STUCK (“Reschedule Needed”)
+Likely cause:
+- Episode has a derived flag like rescheduleNeeded / needsReschedule that is not cleared on successful reschedule mutation.
+- Or UI state uses stale cached query data (react-query not invalidated / optimistic update incomplete).
+- Or “studio_date_id” / “scheduled_at” updated but warning logic checks a different field.
+
+Tasks:
+2.1 Find the warning logic in frontend (episode card/page):
+- Search for “Reschedule Needed”, “rescheduleNeeded”, “needsReschedule”, “schedule_conflict”, etc.
+- Identify exact condition: what field(s) trigger the badge.
+
+2.2 Backend reschedule mutation:
+- Ensure on successful reschedule, we update:
+  - scheduled_at / studio_date_id (whichever is canonical)
+  - rescheduleNeeded = false (or equivalent)
+  - any “scheduleStatus” fields consistent
+- If warning is computed server-side, fix computation to turn false when a future scheduled date exists.
+
+2.3 Cache invalidation:
+- After reschedule mutation, MUST invalidate:
+  - episode detail query (episode/:id)
+  - episodes list query
+  - dashboard stats query (if derived)
+- If using optimistic updates, ensure they also clear the warning immediately.
+
+Acceptance:
+- After rescheduling, warning disappears immediately (no hard refresh).
+- After refresh, warning remains gone.
+
+------------------------------------------------------------
+3) BUG: CONFIRM PROSPECT -> GUEST/EPISODE CREATION IS SLOW / DELAYED
+Likely cause:
+- Backend does work asynchronously but UI doesn’t refetch or subscribe.
+- Mutations return before the follow-up entity is created.
+- Race conditions / delayed DB writes / background job queue without UI polling.
+- React-query cache not invalidated; UI shows stale list.
+
+Tasks:
+3.1 Define the canonical flow (must be synchronous from UI perspective):
+- When user confirms a prospect:
+  - The API response should include the created/updated guest record AND (if intended) the created/linked episode record id.
+  - Do NOT require user to wait “eventually consistent” unless we show a progress state.
+
+3.2 Backend:
+- Ensure confirm endpoint does ALL required DB writes in one transaction:
+  - Update guest status to confirmed
+  - Create interview / episode as needed (or ensureEpisodeWithDefaultTasks)
+  - Return final canonical objects in response
+
+3.3 Frontend:
+- After confirm mutation:
+  - Immediately update UI (optimistic) OR invalidate queries:
+    - guests list
+    - episodes list
+    - dashboard stats
+- Add “Creating episode…” inline progress if it can’t be synchronous.
+
+3.4 Performance:
+- Add timing logs around confirm handler and DB calls.
+- If there’s a slow query, index it.
+
+Acceptance:
+- Confirming prospect updates UI within ~1 second.
+- Guest appears in “confirmed” immediately; episode card appears immediately if required by flow.
+
+------------------------------------------------------------
+4) FEATURE: SHARE A SPECIFIC EPISODE CARD (DEEP LINK)
+Need:
+- A share button on episode card (bottom, between Save Changes and Delete).
+- Clicking copies a link to that specific episode card view, not the overview list.
+- Link should work when opened from WhatsApp.
+
+Implementation options (pick simplest that fits auth):
+Option A (authenticated users only):
+- Add route: /episodes/:id (already exists?) that opens the episode detail/card page directly.
+- Share link: https://episodeos.com/episodes/<episodeId>
+- Requires the recipient to be logged in.
+
+Option B (shareable token for external viewers):
+- Create table: episode_share_links(id, episode_id, token, created_at, expires_at, created_by)
+- Endpoint: POST /api/episodes/:id/share -> returns shareUrl with token
+- Public route: /share/episode/:token -> read-only view of episode card (no editing)
+- Add “Revoke link” later.
+
+Tasks:
+4.1 Frontend:
+- Add button “Share” between Save Changes and Delete.
+- On click:
+  - If Option A: copy current episode URL.
+  - If Option B: call POST /api/episodes/:id/share then copy returned URL.
+- Use navigator.clipboard.writeText, fallback to prompt.
+
+4.2 Backend (if Option B):
+- Add endpoints + minimal auth.
+- Ensure read-only response strips sensitive data if needed.
+
+Acceptance:
+- Clicking Share copies link; opening link lands on the exact episode card.
+
+------------------------------------------------------------
+5) UX: “INDIVIDUAL INVITES” DEFAULT SHOULD BE UNCHECKED
+Tasks:
+- Find the invite UI component (likely in scheduling/invite modal).
+- Change default state:
+  - checkbox default false
+  - user must explicitly pick recipients (or checkbox per person)
+- Ensure persisted preference doesn’t re-check by accident (clear stored defaults/localStorage if used).
+
+Acceptance:
+- New invite flow starts with individual invites OFF.
+
+------------------------------------------------------------
+6) REMOVE FOOTER WATERMARK “UI Build vNext 2026-02-25-v3”
+Tasks:
+- Find where it’s rendered:
+  - likely a footer component reading env var / build tag
+- Remove from production builds OR gate behind DEV-only:
+  - show only when process.env.NODE_ENV !== "production"
+  - or when VITE_SHOW_BUILD_TAG=true
+- Ensure it’s gone on episodeos.com after deploy.
+
+Acceptance:
+- No watermark in prod UI.
+
+------------------------------------------------------------
+7) GENERAL: “WORKFLOW SHOULD MIRROR PREVIOUS INFO” (GUEST -> EPISODE)
+Tasks:
+- Confirm which fields must auto-sync:
+  - guest name, contact info, company, etc -> reflected on episode/interview view.
+- Decide canonical source of truth:
+  - Episode references guestId; UI renders guest data from guest table, not duplicated text fields.
+- If you currently copy fields into episode at creation, it will drift. Prefer relational read:
+  - episode -> interview -> guest(s) joined in API responses.
+- Ensure APIs return joined data and UI uses it.
+
+Acceptance:
+- Editing guest details updates everywhere instantly after save + query invalidation.
+
+------------------------------------------------------------
+8) DEPLOY / VERIFY
+- Run tests / manual QA:
+  - play teaser on Mac Safari + Chrome + iPhone Safari
+  - reschedule episode: warning clears
+  - confirm prospect: episode appears immediately
+  - share link works
+  - invites default unchecked
+  - watermark removed
+- Build + deploy.
+- Verify root URL loads and core APIs work.
+
+Side note:
+- DO NOT add any destructive “migrate-prod wipes data” behavior. If anything touches prod migrations, it must be idempotent and non-destructive.
+
+END.
