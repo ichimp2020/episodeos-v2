@@ -118,6 +118,7 @@ export class ObjectStorageService {
             "Content-Length": String(chunkSize),
             "Content-Range": `bytes ${start}-${end}/${fileSize}`,
             "Accept-Ranges": "bytes",
+            "Content-Disposition": "inline",
             "Cache-Control": cacheControl,
           });
 
@@ -137,6 +138,7 @@ export class ObjectStorageService {
         "Content-Type": contentType,
         "Content-Length": String(fileSize),
         "Accept-Ranges": "bytes",
+        "Content-Disposition": "inline",
         "Cache-Control": cacheControl,
       });
 

@@ -59,6 +59,15 @@ app.use((req, res, next) => {
   next();
 });
 
+const BUILD_ID =
+  process.env.REPL_DEPLOYMENT_ID ||
+  process.env.REPL_ID ||
+  process.env.REPL_SLUG ||
+  process.env.GIT_SHA ||
+  `manual-${Date.now()}`;
+
+console.log("[BOOT] buildId:", BUILD_ID);
+
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
@@ -67,8 +76,12 @@ app.get("/api/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+app.get("/api/version", (_req, res) => {
+  res.json({ ok: true, buildId: BUILD_ID, ts: new Date().toISOString() });
+});
+
 app.get("/__version", (_req, res) => {
-  res.json({ serverVersion: "2026-02-25-v4", ts: Date.now() });
+  res.json({ serverVersion: "2026-02-25-v4", buildId: BUILD_ID, ts: Date.now() });
 });
 
 const isProd = process.env.NODE_ENV === "production";

@@ -336,6 +336,7 @@ export async function registerRoutes(
     const updated = await storage.updateGuest(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Guest not found" });
 
+    let episode = null;
     if (parsed.data.status === "confirmed" || updated.status === "confirmed") {
       const interviews = await storage.getInterviews();
       const guestInterview = interviews.find((i) => i.guestId === req.params.id && i.status === "confirmed");
@@ -358,10 +359,13 @@ export async function registerRoutes(
           timestampsJson: null,
           aiStatus: null,
         });
+
+        const episodesAfter = await storage.getEpisodes();
+        episode = episodesAfter.find((e) => e.guestId === req.params.id) || null;
       }
     }
 
-    res.json(updated);
+    res.json({ ...updated, episode });
   });
 
   app.delete("/api/guests/:id", async (req, res) => {
@@ -409,6 +413,7 @@ export async function registerRoutes(
   });
 
   app.patch("/api/interviews/:id", async (req, res) => {
+    console.log("[PATCH interview]", req.params.id, req.body);
     const parsed = updateInterviewSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
 

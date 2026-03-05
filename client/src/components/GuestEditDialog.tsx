@@ -154,7 +154,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
   const updateGuest = useMutation({
     mutationFn: async () => {
       if (!guest) return;
-      await apiRequest("PATCH", `/api/guests/${guest.id}`, {
+      const guestRes = await apiRequest("PATCH", `/api/guests/${guest.id}`, {
         name: editForm.name,
         phone: editForm.phone || null,
         email: editForm.email || null,
@@ -163,6 +163,7 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
         status: editForm.status,
         links: editForm.links.filter((l) => l.trim() !== ""),
       });
+      const responseData = await guestRes.json();
       if (selectedDate && editForm.status === "confirmed" && isDateFullySelected) {
         const selectedStudioDate = availableDates.find((d) => d.date === selectedDate);
         if (existingInterview) {
@@ -202,14 +203,25 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
         guestId: guest.id,
         guestName: editForm.name || guest.name,
         wasConfirmed: !!(selectedDate && editForm.status === "confirmed" && isDateFullySelected),
+        episode: responseData?.episode || null,
       };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+
+      if (result?.episode) {
+        queryClient.setQueryData(["/api/episodes"], (old: any[] | undefined) => {
+          if (!old) return [result.episode];
+          const exists = old.some((e: any) => e.id === result.episode.id);
+          return exists ? old.map((e: any) => e.id === result.episode.id ? result.episode : e) : [...old, result.episode];
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      }
+
       onOpenChange(false);
       const hasInvitees = Object.values(confirmAttendees).some(Boolean);
       const msg = selectedDate && editForm.status === "confirmed" && isDateFullySelected
