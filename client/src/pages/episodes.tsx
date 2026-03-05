@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp, AlertTriangle, Globe, Archive } from "lucide-react";
+import { Plus, Mic, ChevronRight, Trash2, CheckCircle, Circle, Clock, CalendarIcon, ChevronLeft, Upload, FileText, Film, ThumbsUp, ThumbsDown, Loader2, ExternalLink, Image, Pencil, Check, X, UserPlus, Mail, Link2, Phone, ChevronDown, ChevronUp, AlertTriangle, Globe, Archive, Share2 } from "lucide-react";
 import { SiYoutube, SiSpotify, SiApplemusic } from "react-icons/si";
 import type { Episode, Task, TeamMember, StudioDate, EpisodeFile, EpisodeShort, EpisodeLargeLink, EpisodePlatformLink, Interview, Guest } from "@shared/schema";
 import {
@@ -995,6 +995,23 @@ export default function Episodes() {
                       <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-detail">Ep #{selectedEpisode.episodeNumber}</span>
                     )}
                     <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[selectedEpisode.status]}`}>{getEpisodeStatusLabel(t, selectedEpisode.status)}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground ml-auto"
+                      onClick={() => {
+                        const url = `${window.location.origin}/episodes?highlight=${selectedEpisode.id}`;
+                        navigator.clipboard.writeText(url).then(() => {
+                          toast({ title: "Link copied" });
+                        }).catch(() => {
+                          toast({ title: "Copy failed", variant: "destructive" });
+                        });
+                      }}
+                      data-testid="button-share-episode"
+                    >
+                      <Share2 className="h-3.5 w-3.5 mr-1" />
+                      Share
+                    </Button>
                   </div>
                   {editingField === "title" ? (
                     <div className="flex items-center gap-2">
@@ -2102,6 +2119,7 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
   const [showAddShort, setShowAddShort] = useState(false);
   const [newShortTitle, setNewShortTitle] = useState("");
   const [isUploadingShort, setIsUploadingShort] = useState(false);
+  const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
 
   const { data: shorts, isLoading } = useQuery<EpisodeShort[]>({
     queryKey: ["/api/episodes", episodeId, "shorts"],
@@ -2228,12 +2246,11 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
                           controls
                           playsInline
                           preload="metadata"
+                          src={short.objectPath}
                           className="w-full max-w-[320px] rounded-md"
                           data-testid={`video-short-${short.id}`}
                           onError={() => setVideoErrors((prev) => new Set(prev).add(short.id))}
-                        >
-                          <source src={short.objectPath} type="video/mp4" />
-                        </video>
+                        />
                       )}
                       <a
                         href={short.objectPath}

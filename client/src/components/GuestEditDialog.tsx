@@ -144,10 +144,10 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
 
   const initConfirmAttendees = () => {
     const attendeeMap: Record<string, boolean> = {};
-    if (editForm.email) attendeeMap[editForm.email] = true;
-    else if (guest?.email) attendeeMap[guest.email] = true;
+    if (editForm.email) attendeeMap[editForm.email] = false;
+    else if (guest?.email) attendeeMap[guest.email] = false;
     const teamWithEmails = members?.filter((m) => m.email) || [];
-    teamWithEmails.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+    teamWithEmails.forEach((m) => { if (m.email) attendeeMap[m.email] = false; });
     setConfirmAttendees(attendeeMap);
   };
 

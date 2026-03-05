@@ -1079,9 +1079,9 @@ export default function Scheduling() {
                           onClick={() => {
                             setShowSendInvite(true);
                             const attendeeMap: Record<string, boolean> = {};
-                            if (guest?.email) attendeeMap[guest.email] = true;
+                            if (guest?.email) attendeeMap[guest.email] = false;
                             const participants = members?.filter((m) => m.email) || [];
-                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = false; });
                             setSendInviteAttendees(attendeeMap);
                           }}
                           data-testid="button-open-send-invite"
@@ -1182,9 +1182,9 @@ export default function Scheduling() {
                             setDetailRescheduleDate(null);
                             setDetailRescheduleSlot(null);
                             const attendeeMap: Record<string, boolean> = {};
-                            if (guest?.email) attendeeMap[guest.email] = true;
+                            if (guest?.email) attendeeMap[guest.email] = false;
                             const participants = members?.filter((m) => m.email) || [];
-                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = true; });
+                            participants.forEach((m) => { if (m.email) attendeeMap[m.email] = false; });
                             setRescheduleAttendees(attendeeMap);
                           }}
                           data-testid="button-open-reschedule"
@@ -1319,6 +1319,7 @@ export default function Scheduling() {
                                     scheduledDate: detailRescheduleDate,
                                     scheduledTime: finalTime,
                                     studioDateId: newStudio.id,
+                                    status: "confirmed",
                                   };
 
                                   await apiRequest("PATCH", `/api/interviews/${selectedInterview.id}`, patchData);
@@ -1376,7 +1377,7 @@ export default function Scheduling() {
                                   queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
                                   queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
                                   queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
-                                  setSelectedInterview({ ...selectedInterview, scheduledDate: detailRescheduleDate, scheduledTime: finalTime, studioDateId: newStudio.id });
+                                  setSelectedInterview({ ...selectedInterview, scheduledDate: detailRescheduleDate, scheduledTime: finalTime, studioDateId: newStudio.id, status: "confirmed" });
                                   setShowDetailReschedule(false);
                                   setDetailRescheduleDate(null);
                                   setDetailRescheduleSlot(null);

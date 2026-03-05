@@ -95,11 +95,6 @@ function AppContent() {
           <main className="flex-1 overflow-auto">
             <Router />
           </main>
-          {import.meta.env.DEV && (
-            <footer className="text-[10px] text-muted-foreground/40 text-center py-1 select-none" data-testid="text-ui-build-marker">
-              DEV BUILD
-            </footer>
-          )}
         </div>
       </div>
       <SpotlightSearch open={searchOpen} onOpenChange={setSearchOpen} />
