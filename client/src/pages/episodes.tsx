@@ -89,6 +89,7 @@ export default function Episodes() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
   const [showReschedule, setShowReschedule] = useState(false);
+  const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
   const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
   const [rescheduleSlot, setRescheduleSlot] = useState<{ start: string; end: string; label: string } | null>(null);
   const [rescheduleAttendees, setRescheduleAttendees] = useState<Record<string, boolean>>({});
@@ -385,7 +386,9 @@ export default function Episodes() {
       if (!selectedEpisode || !rescheduleDate) return;
       const linkedInterview = selectedEpisode.interviewId
         ? allInterviews?.find((i) => i.id === selectedEpisode.interviewId)
-        : null;
+        : selectedEpisode.guestId
+          ? allInterviews?.find((i) => i.guestId === selectedEpisode.guestId)
+          : null;
       const newStudioDate = rescheduleAvailableDates.find((d) => d.date === rescheduleDate);
 
       if (linkedInterview?.studioDateId) {
@@ -429,40 +432,22 @@ export default function Episodes() {
         scheduledTime: rescheduleSlot ? rescheduleSlot.start : null,
       });
 
-      let calendarResult: "sent" | "no-attendees" | "failed" | "no-slot" = "no-slot";
       const selectedEmails = Object.entries(rescheduleAttendees)
         .filter(([, checked]) => checked)
         .map(([email]) => email)
         .filter((e) => e.includes("@"));
-      if (rescheduleSlot && selectedEmails.length > 0) {
-        try {
-          const guest = getEpisodeGuest(selectedEpisode);
-          const calResponse = await apiRequest("POST", "/api/calendar-event", {
-            date: rescheduleDate,
-            startTime: rescheduleSlot.start,
-            endTime: rescheduleSlot.end,
-            summary: `Podcast Recording: ${selectedEpisode.title}`,
-            description: `Recording session for "${selectedEpisode.title}"${guest ? ` with ${guest.name}` : ""}`,
-            attendeeEmails: selectedEmails,
-            previousEventId: (selectedEpisode as any).calendarEventId || undefined,
-          });
-          const eventData = await calResponse.json();
-          if (eventData.id) {
-            await apiRequest("PATCH", `/api/episodes/${selectedEpisode.id}`, {
-              calendarEventId: eventData.id,
-            });
-          }
-          calendarResult = "sent";
-        } catch (calErr) {
-          console.error("Calendar invite failed:", calErr);
-          calendarResult = "failed";
-        }
-      } else if (rescheduleSlot && selectedEmails.length === 0) {
-        calendarResult = "no-attendees";
-      }
-      return calendarResult;
+      const guest = getEpisodeGuest(selectedEpisode);
+      return {
+        rescheduleDate,
+        rescheduleSlot,
+        selectedEmails,
+        episodeId: selectedEpisode.id,
+        episodeTitle: selectedEpisode.title,
+        guestName: guest?.name,
+        previousEventId: (selectedEpisode as any).calendarEventId || undefined,
+      };
     },
-    onSuccess: (calendarResult) => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
@@ -471,8 +456,32 @@ export default function Episodes() {
       setRescheduleSlot(null);
       setRescheduleAttendees({});
       setAttendeesInitialized(false);
-      const calMsg = calendarResult === "sent" ? ` — ${t.episodes.inviteSent}` : calendarResult === "failed" ? ` — ${t.episodes.inviteFailed}` : "";
-      toast({ title: `Rescheduled to ${rescheduleDate ? format(parseISO(rescheduleDate), "MMM d, yyyy") : ""}${rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}${calMsg}` });
+      if (!result) return;
+      const { rescheduleDate: rDate, rescheduleSlot: rSlot, selectedEmails, episodeId, episodeTitle, guestName, previousEventId } = result;
+      if (rSlot && selectedEmails.length > 0) {
+        (async () => {
+          try {
+            const calResponse = await apiRequest("POST", "/api/calendar-event", {
+              date: rDate,
+              startTime: rSlot.start,
+              endTime: rSlot.end,
+              summary: `Podcast Recording: ${episodeTitle}`,
+              description: `Recording session for "${episodeTitle}"${guestName ? ` with ${guestName}` : ""}`,
+              attendeeEmails: selectedEmails,
+              previousEventId,
+            });
+            const eventData = await calResponse.json();
+            if (eventData.id) {
+              await apiRequest("PATCH", `/api/episodes/${episodeId}`, { calendarEventId: eventData.id });
+              queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+            }
+          } catch (calErr) {
+            console.error("Calendar invite failed:", calErr);
+          }
+        })();
+      }
+      const calMsg = selectedEmails.length > 0 && rSlot ? ` — ${t.episodes.inviteSent}` : "";
+      toast({ title: `Rescheduled to ${rDate ? format(parseISO(rDate), "MMM d, yyyy") : ""}${rSlot ? ` (${rSlot.label})` : ""}${calMsg}` });
     },
     onError: () => toast({ title: "Failed to reschedule", variant: "destructive" }),
   });
@@ -2210,14 +2219,22 @@ function EpisodeShortsSection({ episodeId }: { episodeId: string }) {
                   </Badge>
                   {short.objectPath ? (
                     <div className="flex flex-col gap-1 w-full" data-testid={`video-container-short-${short.id}`}>
-                      <video
-                        controls
-                        playsInline
-                        preload="metadata"
-                        src={short.objectPath}
-                        className="w-full max-w-[320px] rounded-md"
-                        data-testid={`video-short-${short.id}`}
-                      />
+                      {videoErrors.has(short.id) ? (
+                        <div className="text-xs text-muted-foreground bg-muted rounded-md px-3 py-2 max-w-[320px]" data-testid={`video-error-short-${short.id}`}>
+                          Video format not supported — download to play.
+                        </div>
+                      ) : (
+                        <video
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="w-full max-w-[320px] rounded-md"
+                          data-testid={`video-short-${short.id}`}
+                          onError={() => setVideoErrors((prev) => new Set(prev).add(short.id))}
+                        >
+                          <source src={short.objectPath} type="video/mp4" />
+                        </video>
+                      )}
                       <a
                         href={short.objectPath}
                         target="_blank"
