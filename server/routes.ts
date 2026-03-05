@@ -6,7 +6,7 @@ import {
   insertTeamMemberSchema, insertEpisodeSchema, insertTaskSchema, insertStudioDateSchema,
   insertGuestSchema, insertInterviewSchema, insertInterviewParticipantSchema,
   insertPublishingSchema, insertReminderSchema,
-  insertEpisodeFileSchema, insertEpisodeShortSchema, insertEpisodePlatformLinkSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
+  insertEpisodeFileSchema, insertEpisodeShortSchema, insertEpisodeLargeLinkSchema, insertEpisodePlatformLinkSchema, insertInterviewerUnavailabilitySchema, insertSharedLinkSchema,
   episodes, tasks,
   type InsertEpisode, type Episode,
 } from "@shared/schema";
@@ -722,10 +722,9 @@ export async function registerRoutes(
   });
 
   app.post("/api/episodes/:episodeId/large-links", async (req, res) => {
-    const link = await storage.createEpisodeLargeLink({
-      ...req.body,
-      episodeId: req.params.episodeId,
-    });
+    const parsed = insertEpisodeLargeLinkSchema.safeParse({ ...req.body, episodeId: req.params.episodeId });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    const link = await storage.createEpisodeLargeLink(parsed.data);
     res.status(201).json(link);
   });
 

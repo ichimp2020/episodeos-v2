@@ -103,16 +103,6 @@ process.on("unhandledRejection", (reason) => {
 });
 
 (async () => {
-  httpServer.listen(
-    {
-      port,
-      host: "0.0.0.0",
-    },
-    () => {
-      log(`serving on port ${port}`);
-    },
-  );
-
   if (isProd) {
     try {
       const { migrateProductionData } = await import("./migrate-prod");
@@ -146,4 +136,14 @@ process.on("unhandledRejection", (reason) => {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  httpServer.listen(
+    {
+      port,
+      host: "0.0.0.0",
+    },
+    () => {
+      log(`serving on port ${port}`);
+    },
+  );
 })();
