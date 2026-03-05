@@ -1,0 +1,101 @@
+:::writing{variant=“chat_message” id=“61340”}
+We’re starting fresh. Please read this first and execute in this order. Keep replies short + evidence-based.
+
+Context
+
+Prod app: https://episodeos.com (Replit)
+We keep getting “fixed in code but nothing changes” + inconsistent UI/data between dev preview and live. We need: (1) prove what build is actually running, (2) fix remaining bugs with hard proof.
+
+NON-NEGOTIABLE RULES
+	1.	Every change must be verifiable with a single curl/SQL proof (or browser screenshot) before and after.
+	2.	Add/keep a build proof endpoint so we never guess again.
+	3.	No destructive migrations. No wiping prod data. No “startup hacks” that delete data.
+
+First: Verify production is actually on the latest build (do this BEFORE touching anything)
+
+A) Add (or confirm exists) GET /api/version that returns { ok:true, buildId, ts }.
+	•	buildId should come from REPL_DEPLOYMENT_ID (or similar) + fallback.
+B) Boot log must print: [BOOT] buildId: <id>
+C) After publish, I will run:
+	•	curl -s https://episodeos.com/api/version
+If this returns HTML, prod is serving old build or SPA catch-all is swallowing it → fix routing order.
+
+Bugs to fix (priority order)
+
+BUG 1 — Shorts/Teasers videos don’t play on Mac/Safari/iPhone after upload
+
+Goal: videos play inline in Safari + Chrome.
+Root cause likely: backend object download endpoint lacks proper Range/206 and/or wrong headers; frontend may not render .
+Execute:
+	1.	Backend: object download must support Range:
+	•	If request has Range: bytes=0-1 → respond 206 Partial Content
+	•	Must include: Accept-Ranges: bytes, Content-Range, correct Content-Length
+	•	Add Content-Disposition: inline
+	2.	Frontend: render uploaded short as:
+<video controls playsInline preload="metadata" src={objectUrl} /> (not just a link)
+Proof:
+
+	•	curl -I -H "Range: bytes=0-1" https://episodeos.com/objects/...mp4 must show 206 + headers.
+	•	In UI, the video must play without downloading/opening new tab.
+
+BUG 2 — Episode stuck on “reschedule needed” after rescheduling
+
+Goal: badge clears immediately after reschedule.
+Execute:
+	1.	Ensure reschedule PATCH to /api/interviews/:id includes status: "confirmed".
+	2.	Confirm backend actually persists status (not filtered out).
+Proof:
+
+	•	Network payload shows status: confirmed.
+	•	DB interview status becomes confirmed (or API GET shows it).
+	•	Badge disappears without refresh.
+
+BUG 3 — Confirm prospect → guest card + episode card takes too long
+
+Goal: episode appears ~1s after confirm.
+Execute:
+	1.	If confirm flow calls Calendar API, DO NOT block UI on calendar invite.
+	•	Move calendar call to onSuccess fire-and-forget or background task.
+	2.	Backend: on confirm, return { guest, episode } in the same response so UI can update instantly.
+	3.	Frontend: seed React Query cache with returned episode immediately.
+Proof:
+
+	•	Confirm click → episode appears quickly even if calendar invite is slow/fails.
+
+BUG 4 — Invite recipients are pre-selected by default
+
+Goal: default should be EMPTY (unchecked).
+Execute:
+	1.	Audit the actual modal used in prod and ensure initial state is {} and sendInvites=false.
+	2.	Ensure no “rehydration” of previous selection leaks into new modal open.
+Proof:
+
+	•	Fresh modal open shows all unchecked.
+
+UI cleanups
+	•	Remove footer watermark “UI BUILD vNEXT …” from production.
+
+Feature request
+	•	Add “Share episode” button inside episode dialog:
+	•	Copies deep link: https://episodeos.com/episodes?highlight=<episodeId>
+	•	Toast “Link copied”
+Proof:
+	•	Link opens to the correct episode (opens dialog/highlight).
+
+Data integrity rule (critical)
+
+There should never be an episode referencing a deleted interview.
+Execute:
+	1.	Add FK: episodes.interview_id -> interviews.id ON DELETE SET NULL (not CASCADE).
+	2.	Add a safe cleanup:
+	•	find episodes where interview_id is set but interview missing
+	•	if episode has no attachments, OK to delete; otherwise set interview_id NULL
+Proof:
+
+	•	Query returns 0 orphans after cleanup.
+
+Deliverables I want from you
+	1.	A 5-step checklist with commands for me to run (curl/SQL) to confirm each fix.
+	2.	If a fix is claimed done, show proof: /api/version buildId + the curl/DB evidence.
+
+Start with: confirm /api/version works on prod and paste the output buildId.
