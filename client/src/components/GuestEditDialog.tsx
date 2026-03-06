@@ -320,15 +320,18 @@ export default function GuestEditDialog({ guest, open, onOpenChange, members }: 
     if (slots.length > 0) {
       setSelectedDate(date);
       setSelectedSlot(null);
+      setConfirmAttendees({});
     } else {
       setSelectedDate(date);
       setSelectedSlot(null);
+      setConfirmAttendees({});
       setEditForm({ ...editForm, status: "confirmed" });
     }
   };
 
   const handleSelectSlot = (slot: TimeSlot) => {
     setSelectedSlot(slot);
+    setConfirmAttendees({});
     setEditForm({ ...editForm, status: "confirmed" });
   };
 

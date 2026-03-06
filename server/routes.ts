@@ -37,6 +37,18 @@ async function ensureEpisodeWithDefaultTasks(
     if (existing) return { episode: existing, created: false };
   }
 
+  if (episodeData.guestId) {
+    const [existing] = await db.select().from(episodes).where(eq(episodes.guestId, episodeData.guestId));
+    if (existing) {
+      if (episodeData.interviewId && !existing.interviewId) {
+        await db.update(episodes).set({ interviewId: episodeData.interviewId }).where(eq(episodes.id, existing.id));
+        console.log(`[ensureEpisodeWithDefaultTasks] Backfilled interviewId on existing episode ${existing.id}`);
+        return { episode: { ...existing, interviewId: episodeData.interviewId }, created: false };
+      }
+      return { episode: existing, created: false };
+    }
+  }
+
   const allMembers = await storage.getTeamMembers();
   const findIds = (names: string[]) =>
     allMembers.filter(m => names.some(n => m.name.toLowerCase() === n.toLowerCase())).map(m => m.id);
@@ -337,32 +349,28 @@ export async function registerRoutes(
     if (!updated) return res.status(404).json({ message: "Guest not found" });
 
     let episode = null;
-    if (parsed.data.status === "confirmed" || updated.status === "confirmed") {
+    if (parsed.data.status === "confirmed" && previousGuest.status !== "confirmed") {
       const interviews = await storage.getInterviews();
       const guestInterview = interviews.find((i) => i.guestId === req.params.id && i.status === "confirmed");
 
-      if (guestInterview) {
-        const allEpisodes = await storage.getEpisodes();
-        const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
-        const guestNameTrimmed = updated.name.trim();
+      const allEpisodes = await storage.getEpisodes();
+      const maxEpNum = allEpisodes.reduce((max, ep) => Math.max(max, ep.episodeNumber || 0), 0);
+      const guestNameTrimmed = updated.name.trim();
 
-        await ensureEpisodeWithDefaultTasks({
-          title: guestNameTrimmed,
-          description: `Interview with ${guestNameTrimmed}`,
-          status: "scheduled",
-          scheduledDate: guestInterview.scheduledDate || null,
-          scheduledTime: guestInterview.scheduledTime || null,
-          episodeNumber: maxEpNum + 1,
-          interviewId: guestInterview.id,
-          guestId: req.params.id,
-          recordingLink: null,
-          timestampsJson: null,
-          aiStatus: null,
-        });
-
-        const episodesAfter = await storage.getEpisodes();
-        episode = episodesAfter.find((e) => e.guestId === req.params.id) || null;
-      }
+      const { episode: ep } = await ensureEpisodeWithDefaultTasks({
+        title: guestNameTrimmed,
+        description: `Interview with ${guestNameTrimmed}`,
+        status: "scheduled",
+        scheduledDate: guestInterview?.scheduledDate || null,
+        scheduledTime: guestInterview?.scheduledTime || null,
+        episodeNumber: maxEpNum + 1,
+        interviewId: guestInterview?.id || null,
+        guestId: req.params.id,
+        recordingLink: null,
+        timestampsJson: null,
+        aiStatus: null,
+      });
+      episode = ep;
     }
 
     res.json({ ...updated, episode });

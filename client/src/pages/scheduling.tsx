@@ -1279,7 +1279,7 @@ export default function Scheduling() {
                             </div>
                           )}
 
-                          {(detailRescheduleDate && (detailRescheduleSlot || !(availableStudioDates.find((d) => d.date === detailRescheduleDate)?.notes ? parseTimeSlots(availableStudioDates.find((d) => d.date === detailRescheduleDate)!.notes!).length > 0 : false))) && (
+                          {detailRescheduleDate && (
                             <>
                               <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
                                 {t.episodes.selected}: {format(parseISO(detailRescheduleDate), "MMM d, yyyy")}{detailRescheduleSlot ? ` (${detailRescheduleSlot.label})` : ""}
@@ -1372,6 +1372,8 @@ export default function Scheduling() {
                                     } catch {
                                       toast({ title: t.episodes.inviteFailed, variant: "destructive" });
                                     }
+                                  } else if (selectedEmails.length > 0 && !detailRescheduleSlot) {
+                                    toast({ title: t.scheduling.reschedule + " ✓ — " + t.episodes.attendees + ": select a time slot to send invite" });
                                   }
 
                                   queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
