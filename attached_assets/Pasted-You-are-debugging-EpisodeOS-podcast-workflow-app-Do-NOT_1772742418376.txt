@@ -1,0 +1,26 @@
+You are debugging EpisodeOS (podcast workflow app). Do NOT do broad code scans. Do NOT fix unrelated issues. Only address the 4 concrete bugs below, proof-first, with IDs and logs.
+
+CRITICAL RULES:
+- No “I found 3 bugs” unless you can reproduce my bugs.
+- No refactors. No “server startup race” work. No cascade-delete changes unless directly tied to duplicates/orphans I reported.
+- Every fix must be minimal + tied to a reproduction.
+- For each bug: (1) reproduce, (2) capture evidence (guestId/interviewId/episodeId + API calls + DB rows before/after + server logs), (3) implement minimal fix, (4) retest.
+- Preview/dev URL is unreliable; do not use it as proof. Use production-like env + DB evidence.
+
+BUGS TO FIX (ONLY THESE):
+1) Rescheduling can “fix” the badge but creates an extra empty/orphan episode card (duplicate/blank card). Example guest: Yagil Rimoni.
+2) Confirming a guest sometimes does NOT create an episode card. Example guest: Shlomi Ziv.
+3) Reschedule sometimes does NOT show the “invite attendees” option / unclear behavior if it cancels previous invite.
+4) Invite recipients sometimes appear pre-selected; default must be EMPTY/unchecked across all invite flows.
+
+WHAT TO DO FIRST (STRICT):
+A) Locate guest records for “Yagil Rimoni” and “Shlomi Ziv” in DB. Print: guestId, email, status.
+B) For each guest, query episodes + interviews linked by guestId and/or interviewId. Print all rows (ids + key fields) and identify duplicates/orphans.
+C) Reproduce Bug #1 by performing a reschedule on Yagil in the UI (or via API calls) and show exactly which endpoint creates the new empty episode card (log + DB diff).
+D) Fix must make episode creation IDEMPOTENT: “one canonical episode per guest/interview”. Add a unique constraint or safe upsert logic (whichever is lower risk) and ensure tasks/teasers link to the canonical episode.
+E) Reproduce Bug #2 on Shlomi: confirm guest -> prove why episode isn’t created (which step fails / async path / transaction / error swallowed). Fix so confirm returns episodeId and UI opens it immediately.
+F) For Bug #3/#4: identify all invite entry points (guest confirm invite, reschedule invite, any other). Ensure confirmAttendees map defaults to {} and is only filled with false values unless user checks boxes. Ensure slot selection does NOT reset attendees to true. Prove with UI state + logs.
+
+DELIVERABLE:
+- A short report: per bug: reproduction steps + evidence + minimal code change + retest evidence.
+- Then a PR-style diff summary of only the touched files.
