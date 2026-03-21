@@ -88,10 +88,7 @@ export default function Episodes() {
   const [editValues, setEditValues] = useState({ title: "", description: "", episodeNumber: "" });
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editTaskValues, setEditTaskValues] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
-  const [showReschedule, setShowReschedule] = useState(false);
   const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
-  const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
-  const [rescheduleSlot, setRescheduleSlot] = useState<{ start: string; end: string; label: string } | null>(null);
   const [rescheduleAttendees, setRescheduleAttendees] = useState<Record<string, boolean>>({});
   const [attendeesInitialized, setAttendeesInitialized] = useState(false);
   const [editingGuestEmail, setEditingGuestEmail] = useState(false);
@@ -105,6 +102,20 @@ export default function Episodes() {
   const [publishTimeValue, setPublishTimeValue] = useState("12:00");
   const [showPlatformLink, setShowPlatformLink] = useState<string | null>(null);
   const [platformLinkUrl, setPlatformLinkUrl] = useState("");
+
+  type EpUiState = { showReschedule: boolean; rescheduleDate: string | null; rescheduleSlot: { start: string; end: string; label: string } | null };
+  const DEFAULT_EP_UI: EpUiState = { showReschedule: false, rescheduleDate: null, rescheduleSlot: null };
+  const [episodeUiState, setEpisodeUiState] = useState<Record<string, EpUiState>>({});
+  const epUi: EpUiState = (selectedEpisodeId ? episodeUiState[selectedEpisodeId] : null) ?? DEFAULT_EP_UI;
+  const showReschedule = epUi.showReschedule;
+  const rescheduleDate = epUi.rescheduleDate;
+  const rescheduleSlot = epUi.rescheduleSlot;
+  const patchEpUi = (id: string, patch: Partial<EpUiState>) =>
+    setEpisodeUiState(prev => ({ ...prev, [id]: { ...(prev[id] ?? DEFAULT_EP_UI), ...patch } }));
+  const setShowReschedule = (val: boolean) => { if (selectedEpisodeId) patchEpUi(selectedEpisodeId, { showReschedule: val }); };
+  const setRescheduleDate = (val: string | null) => { if (selectedEpisodeId) patchEpUi(selectedEpisodeId, { rescheduleDate: val }); };
+  const setRescheduleSlot = (val: { start: string; end: string; label: string } | null) => { if (selectedEpisodeId) patchEpUi(selectedEpisodeId, { rescheduleSlot: val }); };
+
   const { toast } = useToast();
   const { t } = useLanguage();
 
@@ -157,17 +168,14 @@ export default function Episodes() {
     const selectionChanged = selectedEpisodeId !== prevSelectedEpisodeIdRef.current;
     if (selectionChanged) {
       prevSelectedEpisodeIdRef.current = selectedEpisodeId;
-      stuckAutoOpenedRef.current = false;
-      setShowReschedule(false);
-      setRescheduleDate(null);
-      setRescheduleSlot(null);
+      const alreadySeeded = !!(selectedEpisodeId && episodeUiState[selectedEpisodeId]);
+      stuckAutoOpenedRef.current = alreadySeeded;
+      setAttendeesInitialized(false);
     }
 
     if (isStuck && !stuckAutoOpenedRef.current) {
       stuckAutoOpenedRef.current = true;
-      setShowReschedule(true);
-      setRescheduleDate(null);
-      setRescheduleSlot(null);
+      if (selectedEpisodeId) patchEpUi(selectedEpisodeId, { showReschedule: true, rescheduleDate: null, rescheduleSlot: null });
     }
   }, [selectedEpisodeId, episodes, allInterviews]);
 
@@ -482,9 +490,7 @@ export default function Episodes() {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
-      setShowReschedule(false);
-      setRescheduleDate(null);
-      setRescheduleSlot(null);
+      if (result?.episodeId) patchEpUi(result.episodeId, { showReschedule: false, rescheduleDate: null, rescheduleSlot: null });
       setRescheduleAttendees({});
       setAttendeesInitialized(false);
       if (!result) return;
