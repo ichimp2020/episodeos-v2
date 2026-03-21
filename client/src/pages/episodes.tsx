@@ -660,8 +660,7 @@ export default function Episodes() {
             const eTasks = episodeTasks(episode.id);
             const done = eTasks.filter((t) => t.status === "done").length;
             const isPastDate = episode.scheduledDate && isBefore(parseISO(episode.scheduledDate), new Date()) && !["publishing", "archived"].includes(episode.status);
-            const dateNoLongerAvailable = episode.scheduledDate && !availableStudioDates.has(episode.scheduledDate) && !takenStudioDates.has(episode.scheduledDate);
-            const needsReschedule = getEpisodeInterview(episode)?.status === 'needs-reschedule' || (dateNoLongerAvailable && !["publishing", "archived"].includes(episode.status));
+            const needsReschedule = checkNeedsReschedule(episode, availableStudioDates, takenStudioDates, getEpisodeInterview(episode));
             return (
               <div
                 key={episode.id}
