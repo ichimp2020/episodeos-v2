@@ -124,6 +124,7 @@ const en = {
     guestEmail: "Guest Email",
     addEmail: "Add email to send invites",
     missingGuestEmail: "Guest has no email — invites cannot be sent",
+    noEmailOnFile: "no email on file",
     guestNoSchedule: "Confirmed but no recording date set",
     emailSaved: "Email saved",
     phoneSaved: "Phone saved",

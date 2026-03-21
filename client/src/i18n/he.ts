@@ -126,6 +126,7 @@ const he: TranslationKeys = {
     guestEmail: "אימייל אורח",
     addEmail: "הוסף אימייל לשליחת הזמנות",
     missingGuestEmail: "לאורח אין אימייל — לא ניתן לשלוח הזמנות",
+    noEmailOnFile: "אין אימייל",
     guestNoSchedule: "מאושר אך ללא תאריך הקלטה",
     emailSaved: "האימייל נשמר",
     phoneSaved: "הטלפון נשמר",

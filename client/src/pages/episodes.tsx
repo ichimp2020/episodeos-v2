@@ -356,7 +356,7 @@ export default function Episodes() {
     if (!episode || !members) return {};
     const attendees: Record<string, boolean> = {};
     const guest = getEpisodeGuest(episode);
-    if (guest?.email) attendees[guest.email] = false;
+    attendees[guest?.email ?? "__no_email__"] = false;
     for (const m of members) {
       if (m.email) {
         attendees[m.email] = false;
@@ -380,9 +380,11 @@ export default function Episodes() {
     if (!selectedEpisode || !members) return [];
     const guest = getEpisodeGuest(selectedEpisode);
     const list: { email: string; label: string; type: "guest" | "team" | "studio" }[] = [];
-    if (guest?.email) {
-      list.push({ email: guest.email, label: `${guest.name} (${t.episodes.guest})`, type: "guest" });
-    }
+    list.push({
+      email: guest?.email ?? "__no_email__",
+      label: guest ? `${guest.name} (${t.episodes.guest})` : t.episodes.guest,
+      type: "guest",
+    });
     for (const m of members) {
       if (m.email && m.email !== guest?.email) {
         list.push({ email: m.email, label: `${m.name}`, type: "team" });
@@ -463,7 +465,7 @@ export default function Episodes() {
       const selectedEmails = Object.entries(rescheduleAttendees)
         .filter(([, checked]) => checked)
         .map(([email]) => email)
-        .filter((e) => e.includes("@"));
+        .filter((e) => e.includes("@")); // strips "__no_email__" placeholder and any non-email keys
       const guest = getEpisodeGuest(selectedEpisode);
       return {
         rescheduleDate,
@@ -1261,38 +1263,43 @@ export default function Episodes() {
                           {t.episodes.selected}: {format(parseISO(rescheduleDate!), "MMM d")}{rescheduleSlot ? ` (${rescheduleSlot.label})` : ""}
                         </Badge>
 
-                        {attendeesList.length > 0 && (
-                          <div className="rounded-lg border bg-background/50 p-2.5 space-y-1.5" data-testid="panel-attendees">
-                            <div className="flex items-center gap-1.5">
-                              <Mail className="h-3.5 w-3.5 text-primary" />
-                              <span className="text-xs font-semibold">{t.episodes.attendees}</span>
-                            </div>
-                            <div className="space-y-0.5">
-                              {attendeesList.map((att) => (
+                        <div className="rounded-lg border bg-background/50 p-2.5 space-y-1.5" data-testid="panel-attendees">
+                          <div className="flex items-center gap-1.5">
+                            <Mail className="h-3.5 w-3.5 text-primary" />
+                            <span className="text-xs font-semibold">{t.episodes.attendees}</span>
+                          </div>
+                          <div className="space-y-0.5">
+                            {attendeesList.map((att) => {
+                              const noEmail = att.email === "__no_email__";
+                              return (
                                 <label
                                   key={att.email}
-                                  className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 cursor-pointer transition-colors"
-                                  data-testid={`attendee-${att.type}-${att.email}`}
+                                  className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${noEmail ? "opacity-50 cursor-not-allowed" : "hover:bg-muted/50 cursor-pointer"}`}
+                                  data-testid={`attendee-${att.type}-${noEmail ? "no-email" : att.email}`}
                                 >
                                   <input
                                     type="checkbox"
-                                    checked={!!rescheduleAttendees[att.email]}
-                                    onChange={(e) => setRescheduleAttendees((prev) => ({ ...prev, [att.email]: e.target.checked }))}
+                                    disabled={noEmail}
+                                    checked={noEmail ? false : !!rescheduleAttendees[att.email]}
+                                    onChange={(e) => !noEmail && setRescheduleAttendees((prev) => ({ ...prev, [att.email]: e.target.checked }))}
                                     className="h-4 w-4 rounded border-muted-foreground/30 accent-primary"
                                   />
                                   <span className="text-xs flex-1 truncate">{att.label}</span>
-                                  <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{att.email}</span>
+                                  {noEmail
+                                    ? <span className="text-[10px] text-muted-foreground italic">{t.episodes.noEmailOnFile}</span>
+                                    : <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">{att.email}</span>
+                                  }
                                 </label>
-                              ))}
-                            </div>
-                            {(selectedEpisode as any)?.calendarEventId && (
-                              <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                <CalendarIcon className="h-3 w-3" />
-                                {t.episodes.previousEventCanceled}
-                              </p>
-                            )}
+                              );
+                            })}
                           </div>
-                        )}
+                          {(selectedEpisode as any)?.calendarEventId && (
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <CalendarIcon className="h-3 w-3" />
+                              {t.episodes.previousEventCanceled}
+                            </p>
+                          )}
+                        </div>
 
                         <div className="flex justify-end">
                           <Button
