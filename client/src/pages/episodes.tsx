@@ -171,6 +171,7 @@ export default function Episodes() {
       const alreadySeeded = !!(selectedEpisodeId && episodeUiState[selectedEpisodeId]);
       stuckAutoOpenedRef.current = alreadySeeded;
       setAttendeesInitialized(false);
+      if (selectedEpisodeId && !alreadySeeded) patchEpUi(selectedEpisodeId, DEFAULT_EP_UI);
     }
 
     if (isStuck && !stuckAutoOpenedRef.current) {
@@ -1020,7 +1021,7 @@ export default function Episodes() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!selectedEpisodeId} onOpenChange={(open) => { if (!open) { setSelectedEpisodeId(null); setShowReschedule(false); setRescheduleDate(null); setRescheduleSlot(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
+      <Dialog open={!!selectedEpisodeId} onOpenChange={(open) => { if (!open) { setSelectedEpisodeId(null); setEditingGuestEmail(false); setEditingGuestPhone(false); setShowGuestDetails(false); setShowGuestPicker(false); } }}>
         <DialogContent className="max-w-[560px] w-[95vw] sm:w-full overflow-x-hidden max-h-[calc(100vh-24px)] flex flex-col p-0">
           {selectedEpisode ? (
             <>
