@@ -639,7 +639,7 @@ export async function registerRoutes(
       for (const ep of allEpisodes) {
         if (!ep.scheduledDate) {
           const interview = ep.interviewId
-            ? allInterviews.find((i) => i.id === ep.interviewId)
+            ? allInterviews.find((i) => i.id === ep.interviewId && i.status === "confirmed" && i.scheduledDate)
             : allInterviews.find((i) => i.guestId === ep.guestId && i.status === "confirmed" && i.scheduledDate);
           if (interview?.scheduledDate) {
             await storage.updateEpisode(ep.id, {
