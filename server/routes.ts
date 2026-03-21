@@ -46,7 +46,9 @@ async function ensureEpisodeWithDefaultTasks(
       }
       if (episodeData.scheduledDate && !existing.scheduledDate) {
         updates.scheduledDate = episodeData.scheduledDate;
-        updates.scheduledTime = episodeData.scheduledTime ?? existing.scheduledTime;
+      }
+      if (episodeData.scheduledTime && !existing.scheduledTime) {
+        updates.scheduledTime = episodeData.scheduledTime;
       }
       if (Object.keys(updates).length > 0) {
         await db.update(episodes).set(updates).where(eq(episodes.id, existing.id));
