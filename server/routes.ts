@@ -267,7 +267,11 @@ export async function registerRoutes(
           scheduledTime: null,
           status: "needs-reschedule",
         });
-        const linkedEpisodes = allEpisodes.filter((e) => e.interviewId === interview.id);
+        const linkedEpisodes = allEpisodes.filter(
+          (e) =>
+            e.interviewId === interview.id ||
+            (interview.guestId && e.guestId === interview.guestId && !e.interviewId)
+        );
         for (const episode of linkedEpisodes) {
           await storage.updateEpisode(episode.id, {
             scheduledDate: null,
@@ -627,12 +631,28 @@ export async function registerRoutes(
   app.post("/api/episodes/auto-status", async (_req, res) => {
     try {
       const allEpisodes = await storage.getEpisodes();
+      const allInterviews = await storage.getInterviews();
       const now = new Date();
       const today = now.toISOString().split("T")[0];
-      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       let updated = 0;
 
       for (const ep of allEpisodes) {
+        if (!ep.scheduledDate) {
+          const interview = ep.interviewId
+            ? allInterviews.find((i) => i.id === ep.interviewId)
+            : allInterviews.find((i) => i.guestId === ep.guestId && i.status === "confirmed" && i.scheduledDate);
+          if (interview?.scheduledDate) {
+            await storage.updateEpisode(ep.id, {
+              scheduledDate: interview.scheduledDate,
+              scheduledTime: interview.scheduledTime || undefined,
+            });
+            ep.scheduledDate = interview.scheduledDate;
+            ep.scheduledTime = interview.scheduledTime;
+            updated++;
+            continue;
+          }
+        }
+
         if (!ep.scheduledDate) continue;
 
         if ((ep.status === "scheduled" || ep.status === "planning") && ep.scheduledDate <= today) {

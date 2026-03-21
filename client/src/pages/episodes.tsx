@@ -144,6 +144,21 @@ export default function Episodes() {
   }, []);
 
   useEffect(() => {
+    if (!selectedEpisodeId || !episodes || !allInterviews) return;
+    const ep = episodes.find((e) => e.id === selectedEpisodeId);
+    if (!ep) return;
+    const interview = ep.interviewId
+      ? allInterviews.find((i) => i.id === ep.interviewId)
+      : allInterviews.find((i) => i.guestId === ep.guestId);
+    const stuck = interview?.status === "needs-reschedule" && !ep.scheduledDate;
+    setShowReschedule(stuck);
+    if (stuck) {
+      setRescheduleDate(null);
+      setRescheduleSlot(null);
+    }
+  }, [selectedEpisodeId, episodes, allInterviews]);
+
+  useEffect(() => {
     const checkHighlight = () => {
       if (!episodes) return;
       const params = new URLSearchParams(window.location.search);
