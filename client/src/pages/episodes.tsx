@@ -350,13 +350,14 @@ export default function Episodes() {
   });
 
   const STUDIO_EMAIL = "studio@example.com";
+  const NO_EMAIL_PLACEHOLDER = "__no_email__";
   const DEFAULT_TEAM_NAMES = ["gal", "zion"];
 
   const getAttendeesForEpisode = useCallback((episode: Episode | null) => {
     if (!episode || !members) return {};
     const attendees: Record<string, boolean> = {};
     const guest = getEpisodeGuest(episode);
-    attendees[guest?.email ?? "__no_email__"] = false;
+    attendees[guest?.email ?? NO_EMAIL_PLACEHOLDER] = false;
     for (const m of members) {
       if (m.email) {
         attendees[m.email] = false;
@@ -381,7 +382,7 @@ export default function Episodes() {
     const guest = getEpisodeGuest(selectedEpisode);
     const list: { email: string; label: string; type: "guest" | "team" | "studio" }[] = [];
     list.push({
-      email: guest?.email ?? "__no_email__",
+      email: guest?.email ?? NO_EMAIL_PLACEHOLDER,
       label: guest ? `${guest.name} (${t.episodes.guest})` : t.episodes.guest,
       type: "guest",
     });
@@ -1270,7 +1271,7 @@ export default function Episodes() {
                           </div>
                           <div className="space-y-0.5">
                             {attendeesList.map((att) => {
-                              const noEmail = att.email === "__no_email__";
+                              const noEmail = att.email === NO_EMAIL_PLACEHOLDER;
                               return (
                                 <label
                                   key={att.email}
