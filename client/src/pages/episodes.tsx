@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,8 +143,14 @@ export default function Episodes() {
     }).catch(() => {});
   }, []);
 
+  const prevSelectedEpisodeIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectedEpisodeId || !episodes || !allInterviews) return;
+    if (selectedEpisodeId === prevSelectedEpisodeIdRef.current) return;
+    prevSelectedEpisodeIdRef.current = selectedEpisodeId;
+    if (!selectedEpisodeId || !episodes || !allInterviews) {
+      setShowReschedule(false);
+      return;
+    }
     const ep = episodes.find((e) => e.id === selectedEpisodeId);
     if (!ep) return;
     const interview = ep.interviewId
@@ -152,10 +158,8 @@ export default function Episodes() {
       : allInterviews.find((i) => i.guestId === ep.guestId);
     const stuck = interview?.status === "needs-reschedule" && !ep.scheduledDate;
     setShowReschedule(stuck);
-    if (stuck) {
-      setRescheduleDate(null);
-      setRescheduleSlot(null);
-    }
+    setRescheduleDate(null);
+    setRescheduleSlot(null);
   }, [selectedEpisodeId, episodes, allInterviews]);
 
   useEffect(() => {

@@ -270,7 +270,7 @@ export async function registerRoutes(
         const linkedEpisodes = allEpisodes.filter(
           (e) =>
             e.interviewId === interview.id ||
-            (interview.guestId && e.guestId === interview.guestId && !e.interviewId)
+            (interview.guestId && e.guestId === interview.guestId && e.interviewId !== interview.id)
         );
         for (const episode of linkedEpisodes) {
           await storage.updateEpisode(episode.id, {

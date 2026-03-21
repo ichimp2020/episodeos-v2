@@ -6,7 +6,7 @@ export function needsReschedule(
   takenStudioDates: Set<string>,
   interview: Interview | null | undefined,
 ): boolean {
-  if (interview?.status === "needs-reschedule") return true;
+  if (interview?.status === "needs-reschedule" && !interview.scheduledDate) return true;
   const dateNoLongerAvailable =
     !!episode.scheduledDate &&
     !availableStudioDates.has(episode.scheduledDate) &&
