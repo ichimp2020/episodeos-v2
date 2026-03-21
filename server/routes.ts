@@ -40,10 +40,18 @@ async function ensureEpisodeWithDefaultTasks(
   if (episodeData.guestId) {
     const [existing] = await db.select().from(episodes).where(eq(episodes.guestId, episodeData.guestId));
     if (existing) {
+      const updates: Partial<typeof existing> = {};
       if (episodeData.interviewId && !existing.interviewId) {
-        await db.update(episodes).set({ interviewId: episodeData.interviewId }).where(eq(episodes.id, existing.id));
-        console.log(`[ensureEpisodeWithDefaultTasks] Backfilled interviewId on existing episode ${existing.id}`);
-        return { episode: { ...existing, interviewId: episodeData.interviewId }, created: false };
+        updates.interviewId = episodeData.interviewId;
+      }
+      if (episodeData.scheduledDate && !existing.scheduledDate) {
+        updates.scheduledDate = episodeData.scheduledDate;
+        updates.scheduledTime = episodeData.scheduledTime ?? existing.scheduledTime;
+      }
+      if (Object.keys(updates).length > 0) {
+        await db.update(episodes).set(updates).where(eq(episodes.id, existing.id));
+        console.log(`[ensureEpisodeWithDefaultTasks] Synced fields on existing episode ${existing.id}:`, updates);
+        return { episode: { ...existing, ...updates }, created: false };
       }
       return { episode: existing, created: false };
     }
@@ -849,6 +857,25 @@ export async function registerRoutes(
       console.error("Search error:", error);
       res.status(500).json({ error: "Search failed" });
     }
+  });
+
+  app.delete("/api/admin/episodes/:id", async (req, res) => {
+    const ep = await storage.getEpisode(req.params.id);
+    if (!ep) return res.status(404).json({ message: "Episode not found" });
+
+    const allTasks = await storage.getTasks();
+    const epTasks = allTasks.filter((t) => t.episodeId === ep.id);
+    const blockers = epTasks.filter((t) => t.status === "done" || t.status === "in_progress");
+    if (blockers.length > 0) {
+      return res.status(409).json({
+        message: `Cannot delete: episode has ${blockers.length} task(s) in done/in_progress state`,
+        tasks: blockers.map((t) => ({ id: t.id, title: t.title, status: t.status })),
+      });
+    }
+
+    await storage.deleteEpisode(ep.id);
+    console.log(`[admin] Deleted episode ${ep.id} (#${ep.episodeNumber} "${ep.title}") — ${epTasks.length} todo tasks removed via cascade`);
+    res.json({ deleted: true, episodeId: ep.id, episodeNumber: ep.episodeNumber, title: ep.title });
   });
 
   return httpServer;
