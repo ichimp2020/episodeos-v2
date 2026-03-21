@@ -144,22 +144,31 @@ export default function Episodes() {
   }, []);
 
   const prevSelectedEpisodeIdRef = useRef<string | null>(null);
+  const stuckAutoOpenedRef = useRef<boolean>(false);
   useEffect(() => {
-    if (selectedEpisodeId === prevSelectedEpisodeIdRef.current) return;
-    prevSelectedEpisodeIdRef.current = selectedEpisodeId;
-    if (!selectedEpisodeId || !episodes || !allInterviews) {
+    const ep = episodes?.find((e) => e.id === selectedEpisodeId);
+    const interview = ep
+      ? ep.interviewId
+        ? allInterviews?.find((i) => i.id === ep.interviewId)
+        : allInterviews?.find((i) => i.guestId === ep.guestId)
+      : undefined;
+    const isStuck = !!(ep && interview?.status === "needs-reschedule" && !ep.scheduledDate);
+
+    const selectionChanged = selectedEpisodeId !== prevSelectedEpisodeIdRef.current;
+    if (selectionChanged) {
+      prevSelectedEpisodeIdRef.current = selectedEpisodeId;
+      stuckAutoOpenedRef.current = false;
       setShowReschedule(false);
-      return;
+      setRescheduleDate(null);
+      setRescheduleSlot(null);
     }
-    const ep = episodes.find((e) => e.id === selectedEpisodeId);
-    if (!ep) return;
-    const interview = ep.interviewId
-      ? allInterviews.find((i) => i.id === ep.interviewId)
-      : allInterviews.find((i) => i.guestId === ep.guestId);
-    const stuck = interview?.status === "needs-reschedule" && !ep.scheduledDate;
-    setShowReschedule(stuck);
-    setRescheduleDate(null);
-    setRescheduleSlot(null);
+
+    if (isStuck && !stuckAutoOpenedRef.current) {
+      stuckAutoOpenedRef.current = true;
+      setShowReschedule(true);
+      setRescheduleDate(null);
+      setRescheduleSlot(null);
+    }
   }, [selectedEpisodeId, episodes, allInterviews]);
 
   useEffect(() => {
