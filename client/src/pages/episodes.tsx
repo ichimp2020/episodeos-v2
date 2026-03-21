@@ -152,7 +152,7 @@ export default function Episodes() {
         ? allInterviews?.find((i) => i.id === ep.interviewId)
         : allInterviews?.find((i) => i.guestId === ep.guestId)
       : undefined;
-    const isStuck = !!(ep && interview?.status === "needs-reschedule" && !ep.scheduledDate);
+    const isStuck = !!(ep && interview?.status === "needs-reschedule" && !interview.scheduledDate && !ep.scheduledDate);
 
     const selectionChanged = selectedEpisodeId !== prevSelectedEpisodeIdRef.current;
     if (selectionChanged) {
