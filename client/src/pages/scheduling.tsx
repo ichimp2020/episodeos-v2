@@ -183,6 +183,7 @@ export default function Scheduling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/reminders"] });
       setShowNewInterview(false);
       setNewInterview({ guestId: "", studioDateId: "", scheduledDate: "", scheduledTime: "", location: "", notes: "", participantIds: [] });

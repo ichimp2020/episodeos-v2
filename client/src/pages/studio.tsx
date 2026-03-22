@@ -404,6 +404,9 @@ export default function Studio() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       setSelectedDate(null);
       toast({ title: "Studio date removed" });
     },
@@ -418,6 +421,8 @@ export default function Studio() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
     },
   });
 

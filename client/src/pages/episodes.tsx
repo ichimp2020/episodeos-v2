@@ -342,6 +342,7 @@ export default function Episodes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       setEditingGuestEmail(false);
       toast({ title: t.episodes.emailSaved });
     },
@@ -354,6 +355,7 @@ export default function Episodes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       setEditingGuestPhone(false);
       toast({ title: t.episodes.phoneSaved });
     },
@@ -366,6 +368,7 @@ export default function Episodes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       setShowGuestPicker(false);
     },
   });
@@ -629,6 +632,8 @@ export default function Episodes() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       setSelectedEpisodeId(null);
       toast({ title: "Episode deleted" });
     },
