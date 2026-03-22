@@ -17,6 +17,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -82,6 +92,8 @@ export default function Episodes() {
   const [showNewEpisode, setShowNewEpisode] = useState(false);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
+  const [confirmDeleteEpisodeId, setConfirmDeleteEpisodeId] = useState<string | null>(null);
+  const [confirmDeleteTaskId, setConfirmDeleteTaskId] = useState<string | null>(null);
   const [newEpisode, setNewEpisode] = useState({ title: "", description: "", episodeNumber: "", scheduledDate: "", scheduledTime: "" });
   const [newTask, setNewTask] = useState({ title: "", assigneeIds: [] as string[], dueDate: "" });
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -757,7 +769,7 @@ export default function Episodes() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteEpisodeId(episode.id); }}
                       data-testid={`button-delete-episode-${episode.id}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -806,7 +818,7 @@ export default function Episodes() {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmDeleteEpisodeId(episode.id); }}
                     data-testid={`button-delete-archived-${episode.id}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -1689,7 +1701,7 @@ export default function Episodes() {
                               variant="ghost"
                               size="icon"
                               className="opacity-0 group-hover:opacity-100 visibility-visible shrink-0"
-                              onClick={() => deleteTask.mutate(task.id)}
+                              onClick={() => setConfirmDeleteTaskId(task.id)}
                               data-testid={`button-delete-task-${task.id}`}
                             >
                               <Trash2 className="h-3 w-3 text-muted-foreground" />
@@ -1768,7 +1780,7 @@ export default function Episodes() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive"
-                    onClick={() => deleteEpisode.mutate(selectedEpisode.id)}
+                    onClick={() => setConfirmDeleteEpisodeId(selectedEpisode.id)}
                     data-testid="button-delete-episode"
                   >
                     <Trash2 className="h-3 w-3 mr-1" />
@@ -2519,6 +2531,48 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDeleteEpisodeId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteEpisodeId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Episode?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the episode and all its tasks, files, teasers, and publishing data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteEpisodeId) { deleteEpisode.mutate(confirmDeleteEpisodeId); setConfirmDeleteEpisodeId(null); } }}
+              data-testid="button-confirm-delete-episode"
+            >
+              Delete Episode
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDeleteTaskId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteTaskId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this task. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteTaskId) { deleteTask.mutate(confirmDeleteTaskId); setConfirmDeleteTaskId(null); } }}
+              data-testid="button-confirm-delete-task"
+            >
+              Delete Task
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -13,6 +13,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
@@ -245,6 +255,7 @@ export default function Studio() {
   const [blockStep, setBlockStep] = useState<"idle" | "confirm" | "note">("idle");
   const [blockNote, setBlockNote] = useState("");
   const [showClearMonth, setShowClearMonth] = useState(false);
+  const [confirmDeleteDate, setConfirmDeleteDate] = useState(false);
   const [clearConfirmedToggles, setClearConfirmedToggles] = useState<Record<string, boolean>>({});
   const [clearEmailToggles, setClearEmailToggles] = useState<Record<string, Record<string, boolean>>>({});
   const [showManualBooking, setShowManualBooking] = useState(false);
@@ -1363,7 +1374,7 @@ export default function Studio() {
                     )}
                     <button
                       className="ios-pill-button ios-pill-button-secondary"
-                      onClick={() => deleteDate.mutate(selectedDate.id)}
+                      onClick={() => setConfirmDeleteDate(true)}
                       data-testid="button-delete-studio-date"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1877,6 +1888,27 @@ export default function Studio() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDeleteDate} onOpenChange={setConfirmDeleteDate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Studio Date?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this studio date and its slot. Any linked interview will need to be rescheduled. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (selectedDate) { deleteDate.mutate(selectedDate.id); setSelectedDate(null); } setConfirmDeleteDate(false); }}
+              data-testid="button-confirm-delete-studio-date"
+            >
+              Delete Date
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

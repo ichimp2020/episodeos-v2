@@ -3,6 +3,16 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Mic, Users, Calendar, Clock, CalendarClock, UserPlus, Upload, ChevronRight, TrendingUp, Trash2, ClipboardPaste, X, Radio, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Episode, Task, TeamMember, StudioDate, Guest, Interview, Publishing } from "@shared/schema";
@@ -24,6 +34,7 @@ export default function Dashboard() {
   const [quickEditEpisodeOpen, setQuickEditEpisodeOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<{ type: "episode" | "guest" | "interview"; id: string } | null>(null);
   const { toast } = useToast();
 
   const deleteEpisode = useMutation({
@@ -358,7 +369,7 @@ export default function Dashboard() {
                       </Badge>
                       <button
                         className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
-                        onClick={(e) => { e.stopPropagation(); deleteEpisode.mutate(episode.id); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: "episode", id: episode.id }); }}
                         data-testid={`button-delete-episode-dash-${episode.id}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -452,7 +463,7 @@ export default function Dashboard() {
                           </Badge>
                           <button
                             className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
-                            onClick={(e) => { e.stopPropagation(); deleteGuest.mutate(guest.id); }}
+                            onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: "guest", id: guest.id }); }}
                             data-testid={`button-delete-guest-dash-${guest.id}`}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -515,7 +526,7 @@ export default function Dashboard() {
                     </Badge>
                     <button
                       className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
-                      onClick={(e) => { e.stopPropagation(); deleteInterview.mutate(interview.id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: "interview", id: interview.id }); }}
                       data-testid={`button-delete-interview-dash-${interview.id}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -667,6 +678,39 @@ export default function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDelete !== null} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDelete?.type === "episode" && "Delete Episode?"}
+              {confirmDelete?.type === "guest" && "Delete Guest?"}
+              {confirmDelete?.type === "interview" && "Delete Interview?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete?.type === "episode" && "This will permanently delete the episode and all its tasks, files, and publishing data. This action cannot be undone."}
+              {confirmDelete?.type === "guest" && "This will permanently delete the guest and all their scheduled interviews. Connected episodes will be unlinked. This action cannot be undone."}
+              {confirmDelete?.type === "interview" && "This will permanently delete this interview and free up the studio slot. This action cannot be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (!confirmDelete) return;
+                if (confirmDelete.type === "episode") deleteEpisode.mutate(confirmDelete.id);
+                if (confirmDelete.type === "guest") deleteGuest.mutate(confirmDelete.id);
+                if (confirmDelete.type === "interview") deleteInterview.mutate(confirmDelete.id);
+                setConfirmDelete(null);
+              }}
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

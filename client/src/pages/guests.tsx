@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, UserPlus, Phone, Mail, ExternalLink, ChevronRight, X, ClipboardPaste, Trash2, AlertTriangle } from "lucide-react";
@@ -29,6 +39,7 @@ export default function Guests() {
   const [editingGuest, setEditingGuest] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [newGuest, setNewGuest] = useState({
     name: "", phone: "", email: "", shortDescription: "", notes: "", links: [""],
   });
@@ -255,7 +266,7 @@ export default function Guests() {
                         variant="ghost"
                         size="icon"
                         className="shrink-0 h-8 w-8 md:opacity-0 md:group-hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); deleteGuest.mutate(guest.id); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(guest.id); }}
                         data-testid={`button-delete-guest-${guest.id}`}
                       >
                         <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
@@ -399,6 +410,27 @@ export default function Guests() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDeleteId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Guest?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the guest and all their scheduled interviews. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete-guest">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteId) { deleteGuest.mutate(confirmDeleteId); setConfirmDeleteId(null); } }}
+              data-testid="button-confirm-delete-guest"
+            >
+              Delete Guest
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

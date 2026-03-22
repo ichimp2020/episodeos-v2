@@ -14,6 +14,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Plus, CalendarClock, MapPin, Clock, User, Trash2, CheckCircle, AlertCircle, AlertTriangle, Pencil, UserPlus, Phone, Calendar, Check, Mail, ExternalLink, Send, RefreshCw } from "lucide-react";
@@ -65,6 +75,7 @@ export default function Scheduling() {
   const [showNewInterview, setShowNewInterview] = useState(false);
   const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [confirmDeleteInterview, setConfirmDeleteInterview] = useState(false);
   const [editForm, setEditForm] = useState({ guestName: "", scheduledDate: "", scheduledTime: "", location: "", notes: "" });
   const [showRescheduleCalendar, setShowRescheduleCalendar] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
@@ -1405,7 +1416,7 @@ export default function Scheduling() {
                     <div className="flex justify-end pt-2">
                       <button
                         className="ios-pill-button ios-pill-button-secondary"
-                        onClick={() => deleteInterview.mutate(selectedInterview.id)}
+                        onClick={() => setConfirmDeleteInterview(true)}
                         data-testid="button-delete-interview"
                       >
                         <Trash2 className="h-3 w-3 mr-1" />
@@ -1419,6 +1430,27 @@ export default function Scheduling() {
           })()}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmDeleteInterview} onOpenChange={setConfirmDeleteInterview}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Interview?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this interview and free up the studio slot. The guest and connected episode will remain. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (selectedInterview) deleteInterview.mutate(selectedInterview.id); setConfirmDeleteInterview(false); }}
+              data-testid="button-confirm-delete-interview"
+            >
+              Delete Interview
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
