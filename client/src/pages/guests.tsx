@@ -29,9 +29,7 @@ import type { Guest, TeamMember, Interview } from "@shared/schema";
 import GuestEditDialog from "@/components/GuestEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
-import { guestStatusColors, getGuestStatusLabel } from "@/lib/statusColors";
-
-const guestStatuses = ["prospect", "contacted", "confirmed", "declined"];
+import { StatusBadge } from "@/components/shared-ui";
 
 export default function Guests() {
   const [showNewGuest, setShowNewGuest] = useState(false);
@@ -221,9 +219,7 @@ export default function Guests() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-sm font-medium" data-testid={`text-guest-name-${guest.id}`}>{guest.name}</h3>
-                          <span className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
-                            {getGuestStatusLabel(t, guest.status)}
-                          </span>
+                          <StatusBadge status={guest.status} domain="guest" />
                           {interviews?.find((i) => i.guestId === guest.id && i.status === 'needs-reschedule') && (
                             <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1 text-[10px] py-0 px-1.5" data-testid={`badge-reschedule-guest-${guest.id}`}>
                               <AlertTriangle className="w-2.5 h-2.5" />

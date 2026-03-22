@@ -23,7 +23,7 @@ import EpisodeEditDialog from "@/components/EpisodeEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { episodeStatusColors, guestStatusColors, getEpisodeStatusLabel, getGuestStatusLabel } from "@/lib/statusColors";
+import { StatusBadge } from "@/components/shared-ui";
 
 export default function Dashboard() {
   const { t } = useLanguage();
@@ -366,9 +366,7 @@ export default function Dashboard() {
                           </span>
                         </div>
                       )}
-                      <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
-                        {getEpisodeStatusLabel(t, episode.status)}
-                      </Badge>
+                      <StatusBadge status={episode.status} domain="episode" />
                       <button
                         className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
                         onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: "episode", id: episode.id }); }}
@@ -460,9 +458,7 @@ export default function Dashboard() {
                               ) : null}
                             </div>
                           </div>
-                          <Badge className={`ios-badge border-0 ${guestStatusColors[guest.status]}`}>
-                            {getGuestStatusLabel(t, guest.status)}
-                          </Badge>
+                          <StatusBadge status={guest.status} domain="guest" />
                           <button
                             className="opacity-0 group-hover:opacity-100 hover:text-destructive text-muted-foreground transition-opacity p-1 rounded-md hover:bg-destructive/10"
                             onClick={(e) => { e.stopPropagation(); setConfirmDelete({ type: "guest", id: guest.id }); }}

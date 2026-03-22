@@ -52,7 +52,7 @@ import {
   isAfter,
 } from "date-fns";
 
-import { episodeStatusColors, getEpisodeStatusLabel } from "@/lib/statusColors";
+import { StatusBadge } from "@/components/shared-ui";
 import { needsReschedule as checkNeedsReschedule, canReschedule } from "@/lib/rescheduleHelpers";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
@@ -711,9 +711,7 @@ export default function Episodes() {
                         <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                       )}
                       <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
-                      <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
-                        {getEpisodeStatusLabel(t, episode.status)}
-                      </Badge>
+                      <StatusBadge status={episode.status} domain="episode" />
                       {needsReschedule && (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-episode-${episode.id}`}>
                           <AlertTriangle className="w-3 h-3" />
@@ -808,9 +806,7 @@ export default function Episodes() {
                       <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                     )}
                     <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
-                    <Badge className={`ios-badge border-0 ${episodeStatusColors[episode.status]}`}>
-                      {getEpisodeStatusLabel(t, episode.status)}
-                    </Badge>
+                    <StatusBadge status={episode.status} domain="episode" />
                   </div>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">
                     <span className={`text-xs ${episode.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
@@ -1048,7 +1044,7 @@ export default function Episodes() {
                     {selectedEpisode.episodeNumber != null && (
                       <span className="text-xs font-semibold text-muted-foreground" data-testid="text-ep-number-detail">Ep #{selectedEpisode.episodeNumber}</span>
                     )}
-                    <Badge className={`ios-badge border-0 text-[10px] ${episodeStatusColors[selectedEpisode.status]}`}>{getEpisodeStatusLabel(t, selectedEpisode.status)}</Badge>
+                    <StatusBadge status={selectedEpisode.status} domain="episode" className="text-[10px]" />
                     <Button
                       variant="ghost"
                       size="sm"

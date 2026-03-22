@@ -31,6 +31,7 @@ import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, In
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useLocation } from "wouter";
+import { StatusBadge } from "@/components/shared-ui";
 
 const interviewStatuses = ["proposed", "confirmed", "completed", "cancelled"];
 
@@ -69,7 +70,6 @@ function parseTimeSlots(notes: string): TimeSlot[] {
   }
   return slots;
 }
-import { interviewStatusColors, getInterviewStatusLabel } from "@/lib/statusColors";
 
 export default function Scheduling() {
   const [showNewInterview, setShowNewInterview] = useState(false);
@@ -389,9 +389,7 @@ export default function Scheduling() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="text-sm font-medium">{guest?.name || "Unknown Guest"}</h3>
-                              <div className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
-                                {getInterviewStatusLabel(t, interview.status)}
-                              </div>
+                              <StatusBadge status={interview.status} domain="interview" />
                             </div>
                             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                               {interview.scheduledDate && (
@@ -448,9 +446,7 @@ export default function Scheduling() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-medium">{guest?.name || "Unknown"}</h3>
-                            <div className={`ios-badge border-0 ${interviewStatusColors[interview.status]}`}>
-                              {getInterviewStatusLabel(t, interview.status)}
-                            </div>
+                            <StatusBadge status={interview.status} domain="interview" />
                           </div>
                           {interview.scheduledDate && (
                             <span className="text-xs text-muted-foreground">
