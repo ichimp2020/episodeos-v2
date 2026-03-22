@@ -456,6 +456,7 @@ export default function Studio() {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       setShowManualBooking(false);
       setManualBooking({ date: "", startTime: "", endTime: "", guestId: "" });
       toast({ title: "Manual booking created" });
@@ -516,6 +517,9 @@ export default function Studio() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       setSelectedDate(null);
       setSelectedSlot(null);
       setBookingEmails({ studio: "", interviewers: "", interviewee: "", intervieweeName: "", intervieweePhone: "" });

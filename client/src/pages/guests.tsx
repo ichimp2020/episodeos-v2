@@ -91,6 +91,10 @@ export default function Guests() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      setSelectedGuest(null);
       toast({ title: "Guest removed" });
     },
   });

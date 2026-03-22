@@ -39,6 +39,9 @@ export default function Dashboard() {
     mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/guests/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
       toast({ title: "Guest deleted" });
     },
   });
@@ -47,6 +50,9 @@ export default function Dashboard() {
     mutationFn: async (id: string) => { await apiRequest("DELETE", `/api/interviews/${id}`); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       toast({ title: "Interview deleted" });
     },
   });

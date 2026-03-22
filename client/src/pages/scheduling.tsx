@@ -187,6 +187,8 @@ export default function Scheduling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
     },
   });
 
@@ -250,6 +252,8 @@ export default function Scheduling() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       setSelectedInterview(null);
       toast({ title: "Interview removed" });
     },
