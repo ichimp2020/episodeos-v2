@@ -1981,6 +1981,47 @@ export default function Episodes() {
           </div>
         </DialogContent>
       </Dialog>
+        <AlertDialog open={confirmDeleteEpisodeId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteEpisodeId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Episode?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete the episode and all its tasks, files, teasers, and publishing data. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (confirmDeleteEpisodeId) { deleteEpisode.mutate(confirmDeleteEpisodeId); setConfirmDeleteEpisodeId(null); } }}
+                data-testid="button-confirm-delete-episode"
+              >
+                Delete Episode
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={confirmDeleteTaskId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteTaskId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete this task. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => { if (confirmDeleteTaskId) { deleteTask.mutate(confirmDeleteTaskId); setConfirmDeleteTaskId(null); } }}
+                data-testid="button-confirm-delete-task"
+              >
+                Delete Task
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
     </div>
   );
 }
@@ -2532,47 +2573,6 @@ function EpisodeLargeLinksSection({ episodeId }: { episodeId: string }) {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={confirmDeleteEpisodeId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteEpisodeId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Episode?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the episode and all its tasks, files, teasers, and publishing data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (confirmDeleteEpisodeId) { deleteEpisode.mutate(confirmDeleteEpisodeId); setConfirmDeleteEpisodeId(null); } }}
-              data-testid="button-confirm-delete-episode"
-            >
-              Delete Episode
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={confirmDeleteTaskId !== null} onOpenChange={(open) => { if (!open) setConfirmDeleteTaskId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Task?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this task. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { if (confirmDeleteTaskId) { deleteTask.mutate(confirmDeleteTaskId); setConfirmDeleteTaskId(null); } }}
-              data-testid="button-confirm-delete-task"
-            >
-              Delete Task
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
