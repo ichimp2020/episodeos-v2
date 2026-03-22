@@ -52,7 +52,7 @@ import {
   isAfter,
 } from "date-fns";
 
-import { StatusBadge } from "@/components/shared-ui";
+import { StatusBadge, DateTimeDisplay } from "@/components/shared-ui";
 import { needsReschedule as checkNeedsReschedule, canReschedule } from "@/lib/rescheduleHelpers";
 
 const statuses = ["scheduled", "planning", "recording", "editing", "publishing", "archived"];
@@ -721,9 +721,8 @@ export default function Episodes() {
                     </div>
                     <div className="flex items-center gap-4 mt-2 flex-wrap">
                       <span className={`text-xs ${!episode.scheduledDate ? "text-muted-foreground/50 italic" : isPastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                        {episode.scheduledDate
-                          ? <>{format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}{isPastDate && " (past)"}</>
-                          : t.dashboard.noDateSet}
+                        <DateTimeDisplay date={episode.scheduledDate} time={episode.scheduledTime} fallback={t.dashboard.noDateSet} />
+                        {isPastDate && episode.scheduledDate && " (past)"}
                       </span>
                       {(() => {
                         const epGuest = getEpisodeGuest(episode);
@@ -809,9 +808,7 @@ export default function Episodes() {
                     <StatusBadge status={episode.status} domain="episode" />
                   </div>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">
-                    <span className={`text-xs ${episode.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`}>
-                      {episode.scheduledDate ? format(parseISO(episode.scheduledDate), "MMM d, yyyy") : t.dashboard.noDateSet}
-                    </span>
+                    <DateTimeDisplay date={episode.scheduledDate} fallback={t.dashboard.noDateSet} className={`text-xs ${episode.scheduledDate ? "text-muted-foreground" : "text-muted-foreground/50 italic"}`} />
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -1168,7 +1165,7 @@ export default function Episodes() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`text-sm flex items-center gap-1.5 ${isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) ? "text-destructive font-medium" : "text-muted-foreground"}`}>
                         <CalendarIcon className="h-3.5 w-3.5" />
-                        {format(parseISO(selectedEpisode.scheduledDate), "MMM d, yyyy")}{selectedEpisode.scheduledTime ? ` at ${selectedEpisode.scheduledTime}` : ""}
+                        <DateTimeDisplay date={selectedEpisode.scheduledDate} time={selectedEpisode.scheduledTime} />
                         {isBefore(parseISO(selectedEpisode.scheduledDate), new Date()) && !["publishing", "archived"].includes(selectedEpisode.status) && " (past)"}
                       </span>
                       <button

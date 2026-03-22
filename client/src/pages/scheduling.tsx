@@ -31,7 +31,7 @@ import type { Interview, Guest, StudioDate, TeamMember, InterviewParticipant, In
 import { format, parseISO, isAfter } from "date-fns";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useLocation } from "wouter";
-import { StatusBadge } from "@/components/shared-ui";
+import { StatusBadge, CalendarInviteButton, DateTimeDisplay } from "@/components/shared-ui";
 
 const interviewStatuses = ["proposed", "confirmed", "completed", "cancelled"];
 
@@ -449,9 +449,7 @@ export default function Scheduling() {
                             <StatusBadge status={interview.status} domain="interview" />
                           </div>
                           {interview.scheduledDate && (
-                            <span className="text-xs text-muted-foreground">
-                              {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
-                            </span>
+                            <DateTimeDisplay date={interview.scheduledDate} className="text-xs text-muted-foreground" />
                           )}
                         </div>
                       </div>
@@ -1085,9 +1083,7 @@ export default function Scheduling() {
                       })()}
 
                       {selectedInterview.scheduledDate && studio?.bookedSlot && !showSendInvite && !showDetailReschedule && (
-                        <Button
-                          variant="outline"
-                          className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
+                        <CalendarInviteButton
                           onClick={() => {
                             setShowSendInvite(true);
                             const attendeeMap: Record<string, boolean> = {};
@@ -1096,11 +1092,9 @@ export default function Scheduling() {
                             participants.forEach((m) => { if (m.email) attendeeMap[m.email] = false; });
                             setSendInviteAttendees(attendeeMap);
                           }}
+                          className="w-full rounded-xl border-dashed border-2 py-3 text-sm"
                           data-testid="button-open-send-invite"
-                        >
-                          <Send className="h-4 w-4 mr-2" />
-                          {t.scheduling.sendInvite}
-                        </Button>
+                        />
                       )}
 
                       {showSendInvite && !showDetailReschedule && (

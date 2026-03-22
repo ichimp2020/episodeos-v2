@@ -23,7 +23,7 @@ import EpisodeEditDialog from "@/components/EpisodeEditDialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { StatusBadge } from "@/components/shared-ui";
+import { StatusBadge, DateTimeDisplay } from "@/components/shared-ui";
 
 export default function Dashboard() {
   const { t } = useLanguage();
@@ -347,9 +347,8 @@ export default function Dashboard() {
                         )}
                       </div>
                       <p className={`text-xs mt-1 ${!episode.scheduledDate ? "text-muted-foreground/50 italic" : pastDate ? "text-destructive font-medium" : "text-muted-foreground"}`}>
-                        {episode.scheduledDate
-                          ? <>{format(parseISO(episode.scheduledDate), "MMM d, yyyy")}{episode.scheduledTime ? ` at ${episode.scheduledTime}` : ""}{pastDate && " (past)"}</>
-                          : t.dashboard.noDateSet}
+                        <DateTimeDisplay date={episode.scheduledDate} time={episode.scheduledTime} fallback={t.dashboard.noDateSet} />
+                        {pastDate && episode.scheduledDate && " (past)"}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -513,10 +512,11 @@ export default function Dashboard() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold truncate">{guest?.name || "Unknown"}</p>
                       {interview.scheduledDate && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
-                          {interview.scheduledTime && ` at ${interview.scheduledTime}`}
-                        </span>
+                        <DateTimeDisplay
+                          date={interview.scheduledDate}
+                          time={interview.scheduledTime}
+                          className="text-[11px] text-muted-foreground"
+                        />
                       )}
                     </div>
                     <Badge className="ios-badge border-0 bg-chart-2/10 text-chart-2">
