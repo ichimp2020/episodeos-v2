@@ -395,10 +395,10 @@ export default function Scheduling() {
                               {interview.scheduledDate && (
                                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                                   <CalendarClock className="h-3 w-3" />
-                                  {format(parseISO(interview.scheduledDate), "MMM d, yyyy")}
-                                  {studio?.bookedSlot
-                                    ? `, ${studio.bookedSlot}`
-                                    : interview.scheduledTime ? ` at ${interview.scheduledTime}` : ""}
+                                  <DateTimeDisplay
+                                    date={interview.scheduledDate}
+                                    time={studio?.bookedSlot ?? interview.scheduledTime}
+                                  />
                                 </span>
                               )}
                               {interview.location && (
