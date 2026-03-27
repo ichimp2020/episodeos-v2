@@ -24,7 +24,7 @@ export const episodes = pgTable("episodes", {
   scheduledTime: text("scheduled_time"),
   episodeNumber: integer("episode_number"),
   interviewId: varchar("interview_id").references(() => interviews.id, { onDelete: "set null" }),
-  guestId: varchar("guest_id"),
+  guestId: varchar("guest_id").references(() => guests.id, { onDelete: "set null" }),
   recordingLink: text("recording_link"),
   timestampsJson: text("timestamps_json"),
   aiStatus: text("ai_status"),
@@ -36,7 +36,7 @@ export const episodes = pgTable("episodes", {
 
 export const episodePlatformLinks = pgTable("episode_platform_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   url: text("url").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -44,8 +44,8 @@ export const episodePlatformLinks = pgTable("episode_platform_links", {
 
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
-  assigneeId: varchar("assignee_id"),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
+  assigneeId: varchar("assignee_id").references(() => teamMembers.id, { onDelete: "set null" }),
   assigneeIds: text("assignee_ids").array(),
   title: text("title").notNull(),
   status: text("status").notNull().default("todo"),
@@ -98,7 +98,7 @@ export const interviewParticipants = pgTable("interview_participants", {
 
 export const publishing = pgTable("publishing", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
   platform: text("platform").notNull(),
   scheduledDate: date("scheduled_date"),
   scheduledTime: text("scheduled_time"),
@@ -121,7 +121,7 @@ export const reminders = pgTable("reminders", {
 
 export const episodeFiles = pgTable("episode_files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   category: text("category").notNull().default("document"),
   objectPath: text("object_path").notNull(),
@@ -132,7 +132,7 @@ export const episodeFiles = pgTable("episode_files", {
 
 export const episodeShorts = pgTable("episode_shorts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   objectPath: text("object_path"),
   status: text("status").notNull().default("pending"),
@@ -143,7 +143,7 @@ export const episodeShorts = pgTable("episode_shorts", {
 
 export const episodeLargeLinks = pgTable("episode_large_links", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  episodeId: varchar("episode_id").notNull(),
+  episodeId: varchar("episode_id").notNull().references(() => episodes.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   url: text("url").notNull(),
   category: text("category").notNull().default("general"),
@@ -152,7 +152,7 @@ export const episodeLargeLinks = pgTable("episode_large_links", {
 
 export const interviewerUnavailability = pgTable("interviewer_unavailability", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  teamMemberId: varchar("team_member_id").notNull(),
+  teamMemberId: varchar("team_member_id").notNull().references(() => teamMembers.id, { onDelete: "cascade" }),
   unavailableDate: date("unavailable_date").notNull(),
   slotLabel: text("slot_label"),
 });
