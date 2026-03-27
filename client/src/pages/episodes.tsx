@@ -871,7 +871,17 @@ export default function Episodes() {
                     {episode.episodeNumber && (
                       <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                     )}
-                    <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
+                    {isGuestDeleted(episode) ? (
+                      <>
+                        <h3 className="text-sm font-semibold text-muted-foreground line-through">{episode.title}</h3>
+                        <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700 gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Guest removed
+                        </Badge>
+                      </>
+                    ) : (
+                      <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
+                    )}
                     <StatusBadge status={episode.status} domain="episode" />
                   </div>
                   <div className="flex items-center gap-4 mt-2 flex-wrap">
