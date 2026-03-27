@@ -1152,6 +1152,7 @@ export default function Scheduling() {
                                     summary: `Podcast Recording: ${guest?.name || "Interview"}`,
                                     description: `Recording session with ${guest?.name || "guest"}${linkedEp ? ` for "${linkedEp.title}"` : ""}`,
                                     attendeeEmails: selectedEmails,
+                                    previousEventId: linkedEp?.calendarEventId || undefined,
                                   });
                                   const eventData = await calResponse.json();
                                   if (eventData.id && linkedEp) {
@@ -1160,7 +1161,12 @@ export default function Scheduling() {
                                     });
                                   }
                                   queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
-                                  toast({ title: t.episodes.inviteSent });
+                                  // Warn if old calendar event wasn't deleted
+                                  if (linkedEp?.calendarEventId && eventData.previousEventDeleted === false) {
+                                    toast({ title: "Warning: Could not cancel old calendar invite. Please cancel manually.", variant: "destructive", duration: 8000 });
+                                  } else {
+                                    toast({ title: t.episodes.inviteSent });
+                                  }
                                 } catch {
                                   toast({ title: t.episodes.inviteFailed, variant: "destructive" });
                                 }
@@ -1374,7 +1380,12 @@ export default function Scheduling() {
                                           calendarEventId: eventData.id,
                                         });
                                       }
-                                      toast({ title: t.episodes.inviteSent });
+                                      // Warn if old calendar event wasn't deleted
+                                      if (linkedEp?.calendarEventId && eventData.previousEventDeleted === false) {
+                                        toast({ title: "Warning: Could not cancel old calendar invite. Please cancel manually.", variant: "destructive", duration: 8000 });
+                                      } else {
+                                        toast({ title: t.episodes.inviteSent });
+                                      }
                                     } catch {
                                       toast({ title: t.episodes.inviteFailed, variant: "destructive" });
                                     }

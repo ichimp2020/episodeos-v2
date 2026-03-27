@@ -108,6 +108,8 @@ export default function Episodes() {
   const [editingGuestPhone, setEditingGuestPhone] = useState(false);
   const [guestPhoneValue, setGuestPhoneValue] = useState("");
   const [showGuestDetails, setShowGuestDetails] = useState(false);
+  const [showRecreateGuest, setShowRecreateGuest] = useState(false);
+  const [recreateGuestData, setRecreateGuestData] = useState({ name: "", email: "", phone: "" });
   const [showGuestPicker, setShowGuestPicker] = useState(false);
   const [showPublishDate, setShowPublishDate] = useState(false);
   const [publishDateValue, setPublishDateValue] = useState("");
@@ -326,6 +328,11 @@ export default function Episodes() {
     return null;
   }, [allGuests, allInterviews]);
 
+  // Check if guest was deleted (both guestId and interviewId are null but episode has title suggesting guest)
+  const isGuestDeleted = useCallback((episode: Episode): boolean => {
+    return !episode.guestId && !episode.interviewId;
+  }, []);
+
   const getEpisodeInterview = useCallback((episode: Episode): Interview | null => {
     if (episode.interviewId) {
       return allInterviews?.find((i) => i.id === episode.interviewId) || null;
@@ -428,6 +435,32 @@ export default function Episodes() {
     },
   });
 
+  const recreateGuest = useMutation({
+    mutationFn: async ({ episodeId, name, email, phone }: { episodeId: string; name: string; email?: string; phone?: string }) => {
+      // Create the guest
+      const guestRes = await apiRequest("POST", "/api/guests", {
+        name,
+        email: email || null,
+        phone: phone || null,
+        status: "prospect",
+      });
+      const guest = await guestRes.json();
+      // Link guest to episode
+      await apiRequest("PATCH", `/api/episodes/${episodeId}`, { guestId: guest.id });
+      return guest;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
+      setShowRecreateGuest(false);
+      setRecreateGuestData({ name: "", email: "", phone: "" });
+      toast({ title: "Guest recreated and linked to episode" });
+    },
+    onError: () => {
+      toast({ title: "Failed to recreate guest", variant: "destructive" });
+    },
+  });
+
   const rescheduleAvailableDates = studioDates
     ?.filter((d) => d.status === "available" && isAfter(parseISO(d.date), new Date()) && d.notes && /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(d.notes))
     .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()) || [];
@@ -461,16 +494,21 @@ export default function Episodes() {
         }
       }
 
-      if (newStudioDate && rescheduleSlot) {
-        const allSlots = newStudioDate.notes ? parseTimeSlotsEpisodes(newStudioDate.notes) : [];
-        const remainingSlots = allSlots.filter((s) => s.label !== rescheduleSlot.label);
-        const patchData: Record<string, unknown> = { bookedSlot: rescheduleSlot.label };
-        if (remainingSlots.length === 0) {
-          patchData.status = "taken";
+      if (newStudioDate) {
+        if (rescheduleSlot) {
+          const allSlots = newStudioDate.notes ? parseTimeSlotsEpisodes(newStudioDate.notes) : [];
+          const remainingSlots = allSlots.filter((s) => s.label !== rescheduleSlot.label);
+          const patchData: Record<string, unknown> = { bookedSlot: rescheduleSlot.label };
+          if (remainingSlots.length === 0) {
+            patchData.status = "taken";
+          } else {
+            patchData.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+          }
+          await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, patchData);
         } else {
-          patchData.notes = remainingSlots.map((s) => `${s.start}-${s.end}`).join(", ");
+          // No specific slot - just mark the date as taken
+          await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, { status: "taken" });
         }
-        await apiRequest("PATCH", `/api/studio-dates/${newStudioDate.id}`, patchData);
       }
 
       if (linkedInterview) {
@@ -506,6 +544,7 @@ export default function Episodes() {
       queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
       queryClient.invalidateQueries({ queryKey: ["/api/studio-dates"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/guests"] });
       if (result?.episodeId) patchEpUi(result.episodeId, { showReschedule: false, rescheduleDate: null, rescheduleSlot: null });
       setRescheduleAttendees({});
       setAttendeesInitialized(false);
@@ -527,6 +566,10 @@ export default function Episodes() {
             if (eventData.id) {
               await apiRequest("PATCH", `/api/episodes/${episodeId}`, { calendarEventId: eventData.id });
               queryClient.invalidateQueries({ queryKey: ["/api/episodes"] });
+            }
+            // Warn if old calendar event wasn't deleted
+            if (previousEventId && eventData.previousEventDeleted === false) {
+              toast({ title: "Warning: Could not cancel old calendar invite. Please cancel manually.", variant: "destructive", duration: 8000 });
             }
           } catch (calErr) {
             console.error("Calendar invite failed:", calErr);
@@ -710,7 +753,31 @@ export default function Episodes() {
                       {episode.episodeNumber && (
                         <span className="text-[11px] text-muted-foreground font-mono bg-muted/50 rounded-md px-1.5 py-0.5">#{episode.episodeNumber}</span>
                       )}
-                      <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
+                      {isGuestDeleted(episode) ? (
+                        <>
+                          <h3 className="text-sm font-semibold text-muted-foreground line-through">{episode.title}</h3>
+                          <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-700 gap-1">
+                            <AlertTriangle className="w-3 h-3" />
+                            Guest removed
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs gap-1 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRecreateGuestData({ name: episode.title.replace(/^Recording with\s*/i, "").replace(/^Interview with\s*/i, ""), email: "", phone: "" });
+                              setSelectedEpisodeId(episode.id);
+                              setShowRecreateGuest(true);
+                            }}
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            Recreate Guest
+                          </Button>
+                        </>
+                      ) : (
+                        <h3 className="text-sm font-semibold">{getEpisodeGuest(episode)?.name || episode.title}</h3>
+                      )}
                       <StatusBadge status={episode.status} domain="episode" />
                       {needsReschedule && (
                         <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 gap-1" data-testid={`badge-reschedule-episode-${episode.id}`}>
@@ -1872,6 +1939,60 @@ export default function Episodes() {
               <p className="text-sm text-muted-foreground">Loading episode…</p>
             </div>
           ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRecreateGuest} onOpenChange={(open) => { if (!open) setShowRecreateGuest(false); }}>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle>Recreate Guest</DialogTitle>
+            <DialogDescription>The original guest was deleted. Create a new guest and link to this episode.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Guest Name</label>
+              <Input
+                value={recreateGuestData.name}
+                onChange={(e) => setRecreateGuestData({ ...recreateGuestData, name: e.target.value })}
+                placeholder="Enter guest name"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email (optional)</label>
+              <Input
+                value={recreateGuestData.email}
+                onChange={(e) => setRecreateGuestData({ ...recreateGuestData, email: e.target.value })}
+                placeholder="guest@example.com"
+                type="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone (optional)</label>
+              <Input
+                value={recreateGuestData.phone}
+                onChange={(e) => setRecreateGuestData({ ...recreateGuestData, phone: e.target.value })}
+                placeholder="+972..."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowRecreateGuest(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  if (selectedEpisodeId && recreateGuestData.name) {
+                    recreateGuest.mutate({
+                      episodeId: selectedEpisodeId,
+                      name: recreateGuestData.name,
+                      email: recreateGuestData.email || undefined,
+                      phone: recreateGuestData.phone || undefined,
+                    });
+                  }
+                }}
+                disabled={!recreateGuestData.name || recreateGuest.isPending}
+              >
+                {recreateGuest.isPending ? "Creating..." : "Create & Link"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

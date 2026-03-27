@@ -256,6 +256,11 @@ export default function Guests() {
                               {t.episodes.guestNoSchedule}
                             </span>
                           )}
+                          {interviews?.find((i) => i.guestId === guest.id && i.scheduledDate) && (
+                            <span className="text-[10px] text-green-600 flex items-center gap-0.5" data-testid={`hint-scheduled-${guest.id}`}>
+                              📅 {interviews.find((i) => i.guestId === guest.id && i.scheduledDate)?.scheduledDate}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <Button

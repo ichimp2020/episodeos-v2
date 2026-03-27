@@ -142,7 +142,23 @@ export async function registerRoutes(
   });
 
   app.delete("/api/team-members/:id", async (req, res) => {
-    await storage.deleteTeamMember(req.params.id);
+    const memberId = req.params.id;
+    
+    // Clean up tasks assigned to this team member
+    const allTasks = await storage.getTasks();
+    const memberTasks = allTasks.filter((t) => t.assigneeId === memberId);
+    for (const task of memberTasks) {
+      await storage.updateTask(task.id, { assigneeId: null, assigneeIds: null });
+    }
+
+    // Clean up unavailability records
+    const allUnavail = await storage.getInterviewerUnavailability();
+    const memberUnavail = allUnavail.filter((u) => u.teamMemberId === memberId);
+    for (const unavail of memberUnavail) {
+      await storage.deleteInterviewerUnavailability(unavail.id);
+    }
+
+    await storage.deleteTeamMember(memberId);
     res.status(204).send();
   });
 
@@ -177,6 +193,20 @@ export async function registerRoutes(
   app.patch("/api/episodes/:id", async (req, res) => {
     const parsed = updateEpisodeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    // Get current episode to check if status is changing to archived
+    const currentEpisode = await storage.getEpisode(req.params.id);
+    const isArchiving = currentEpisode && currentEpisode.status !== "archived" && parsed.data.status === "archived";
+
+    // Sync: archive all publishing records when episode is archived
+    if (isArchiving) {
+      const allPublishing = await storage.getAllPublishing();
+      const episodePublishing = allPublishing.filter((p) => p.episodeId === req.params.id);
+      for (const pub of episodePublishing) {
+        await storage.updatePublishing(pub.id, { status: "archived" });
+      }
+    }
+
     const updated = await storage.updateEpisode(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Episode not found" });
     res.json(updated);
@@ -241,6 +271,44 @@ export async function registerRoutes(
   app.patch("/api/studio-dates/:id", async (req, res) => {
     const parsed = updateStudioDateSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+
+    // Get current studio date before update
+    const currentDate = await storage.getStudioDate(req.params.id);
+    const newStatus = parsed.data.status;
+    const isBeingCancelled = currentDate && currentDate.status === "taken" && newStatus === "available";
+
+    // If studio date is being cancelled (set to available), clean up linked interviews
+    if (isBeingCancelled && currentDate?.bookedSlot) {
+      const allInterviews = await storage.getInterviews();
+      const linkedInterviews = allInterviews.filter((i) => i.studioDateId === req.params.id);
+
+      for (const interview of linkedInterviews) {
+        // Cancel any calendar events
+        if (interview.calendarEventId) {
+          try {
+            await deleteCalendarEvent(interview.calendarEventId, true);
+          } catch (err) {
+            console.error("Failed to delete calendar event:", err);
+          }
+        }
+
+        // Update interview to needs-reschedule status
+        await storage.updateInterview(interview.id, {
+          studioDateId: null,
+          scheduledDate: null,
+          scheduledTime: null,
+          status: "needs-reschedule",
+        });
+
+        // Update linked episode status if it was scheduled
+        const allEpisodes = await storage.getEpisodes();
+        const linkedEpisode = allEpisodes.find((e) => e.interviewId === interview.id);
+        if (linkedEpisode && linkedEpisode.status === "scheduled") {
+          await storage.updateEpisode(linkedEpisode.id, { status: "needs-reschedule" });
+        }
+      }
+    }
+
     const updated = await storage.updateStudioDate(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Studio date not found" });
     res.json(updated);
@@ -362,6 +430,22 @@ export async function registerRoutes(
     const updated = await storage.updateGuest(req.params.id, parsed.data);
     if (!updated) return res.status(404).json({ message: "Guest not found" });
 
+    // Sync guest name/description changes to episodes and interviews
+    if (parsed.data.name && parsed.data.name !== previousGuest.name) {
+      const allInterviews = await storage.getInterviews();
+      const allEpisodes = await storage.getEpisodes();
+      const guestInterviews = allInterviews.filter((i) => i.guestId === req.params.id);
+      const guestEpisodes = allEpisodes.filter((e) => e.guestId === req.params.id);
+
+      // Update episode titles that start with the old guest name
+      for (const ep of guestEpisodes) {
+        if (ep.title && (ep.title.startsWith(previousGuest.name) || ep.title === previousGuest.name)) {
+          const newTitle = ep.title.replace(previousGuest.name, updated.name);
+          await storage.updateEpisode(ep.id, { title: newTitle });
+        }
+      }
+    }
+
     let episode = null;
     if (parsed.data.status === "confirmed" && previousGuest.status !== "confirmed") {
       const interviews = await storage.getInterviews();
@@ -470,6 +554,41 @@ export async function registerRoutes(
   });
 
   app.delete("/api/interviews/:id", async (req, res) => {
+    const interview = await storage.getInterview(req.params.id);
+    if (!interview) {
+      return res.status(404).json({ message: "Interview not found" });
+    }
+
+    // Cancel calendar event if exists
+    if (interview.calendarEventId) {
+      try {
+        await deleteCalendarEvent(interview.calendarEventId, true);
+      } catch (err) {
+        console.error("Failed to delete calendar event:", err);
+      }
+    }
+
+    // Free up studio date if was booked
+    if (interview.studioDateId) {
+      const studioDate = await storage.getStudioDate(interview.studioDateId);
+      if (studioDate && studioDate.bookedSlot) {
+        const currentNotes = studioDate.notes || "";
+        const slotRange = studioDate.bookedSlot.replace(/\s*-\s*/, "-").replace(/\s+/g, "");
+        const newNotes = currentNotes ? `${currentNotes}, ${slotRange}` : slotRange;
+        await storage.updateStudioDate(interview.studioDateId, {
+          status: "available",
+          bookedSlot: null,
+          notes: newNotes,
+        });
+      } else if (studioDate) {
+        await storage.updateStudioDate(interview.studioDateId, {
+          status: "available",
+          bookedSlot: null,
+        });
+      }
+    }
+
+    // Delete the interview
     await storage.deleteInterview(req.params.id);
     res.status(204).send();
   });
@@ -600,6 +719,7 @@ export async function registerRoutes(
   app.post("/api/calendar-event", async (req, res) => {
     const parsed = calendarEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: parsed.error.message });
+    let previousEventDeleted = true;
     try {
       const { previousEventId, ...eventParams } = parsed.data as any;
       if (previousEventId) {
@@ -607,10 +727,11 @@ export async function registerRoutes(
           await deleteCalendarEvent(previousEventId);
         } catch (delErr: any) {
           console.warn("Failed to delete previous calendar event:", delErr.message);
+          previousEventDeleted = false;
         }
       }
       const event = await createCalendarEvent(eventParams);
-      res.status(201).json({ id: event.id, htmlLink: event.htmlLink, status: event.status });
+      res.status(201).json({ id: event.id, htmlLink: event.htmlLink, status: event.status, previousEventDeleted });
     } catch (err: any) {
       console.error("Google Calendar event creation failed:", err.message);
       res.status(500).json({ message: "Failed to create calendar event: " + err.message });
@@ -665,6 +786,14 @@ export async function registerRoutes(
 
         if (ep.status === "publishing" && ep.publishDate && ep.publishDate < today) {
           await storage.updateEpisode(ep.id, { status: "archived" });
+          
+          // Sync: archive all publishing records for this episode
+          const allPublishing = await storage.getAllPublishing();
+          const episodePublishing = allPublishing.filter((p) => p.episodeId === ep.id);
+          for (const pub of episodePublishing) {
+            await storage.updatePublishing(pub.id, { status: "archived" });
+          }
+          
           updated++;
         }
       }
